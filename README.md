@@ -1,4 +1,4 @@
-# pycoupler
+# pycoupler  <a href=''><img src='docs/img/logo.png' align="right" /></a>
 
 The pycoupler project serves a LPJmL Python interface to be used to operate
 [LPJmL](https://gitlab.pik-potsdam.de/lpjml/LPJmL_internal) within a Python
