@@ -14,9 +14,9 @@ Use the package manager [pip](https://pip.pypa.io/en/stable/) to install pycople
 pip install
 ```
 
-Please make sure to also have set [working environment for LPJmL](https://gitlab.pik-potsdam.de/lpjml/LPJmL_internal/-/blob/master/INSTALL) correctly if you are not working
+Please make sure to also have set the [working environment for LPJmL](https://gitlab.pik-potsdam.de/lpjml/LPJmL_internal/-/blob/master/INSTALL) correctly if you are not working
 on the PIK cluster (with Slurm Workload Manager).  
-Else please add this to to working environment or profile
+Else it is recommended to add something like this to the working environment or your `.profile`.
 
 ```bash
 module purge
