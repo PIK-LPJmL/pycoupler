@@ -8,7 +8,7 @@ pycoupler was written with the intention to support the coupling of
 
 ## Installation
 
-Use the package manager [pip](https://pip.pypa.io/en/stable/) to install pycopler.
+Use the package manager [pip](https://pip.pypa.io/en/stable/) to install pycoupler.
 
 ```bash
 pip install

@@ -2,6 +2,7 @@ import socket
 import struct
 import numpy as np
 from enum import Enum
+from operator import itemgetter
 from config import read_config
 
 
@@ -109,7 +110,7 @@ class LpjmlTypes(Enum):
 class Coupler:
     # constructor; set channel
     def __init__(self, config_file, version=2, port=2224):
-        config = read_config(config_file)
+        self.config = read_config(config_file)
         # open/initialize socket channel
         self.channel = opentdt(port)
         # Check coupler protocol version
@@ -159,11 +160,30 @@ class Coupler:
             token=Token.PUT_DATA
         )
         self.n_out -= self.__out_static
+        # get input indices
+        input_sockets = self.config.get_input_sockets()
+        self.__input_ids = {
+            input_sockets[inp][
+                "id"
+            ]: inp for inp in input_sockets if inp in Inputs.__members__
+        }
+        # get output indices
+        output_sockets = self.config.get_output_sockets()
+        self.__output_ids = {
+            output_sockets[inp]["index"]: inp for inp in output_sockets
+        }
 
-    def write_data(self):
-        pass
+    def write_input(self, data_dict, year):
+        data_list = np.array([None] * self.n_in)
+        data_list[list(self.__input_ids.keys())] = itemgetter(
+            *list(self.__input_ids.values()))(data_dict)
+        self.__iterate_operation(length=self.n_in,
+                                 fun=self.__write_input_data,
+                                 token=Token.GET_DATA,
+                                 args={"data": data_list,
+                                       "validate_year": year})
 
-    def read_data(self):
+    def read_output(self):
         pass
 
     def __iterate_operation(self, length, fun, token, args=None):
@@ -194,7 +214,7 @@ class Coupler:
             write_int(self.channel, val=0)
 
     def __read_config_sockets(self):
-        sockets = self.config.get_input_sockets
+        sockets = self.config.get_input_sockets()
         input_names = [inp.name for inp in Inputs]
         valid_inputs = {
             sock: getattr(
@@ -223,8 +243,8 @@ class Coupler:
             self.__out_static += 1
 
     def __read_static_data(self):
-        val = read_int(self.channel)
-        if val == self.__grid_id:
+        index = read_int(self.channel)
+        if index == self.__grid_id:
             if LpjmlTypes(
                 self.__out_types[self.__grid_id]
             ) == LpjmlTypes.LPJ_SHORT:
@@ -237,3 +257,60 @@ class Coupler:
             for ii in range(0, self.ncell):
                 self.grid[1, ii] = read_grid_val(self.channel) * type_fact
                 self.grid[2, ii] = read_grid_val(self.channel) * type_fact
+
+    def __write_input_data(self, data, validate_year):
+        if not isinstance(data, np.ndarray):
+            raise TypeError("Unsupported object type. Please supply a numpy " +
+                            "array with the dimension of (ncells, bands).")
+        index = read_int(self.channel)
+        if not isinstance(data, self.__in_types[index]):
+            raise TypeError(
+                f"Unsupported data type: {data.dtype} " +
+                "Please supply a numpy array with the data type: " +
+                f"{self.__in_types[index]}."
+            )
+        year = read_int(self.channel)
+        if not validate_year == year:
+            raise ValueError(f"The expected year: {validate_year} does not " +
+                             f"match the received year: {year}")
+        if index in self.__input_ids.keys():
+            bands = getattr(Inputs, self.__input_ids[index]).value
+            if not np.shape(data) == (self.ncell, bands):
+                ValueError(
+                    "The dimensions of the supplied data: " +
+                    f"{(self.ncell, bands)} does not match the required " +
+                    f"dimensions for {self.__input_ids[index]}: " +
+                    f"{(self.ncell, bands)}."
+                )
+            self.__write_input_values(data)
+
+    def __write_input_values(self, data, cells=None, bands=None, dims=None):
+        if not cells and not bands:
+            dims = np.shape(data)
+            cells = dims[0]
+            bands = dims[1]
+        write_float(self.channel, data[dims[0]-cells, dims[1]-bands])
+        if bands != 0 and cells != 0:
+            self.__write_input_values(data=data,
+                                      cells=cells,
+                                      bands=bands-1,
+                                      dims=dims)
+        elif bands == 0 and cells != 0:
+            self.__write_input_values(data=data,
+                                      cells=cells-1,
+                                      bands=dims[1],
+                                      dims=dims)
+
+    def __read_output_data(self, validate_year):
+        index = read_int(self.channel)
+        year = read_int(self.channel)
+        if not validate_year == year:
+            raise ValueError(f"The expected year: {validate_year} does not " +
+                             f"match the received year: {year}")
+        if index in self.__output_ids.keys():
+            bands = self.__out_bands[index]
+            # self.ncell
+            self.__write_input_values()
+
+    def __read_output_values(self):
+        pass

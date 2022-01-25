@@ -31,6 +31,10 @@ class LpjmlConfig:
         else:
             return self.input.to_dict()
 
+    # def get_input_map(self):
+    #     inputs = self.input.to_dict()
+    #     return {inp: inputs[inp]["id"] for inp in inputs}
+
     def get_outputs_avail(self, id_only=True):
         """Get available output (outputvar) names (== output ids) as list
         """
@@ -221,7 +225,11 @@ class LpjmlConfig:
         """
         for inp in inputs:
             sock_input = getattr(self, inp)
-            sock_input.__dict__ = {'fmt': 'sock'}
+            if 'id' not in sock_input.__dict__.keys():
+                raise ValueError('Please use a config with input ids.')
+            if 'name' in sock_input.__dict__.keys():
+                del sock_input.__dict__['name']
+            sock_input.__dict__['fmt'] = 'sock'
         for out in self.output:
             if out.id in outputs:
                 out.file.__dict__ = {'fmt': 'sock'}
@@ -229,9 +237,16 @@ class LpjmlConfig:
     def get_input_sockets(self):
         inputs = self.input.to_dict()
         return {
-           inp: inputs[inp]["fmt"] for inp in inputs if inputs[
-               inp
-            ]["fmt"] == "sock"
+            inp: inputs[inp] for inp in inputs if inputs[inp]["fmt"] == "sock"
+        }
+
+    def get_output_sockets(self):
+        outputs = self.to_dict()["output"]
+        name_id = {out.name: out.id for out in self.outputvar}
+        return {
+            out["id"]: dict(
+                {'index': name_id[out["id"]]}, **out
+            ) for out in outputs if out["file"]["fmt"] == "sock"
         }
 
     def to_dict(self):
