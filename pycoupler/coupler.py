@@ -183,19 +183,35 @@ class Coupler:
                                  args={"data": data_list,
                                        "validate_year": year})
 
-    def read_output(self):
-        pass
+    def read_output(self, year):
+        output_list = self.__iterate_operation(length=self.n_out,
+                                               fun=self.__read_output_data,
+                                               token=Token.PUT_DATA,
+                                               args={"validate_year": year})
 
-    def __iterate_operation(self, length, fun, token, args=None):
+        output_dict = {self.__output_ids[idx]: output_list[
+            idx] for idx in self.__output_ids.keys()}
+        return output_dict
+
+    def __iterate_operation(self, length, fun, token, args=None,
+                            appendix=False):
         token_check, received_token = self.__check_token(token)
         if not token_check:
             raise ValueError(
                 f"Token {received_token.name} is not {token.name}"
             )
-        fun(self.channel, **args)
+        result = fun(self.channel, **args)
         # recursive iteration
         if length > 0:
-            self.__iterate_operation(length-1, fun)
+            if appendix:
+                result.append(self.__iterate_operation(length-1, fun, token,
+                                                       args, appendix))
+                return result
+            else:
+                self.__iterate_operation(length-1, fun, token, args)
+        else:
+            if appendix:
+                return result
 
     def __check_token(self, token):
         received_token = read_token(self.channel)
@@ -309,8 +325,25 @@ class Coupler:
                              f"match the received year: {year}")
         if index in self.__output_ids.keys():
             bands = self.__out_bands[index]
-            # self.ncell
-            self.__write_input_values()
+            out_tmpl = np.zeros(shape=(self.ncell, bands),
+                                dtype=self.__out_types[index])
+            output = self.__read_output_values(output=out_tmpl,
+                                               cells=self.ncell, bands=bands,
+                                               dims=np.shape(out_tmpl))
+            return output
+        else:
+            return None
 
-    def __read_output_values(self):
-        pass
+    def __read_output_values(self, output, cells=None, bands=None, dims=None):
+        output[dims[0]-cells, dims[0]-bands] = read_float(self.channel)
+        if bands != 0 and cells != 0:
+            output = self.__read_output_values(output=output,
+                                               cells=cells-1,
+                                               bands=bands,
+                                               dims=dims)
+        elif bands != 0 and cells == 0:
+            output = self.__read_output_values(output=output,
+                                               cells=dims[0],
+                                               bands=bands-1,
+                                               dims=dims)
+        return output
