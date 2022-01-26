@@ -147,7 +147,7 @@ class Coupler:
     the Simulation and do not close or reinitiate in between.
 
     :param config_file: file name (including relative/absolute path) of the
-        corresponding LPJmL configuration to be read simulation deatils from
+        corresponding LPJmL configuration to be read simulation details from
     :type config_file: str
     :param version: version of the coupler, to be validated with LPJmL internal
         coupler
@@ -182,9 +182,9 @@ class Coupler:
         self.noutput = self.__noutput_sim = read_int(self.channel)
         # Send number of bands per cell for each input data stream
         self.__iterate_operation(
-            length=self.ninput, fun=self.__send_input_size,
+            length=self.ninput, fun=self.__send_band_size,
             token=Token.GET_DATA_SIZE,
-            args={"input_bands": self.__read_config_sockets()}
+            args={"input_bands": self.__get_config_input_sockets()}
         )
         self.__input_types = [-1] * self.ninput
         # init list to be filled with nbands, nsteps, types per output
@@ -308,17 +308,23 @@ class Coupler:
 
     def __iterate_operation(self, length, fun, token, args=None,
                             appendix=False):
+        """Iterate reading/sending operation for sequence of inputs and/or
+        outputs
+        """
+        # check if read token matches expected token and return read token
         token_check, received_token = self.__check_token(token)
         if not token_check:
             self.channel.close()
             raise ValueError(
                 f"Token {received_token.name} is not {token.name}"
             )
+        # execute method on channel and if supplied further method arguments
         result = fun(self.channel, **args)
         # recursive iteration
         if length > 0:
+            # if appendix results are appended/extended and returned as list
             if appendix:
-                result.append(self.__iterate_operation(length-1, fun, token,
+                result.extend(self.__iterate_operation(length-1, fun, token,
                                                        args, appendix))
                 return result
             else:
@@ -328,25 +334,42 @@ class Coupler:
                 return result
 
     def __check_token(self, token):
+        """ check if read token matches the expected token
+        """
         received_token = read_token(self.channel)
         if received_token is token:
             return True, token
         else:
             return False, token
 
-    def __send_input_size(self, input_bands):
+    def __send_band_size(self, input_bands):
+        """Send input band size for read index to socket
+        """
         index = read_int(self.channel)
-        self.__input_types[index] = LpjmlTypes(
-            read_int(self.channel)).to_type()
+        # convert received LPJmL data types into Python compatible types
+        self.__set_input_types(index)
         if index in input_bands.keys():
             # Send number of bands
             send_int(self.channel, val=input_bands[index])
         else:
-            send_int(self.channel, val=0)
+            # Send random (?) number (since its not required) - here index
+            send_int(self.channel, val=index)
 
-    def __read_config_sockets(self):
+    def __set_input_types(self, index):
+        """Convert received LPJmL data types into Python compatible types
+        """
+        self.__input_types[index] = LpjmlTypes(
+            read_int(self.channel)).to_type()
+
+    def __get_config_input_sockets(self):
+        """Get and validate input sockets, check if defined in Inputs Class. If
+        not add to Inputs.
+        """
+        # get defined input sockets
         sockets = self.config.get_input_sockets()
+        # filter input names
         input_names = [inp.name for inp in Inputs]
+        # check if input is defined in Inputs (band size required)
         valid_inputs = {
             sock: getattr(
                 Inputs, sock
@@ -361,6 +384,9 @@ class Coupler:
         return valid_inputs
 
     def __read_output_details(self):
+        """Read output details per output index (timesteps, number of bands,
+        data types) from socket
+        """
         index = read_int(self.channel)
         # Get number of steps for output
         self.__output_steps[index] = read_int(self.channel)
@@ -369,7 +395,7 @@ class Coupler:
         # Get datatype for output
         self.__output_types[index] = LpjmlTypes(
             read_int(self.channel)).to_type()
-        # Check for static output
+        # Check for static output if so increment static output counter
         if index in self.__globalflux_id:
             self.flux = [
                 self.__output_types[index](0)] * self.__output_bands[index]
@@ -377,8 +403,13 @@ class Coupler:
             self.__noutput_static += 1
 
     def __read_static_data(self):
+        """Read static data to be called within initialization of coupler.
+        Currently only grid data supported
+        """
         index = read_int(self.channel)
         if index == self.__grid_id:
+            # Check for datatype grid data and assign right read function and
+            #   define scale factor
             if LpjmlTypes(
                 self.__output_types[self.__grid_id]
             ) == LpjmlTypes.LPJ_SHORT:
@@ -387,12 +418,16 @@ class Coupler:
             else:
                 read_grid_val = read_float
                 type_fact = 1
-
+            # iterate over ncell and read + assign lon and lat values
             for ii in range(0, self.ncell):
                 self.grid[1, ii] = read_grid_val(self.channel) * type_fact
                 self.grid[2, ii] = read_grid_val(self.channel) * type_fact
 
     def __send_input_data(self, data, validate_year):
+        """Send input data checks supplied object type, object dimensions data
+        format and year for input index. If set correct executes private
+        send_input_values method that does the sending.
+        """
         if not isinstance(data, np.ndarray):
             self.channel.close()
             raise TypeError("Unsupported object type. Please supply a numpy " +
@@ -402,7 +437,7 @@ class Coupler:
             self.channel.close()
             raise TypeError(
                 f"Unsupported data type: {data.dtype} " +
-                "Please supply a numpy array with the data type: " +
+                "Please supply a numpy array with data type: " +
                 f"{self.__input_types[index]}."
             )
         year = read_int(self.channel)
@@ -411,6 +446,7 @@ class Coupler:
             raise ValueError(f"The expected year: {validate_year} does not " +
                              f"match the received year: {year}")
         if index in self.__input_ids.keys():
+            # get corresponding number of bands from Inputs class
             bands = getattr(Inputs, self.__input_ids[index]).value
             if not np.shape(data) == (self.ncell, bands):
                 self.channel.close()
@@ -420,19 +456,29 @@ class Coupler:
                     f"dimensions for {self.__input_ids[index]}: " +
                     f"{(self.ncell, bands)}."
                 )
+            # execute sending values method to actually send the input to
+            #   socket
             self.__send_input_values(data)
 
     def __send_input_values(self, data, cells=None, bands=None, dims=None):
+        """Iterate over all values to be send to socket. Recursive iteration
+        with correct order of bands and cells for inputs
+        """
+        # initiate cells, bands and dims for first level call
         if not cells and not bands:
             dims = np.shape(data)
             cells = dims[0]
             bands = dims[1]
+        # send float value for input (are all inputs floats?) - indices via
+        #   decremented cells, bands and orignal dims
         send_float(self.channel, data[dims[0]-cells, dims[1]-bands])
+        # iterate over bands first
         if bands != 0 and cells != 0:
             self.__send_input_values(data=data,
                                      cells=cells,
                                      bands=bands-1,
                                      dims=dims)
+        # iterate over cells second
         elif bands == 0 and cells != 0:
             self.__send_input_values(data=data,
                                      cells=cells-1,
@@ -440,6 +486,10 @@ class Coupler:
                                      dims=dims)
 
     def __read_output_data(self, validate_year):
+        """Read output data checks supplied year and sets numpy array template
+        for corresponding output (index). If set correct executes
+        private read_output_values method to read the corresponding output.
+        """
         index = read_int(self.channel)
         year = read_int(self.channel)
         if not validate_year == year:
@@ -447,23 +497,35 @@ class Coupler:
             raise ValueError(f"The expected year: {validate_year} does not " +
                              f"match the received year: {year}")
         if index in self.__output_ids.keys():
+            # get corresponding number of bands
             bands = self.__output_bands[index]
-            out_tmpl = np.zeros(shape=(self.ncell, bands),
-                                dtype=self.__output_types[index])
-            output = self.__read_output_values(output=out_tmpl,
+            # create output numpy array template to be filled with output
+            output_tmpl = np.zeros(shape=(self.ncell, bands),
+                                   dtype=self.__output_types[index])
+            # read and assign corresponding values from socket to numpy array
+            output = self.__read_output_values(output=output_tmpl,
                                                cells=self.ncell, bands=bands,
-                                               dims=np.shape(out_tmpl))
-            return output
+                                               dims=np.shape(output_tmpl))
+            # as list for appending/extending as list
+            return [output]
         else:
-            return None
+            # also as list even if empty/None
+            return [None]
 
     def __read_output_values(self, output, cells=None, bands=None, dims=None):
+        """Iterate over all values to be read from socket. Recursive iteration
+        with correct order of cells and bands for outputs
+        """
+        # read float value for output (are all outputs floats?) - indices via
+        #   decremented cells, bands and orignal dims
         output[dims[0]-cells, dims[0]-bands] = read_float(self.channel)
+        # iterate over cells first
         if bands != 0 and cells != 0:
             output = self.__read_output_values(output=output,
                                                cells=cells-1,
                                                bands=bands,
                                                dims=dims)
+        # iterate over bands second
         elif bands != 0 and cells == 0:
             output = self.__read_output_values(output=output,
                                                cells=dims[0],

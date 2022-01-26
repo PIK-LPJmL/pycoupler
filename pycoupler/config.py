@@ -139,6 +139,11 @@ class LpjmlConfig:
                           f" current model version: {not_found}")
 
     def set_output_path(self, output_path):
+        """Set output path of specified outputs
+        :param output_path: path for outputs to be written, could also b
+            relative path
+        :type output_path: str
+        """
         for out in self.output:
             file_name = out.file.name.split("/")
             file_name.reverse()
@@ -235,12 +240,16 @@ class LpjmlConfig:
                 out.file.__dict__ = {'fmt': 'sock'}
 
     def get_input_sockets(self):
+        """get defined socket inputs as dict
+        """
         inputs = self.input.to_dict()
         return {
             inp: inputs[inp] for inp in inputs if inputs[inp]["fmt"] == "sock"
         }
 
     def get_output_sockets(self):
+        """get defined socket outputs as dict
+        """
         outputs = self.to_dict()["output"]
         name_id = {out.name: out.id for out in self.outputvar}
         return {
@@ -298,10 +307,10 @@ def parse_config(path, js_filename="lpjml.js", spin_up=False,
     :type from_restart: bool
     :param macros: provide a macro in the form of "-DMACRO" or list of macros
     :type macros: str, list
-    :param return_lpjmlconfig: if `True` an LpjmlConfig object is returned,
+    :param return_dict: if `True` an LpjmlConfig object is returned,
         else (`False`) a dictionary is returned
-    :type return_lpjmlconfig: bool
-    :return: if `return_lpjmlconfig == True` -> LpjmlConfig object, else a
+    :type return_dict: bool
+    :return: if `return_dict == True` -> LpjmlConfig object, else a
         a dictionary
     :rtype: LpjmlConfig, dict
     """
@@ -328,6 +337,18 @@ def parse_config(path, js_filename="lpjml.js", spin_up=False,
 
 
 def read_config(file_name, return_dict=False):
+    """Read function for config files to be returned as LpjmlConfig object or
+    alternatively dict.
+    :param file_name: file name (including relative/absolute path) of the
+        corresponding LPJmL configuration.
+    :type file_name: str
+    :param return_dict: if `True` an LpjmlConfig object is returned,
+        else (`False`) a dictionary is returned
+    :type return_dict: bool
+    :return: if `return_dict == True` -> LpjmlConfig object, else a
+        a dictionary
+    :rtype: LpjmlConfig, dict
+    """
     if not return_dict:
         config = LpjmlConfig
     else:
