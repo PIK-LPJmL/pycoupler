@@ -92,7 +92,7 @@ def check_lpjml(config_file, model_path):
             cwd=model_path
         )
     if proc_status.returncode == 0:
-        return(proc_status.stdout.decode('utf-8'))
+        print(proc_status.stdout.decode('utf-8'))
     else:
         print(proc_status.stdout.decode('utf-8'))
         print(proc_status.stderr.decode('utf-8'))
