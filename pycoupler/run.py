@@ -1,12 +1,38 @@
 from os import path
 from datetime import datetime
-from subprocess import run, CalledProcessError
+from subprocess import run, Popen, PIPE, CalledProcessError
+
+
+def run_lpjml(config_file, model_path, output_path=None):
+    """Run LPJmL
+    """
+    if not path.isdir(model_path):
+        raise ValueError(
+            f"Folder of model_path '{model_path}' does not exist!"
+        )
+    if not output_path:
+        output_path = model_path
+    else:
+        if not path.isdir(output_path):
+            raise ValueError(
+                f"Folder of output_path '{output_path}' does not exist!"
+            )
+    cmd = [f"{model_path}/bin/lpjml", config_file]
+    with Popen(
+        cmd, stdout=PIPE, bufsize=1, universal_newlines=True,
+        cwd=model_path
+    ) as p:
+        for line in p.stdout:
+            print(line, end='')
+    # raise error if returncode does not reflect successfull call
+    if p.returncode != 0:
+        raise CalledProcessError(p.returncode, p.args)
 
 
 def submit_lpjml(config_file, model_path, output_path=None, group="copan",
                  sclass="short", ntasks=256, wtime=None, dependency=None,
                  blocking=None):
-    """Submit lpjml (spinup) run to Slurm using `lpjsubmit` and a generated
+    """Submit LPJmL run to Slurm using `lpjsubmit` and a generated
     (class LpjmlConfig) config file. Provide arguments for Slurm sbatch
     depending on the run. Similar to R function `lpjmlKit::submit_lpjml`.
     :param config_file: file name including path if not current to config_file

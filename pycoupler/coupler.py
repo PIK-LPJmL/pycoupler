@@ -107,7 +107,7 @@ class LpjmlTypes(Enum):
     LPJ_DOUBLE: int = 4
 
     def to_type(self):
-        """convert LPJmL data type to Python data types
+        """Convert LPJmL data type to Python data types
         """
         if self.value > 2:
             return float
@@ -260,7 +260,7 @@ class Coupler:
         """
         return self.__grid
 
-    def send_input(self, input_dict, year):
+    def send_inputs(self, input_dict, year):
         """Send input data of iterated year as dictionary to LPJmL. Dictionary
         has to supplied in the form of (example):
         my_dict = {
@@ -301,7 +301,7 @@ class Coupler:
         # decrement input iterations left (analogous to years left)
         self.__input_niteration -= 1
 
-    def read_output(self, year):
+    def read_outputs(self, year):
         """Read LPJmL output data of iterated year. Returned output comes in
         the same format as input is supplied to send_input, with output id/name
         as dict keys:

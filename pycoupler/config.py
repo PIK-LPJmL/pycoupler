@@ -76,7 +76,7 @@ class LpjmlConfig:
         :param append_output: bool
         """
         resolution_avail = ('annual', 'monthly', 'daily')
-        formats_avail = {'raw': 'bin', 'clm': 'clm', 'netcdf': 'cdf'}
+        formats_avail = {'raw': 'bin', 'clm': 'clm', 'cdf': 'nc4'}
         if isinstance(temporal_resolution, list):
             if any(
                 res not in resolution_avail for res in temporal_resolution
@@ -104,13 +104,13 @@ class LpjmlConfig:
         not_found = []
         if not append_output:
             # empty output to be filled with defined entries (outputs)
-            self.output = [{
+            self.output = [self.__class__({
                 "id": "grid",
-                "file": {
+                "file": self.__class__({
                     "fmt": file_format,
                     "name": f"{output_path}/grid.bin"
-                }
-            }]
+                })
+            })]
         # handle each defined output
         for idx, out in enumerate(outputs):
             # check temporal_resolution instance list/str
@@ -119,17 +119,17 @@ class LpjmlConfig:
             else:
                 temp_res = temporal_resolution
             if out in outputvar_names:
-                new_out = {
+                new_out = self.__class__({
                     'id': outputvars[outputvar_names[out]]['name'],
-                    'file': {
+                    'file': self.__class__({
                         'fmt': file_format,
                         'time_step': temp_res,
                         'name': f"{output_path}/"
                                 f"{outputvars[outputvar_names[out]]['name']}"
                                 f".{formats_avail[file_format]}"
-                    }
-                }
-                self.output.append(self.__class__(new_out))
+                    })
+                })
+                self.output.append(new_out)
             else:
                 # collect if defined outputs are not in outputvar
                 not_found.append(out)
@@ -217,6 +217,7 @@ class LpjmlConfig:
         """
         self.restart = False
         self.nspinup = 0
+        self.sim_id = "lpjml_copan"
         self.set_sockets(inputs, outputs)
 
     def set_sockets(self, inputs=[], outputs=[]):
@@ -229,7 +230,7 @@ class LpjmlConfig:
         :type inputs: list
         """
         for inp in inputs:
-            sock_input = getattr(self, inp)
+            sock_input = getattr(self.input, inp)
             if 'id' not in sock_input.__dict__.keys():
                 raise ValueError('Please use a config with input ids.')
             if 'name' in sock_input.__dict__.keys():
