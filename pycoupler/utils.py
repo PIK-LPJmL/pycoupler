@@ -50,7 +50,7 @@ def compile_lpjml(model_path=".", make_fast=False, make_clean=False):
         raise ValueError(
             f"Folder of model_path '{model_path}' does not exist!"
         )
-    if path.isfile(f"{model_path}/bin/lpjml"):
+    if not path.isfile(f"{model_path}/bin/lpjml"):
         proc_status = run(
             "./configure.sh", capture_output=True, cwd=model_path
         )
@@ -92,8 +92,7 @@ def check_lpjml(config_file, model_path):
             cwd=model_path
         )
     if proc_status.returncode == 0:
-        return(proc_status.stdout.decode('utf-8'))
+        print(proc_status.stdout.decode('utf-8'))
     else:
         print(proc_status.stdout.decode('utf-8'))
         print(proc_status.stderr.decode('utf-8'))
-        raise CalledProcessError(proc_status.returncode, proc_status.args)

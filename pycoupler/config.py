@@ -31,6 +31,10 @@ class LpjmlConfig:
         else:
             return self.input.to_dict()
 
+    # def get_input_map(self):
+    #     inputs = self.input.to_dict()
+    #     return {inp: inputs[inp]["id"] for inp in inputs}
+
     def get_outputs_avail(self, id_only=True):
         """Get available output (outputvar) names (== output ids) as list
         """
@@ -72,7 +76,7 @@ class LpjmlConfig:
         :param append_output: bool
         """
         resolution_avail = ('annual', 'monthly', 'daily')
-        formats_avail = {'raw': 'bin', 'clm': 'clm', 'netcdf': 'cdf'}
+        formats_avail = {'raw': 'bin', 'clm': 'clm', 'cdf': 'nc4'}
         if isinstance(temporal_resolution, list):
             if any(
                 res not in resolution_avail for res in temporal_resolution
@@ -100,13 +104,13 @@ class LpjmlConfig:
         not_found = []
         if not append_output:
             # empty output to be filled with defined entries (outputs)
-            self.output = [{
+            self.output = [self.__class__({
                 "id": "grid",
-                "file": {
+                "file": self.__class__({
                     "fmt": file_format,
                     "name": f"{output_path}/grid.bin"
-                }
-            }]
+                })
+            })]
         # handle each defined output
         for idx, out in enumerate(outputs):
             # check temporal_resolution instance list/str
@@ -115,17 +119,17 @@ class LpjmlConfig:
             else:
                 temp_res = temporal_resolution
             if out in outputvar_names:
-                new_out = {
+                new_out = self.__class__({
                     'id': outputvars[outputvar_names[out]]['name'],
-                    'file': {
+                    'file': self.__class__({
                         'fmt': file_format,
                         'time_step': temp_res,
                         'name': f"{output_path}/"
                                 f"{outputvars[outputvar_names[out]]['name']}"
                                 f".{formats_avail[file_format]}"
-                    }
-                }
-                self.output.append(self.__class__(new_out))
+                    })
+                })
+                self.output.append(new_out)
             else:
                 # collect if defined outputs are not in outputvar
                 not_found.append(out)
@@ -135,6 +139,11 @@ class LpjmlConfig:
                           f" current model version: {not_found}")
 
     def set_output_path(self, output_path):
+        """Set output path of specified outputs
+        :param output_path: path for outputs to be written, could also b
+            relative path
+        :type output_path: str
+        """
         for out in self.output:
             file_name = out.file.name.split("/")
             file_name.reverse()
@@ -208,6 +217,7 @@ class LpjmlConfig:
         """
         self.restart = False
         self.nspinup = 0
+        self.sim_id = "lpjml_copan"
         self.set_sockets(inputs, outputs)
 
     def set_sockets(self, inputs=[], outputs=[]):
@@ -220,18 +230,33 @@ class LpjmlConfig:
         :type inputs: list
         """
         for inp in inputs:
-            sock_input = getattr(self, inp)
-            sock_input.__dict__ = {'fmt': 'sock'}
+            sock_input = getattr(self.input, inp)
+            if 'id' not in sock_input.__dict__.keys():
+                raise ValueError('Please use a config with input ids.')
+            if 'name' in sock_input.__dict__.keys():
+                del sock_input.__dict__['name']
+            sock_input.__dict__['fmt'] = 'sock'
         for out in self.output:
             if out.id in outputs:
                 out.file.__dict__ = {'fmt': 'sock'}
 
     def get_input_sockets(self):
+        """get defined socket inputs as dict
+        """
         inputs = self.input.to_dict()
         return {
-           inp: inputs[inp]["fmt"] for inp in inputs if inputs[
-               inp
-            ]["fmt"] == "sock"
+            inp: inputs[inp] for inp in inputs if inputs[inp]["fmt"] == "sock"
+        }
+
+    def get_output_sockets(self):
+        """get defined socket outputs as dict
+        """
+        outputs = self.to_dict()["output"]
+        name_id = {out.name: out.id for out in self.outputvar}
+        return {
+            out["id"]: dict(
+                {'index': name_id[out["id"]]}, **out
+            ) for out in outputs if out["file"]["fmt"] == "sock"
         }
 
     def to_dict(self):
@@ -283,10 +308,10 @@ def parse_config(path, js_filename="lpjml.js", spin_up=False,
     :type from_restart: bool
     :param macros: provide a macro in the form of "-DMACRO" or list of macros
     :type macros: str, list
-    :param return_lpjmlconfig: if `True` an LpjmlConfig object is returned,
+    :param return_dict: if `True` an LpjmlConfig object is returned,
         else (`False`) a dictionary is returned
-    :type return_lpjmlconfig: bool
-    :return: if `return_lpjmlconfig == True` -> LpjmlConfig object, else a
+    :type return_dict: bool
+    :return: if `return_dict == True` -> LpjmlConfig object, else a
         a dictionary
     :rtype: LpjmlConfig, dict
     """
@@ -313,6 +338,18 @@ def parse_config(path, js_filename="lpjml.js", spin_up=False,
 
 
 def read_config(file_name, return_dict=False):
+    """Read function for config files to be returned as LpjmlConfig object or
+    alternatively dict.
+    :param file_name: file name (including relative/absolute path) of the
+        corresponding LPJmL configuration.
+    :type file_name: str
+    :param return_dict: if `True` an LpjmlConfig object is returned,
+        else (`False`) a dictionary is returned
+    :type return_dict: bool
+    :return: if `return_dict == True` -> LpjmlConfig object, else a
+        a dictionary
+    :rtype: LpjmlConfig, dict
+    """
     if not return_dict:
         config = LpjmlConfig
     else:
