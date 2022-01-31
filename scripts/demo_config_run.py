@@ -81,7 +81,7 @@ config_coupled = parse_config(path=model_path)
 # set start from directory to start from historic run
 config_coupled.set_startfrom(path=restart_path)
 # set time range for coupled run
-config_coupled.set_timerange(start=1981, end=2017)
+config_coupled.set_timerange(start=1981, end=2014)
 # set output directory, outputs (relevant ones for pbs and agriculture)
 config_coupled.set_outputs(
     output_path,

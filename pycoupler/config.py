@@ -236,6 +236,8 @@ class LpjmlConfig:
             if 'name' in sock_input.__dict__.keys():
                 del sock_input.__dict__['name']
             sock_input.__dict__['fmt'] = 'sock'
+        if "grid" not in outputs:
+            outputs.append("grid")
         for out in self.output:
             if out.id in outputs:
                 out.file.__dict__ = {'fmt': 'sock'}
