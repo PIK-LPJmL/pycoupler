@@ -27,9 +27,8 @@ export GIT_READ_TOKEN="<ASK_THE_AUTHOR_OF_THIS_PACKAGE>"
 ```
 
 ## Usage (local test example)  
-<br>
 
-#### **TERMINAL (login node) 1: run LPJmL**
+##### **1. TERMINAL (login node): run LPJmL**
 ```python
 from pycoupler.config import parse_config
 from pycoupler.utils import check_lpjml
@@ -81,9 +80,8 @@ run_lpjml(
     output_path=output_path
 )
 ```
-<br>
 
-#### **TERMINAL (login node) 2: your model, program or script**
+##### **2. TERMINAL (login node): your model, program or script**
 
 ```python
 from coupler import Coupler
