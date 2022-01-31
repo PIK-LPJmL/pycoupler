@@ -26,7 +26,7 @@ export GIT_LPJML_URL="gitlab.pik-potsdam.de/lpjml/LPJmL_internal.git"
 export GIT_READ_TOKEN="<ASK_THE_AUTHOR_OF_THIS_PACKAGE>"
 ```
 
-## Usage (local test example)  
+## Usage
 
 ##### **1. TERMINAL (login node): run LPJmL**
 ```python
