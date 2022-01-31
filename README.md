@@ -68,9 +68,6 @@ config_coupled.river_routing = False
 config_coupled_fn = "config_coupled.json"
 config_coupled.to_json(file=config_coupled_fn)
 
-
-# submit coupled run to slurm
-
 # check if everything is set correct
 check_lpjml(config_coupled_fn, model_path)
 
