@@ -1,7 +1,7 @@
 import socket
 import struct
 import numpy as np
-from enum import Enum
+from enum import Enum, auto
 from operator import itemgetter
 from config import read_config
 
@@ -9,12 +9,12 @@ from config import read_config
 def recvall(channel, size):
     """basic receive function
     """
-    string = ""
+    bytestring = b''
     nbytes = 0
-    while bytes < size:
-        string += channel.recv(size-nbytes)
-        nbytes += len(string)
-    return str
+    while nbytes < size:
+        bytestring += channel.recv(size-nbytes)
+        nbytes += len(bytestring)
+    return bytestring
 
 
 def send_int(channel, val):
@@ -58,13 +58,14 @@ def opentdt(host, port):
     """
     # create an INET, STREAMing socket
     serversocket = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
+    serversocket.setsockopt(socket.SOL_SOCKET, socket.SO_REUSEADDR, 1)
     # bind the socket to a public host, and a well-known port
     serversocket.bind((host, port))
     # become a server socket
     serversocket.listen(5)
     # accept connections from outside
     channel, address = serversocket.accept()
-    channel.send('1')
+    channel.send('1'.encode())
     known_int = read_int(channel)
     num = read_int(channel)
     num = 1
@@ -89,12 +90,21 @@ class Token(Enum):
 
 
 class Inputs(Enum):
-    """Available tokens"""
-    landuse: int = 64  # number of bands in landuse data
-    fertilizer_nr: int = 32  # number of bands in fertilizer data
-    manure_nr: int = 32  # number of bands in manure data
-    residue_on_field: int = 32  # number of bands in residue data
-    with_tillage: int = 2  # number of bands in tillage data
+    """Available Inputs"""
+    landuse: int = 6  # number of bands in landuse data
+    fertilizer_nr: int = 18  # number of bands in fertilizer data
+    manure_nr: int = 19  # number of bands in manure data
+    residue_on_field: int = 8  # number of bands in residue data
+    with_tillage: int = 7  # number of bands in tillage data
+
+    @property
+    def band(self):
+        if self.name == "landuse":
+            return 64
+        elif self.name in ["fertilizer_nr", "manure_nr", "residue_on_field"]:
+            return 32
+        elif self.name == "with_tillage":
+            return 2
 
 
 class LpjmlTypes(Enum):
@@ -106,7 +116,8 @@ class LpjmlTypes(Enum):
     LPJ_FLOAT: int = 3
     LPJ_DOUBLE: int = 4
 
-    def to_type(self):
+    @property
+    def type(self):
         """Convert LPJmL data type to Python data types
         """
         if self.value > 2:
@@ -180,16 +191,17 @@ class Coupler:
         self.__ninput = read_int(self.__channel)
         # read amount of output streams
         self.__noutput = self.__noutput_sim = read_int(self.__channel)
+        # init list to be filled with types per output
+        self.__input_types = [-1] * len(self.config.input.__dict__)
         # Send number of bands per cell for each input data stream
+        self.__input_bands = self.__get_config_input_sockets()
         self.__iterate_operation(
             length=self.__ninput, fun=self.__send_band_size,
             token=Token.GET_DATA_SIZE,
-            args={"input_bands": self.__get_config_input_sockets()}
         )
-        self.__input_types = [-1] * self.__ninput
-        # init list to be filled with nbands, nsteps, types per output
+        # init list to be filled with nbands, nsteps per output
         self.__output_bands = self.__output_steps = self.__output_types = [
-            -1] * self.__noutput
+            -1] * len(self.config.outputvar)
         # init counter to be filled with number of static outputs
         self.__noutput_static = 0
         # Check for static output
@@ -259,6 +271,11 @@ class Coupler:
         :type: numpy.array
         """
         return self.__grid
+
+    def close_channel(self):
+        """Close socket channel
+        """
+        self.__channel.close()
 
     def send_inputs(self, input_dict, year):
         """Send input data of iterated year as dictionary to LPJmL. Dictionary
@@ -354,7 +371,10 @@ class Coupler:
                 f"Token {received_token.name} is not {token.name}"
             )
         # execute method on channel and if supplied further method arguments
-        result = fun(self.__channel, **args)
+        if not args:
+            result = fun()
+        else:
+            result = fun(**args)
         # recursive iteration
         if length > 0:
             # if appendix results are appended/extended and returned as list
@@ -377,24 +397,22 @@ class Coupler:
         else:
             return False, token
 
-    def __send_band_size(self, input_bands):
+    def __send_band_size(self):
         """Send input band size for read index to socket
         """
         index = read_int(self.__channel)
         # convert received LPJmL data types into Python compatible types
         self.__set_input_types(index)
-        if index in input_bands.keys():
+        if index in self.__input_bands.keys():
             # Send number of bands
-            send_int(self.__channel, val=input_bands[index])
-        else:
-            # Send random (?) number (since its not required) - here index
-            send_int(self.__channel, val=index)
+            send_int(self.__channel, val=self.__input_bands[index])
+
 
     def __set_input_types(self, index):
         """Convert received LPJmL data types into Python compatible types
         """
         self.__input_types[index] = LpjmlTypes(
-            read_int(self.__channel)).to_type()
+            read_int(self.__channel)).type
 
     def __get_config_input_sockets(self):
         """Get and validate input sockets, check if defined in Inputs Class. If
@@ -405,16 +423,13 @@ class Coupler:
         # filter input names
         input_names = [inp.name for inp in Inputs]
         # check if input is defined in Inputs (band size required)
-        valid_inputs = {
-            sock: getattr(
-                Inputs, sock
-            ).value for sock in sockets if sock in input_names
-        }
+        valid_inputs = {getattr(Inputs, sock).value: getattr(
+            Inputs, sock).band for sock in sockets if sock in input_names}
         if len(sockets) != len(valid_inputs):
             self.__channel.close()
             raise ValueError(
-                f"Configurated sockets {sockets.keys()} not defined in " +
-                f"{input_names}!"
+                f"Configurated sockets {list(sockets.keys())} not defined in" +
+                f" {input_names}!"
             )
         return valid_inputs
 
@@ -429,7 +444,7 @@ class Coupler:
         self.__output_bands[index] = read_int(self.__channel)
         # Get datatype for output
         self.__output_types[index] = LpjmlTypes(
-            read_int(self.__channel)).to_type()
+            read_int(self.__channel)).type
         # Check for static output if so increment static output counter
         if index in self.__globalflux_id:
             self.flux = [
@@ -482,7 +497,7 @@ class Coupler:
                              f"match the received year: {year}")
         if index in self.__input_ids.keys():
             # get corresponding number of bands from Inputs class
-            bands = getattr(Inputs, self.__input_ids[index]).value
+            bands = Inputs(index).band
             if not np.shape(data) == (self.__ncell, bands):
                 self.__channel.close()
                 ValueError(

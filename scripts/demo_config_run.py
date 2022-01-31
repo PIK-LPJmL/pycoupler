@@ -80,6 +80,8 @@ run_lpjml(
 config_coupled = parse_config(path=model_path)
 # set start from directory to start from historic run
 config_coupled.set_startfrom(path=restart_path)
+# set time range for coupled run
+config_coupled.set_timerange(start=1981, end=2017)
 # set output directory, outputs (relevant ones for pbs and agriculture)
 config_coupled.set_outputs(
     output_path,
@@ -95,7 +97,7 @@ config_coupled.set_outputs(
 )
 # set coupling parameters
 config_coupled.set_coupler(
-    inputs=["landuse", "fertilizer_nr", "with_tillage", "residue_on_field"],
+    inputs=["landuse", "fertilizer_nr"],
     outputs=["cftfrac", "pft_harvestc", "pft_harvestn"])
 # only for single cell runs
 config_coupled.startgrid = 60400
@@ -108,8 +110,21 @@ config_coupled.to_json(file=config_coupled_fn)
 
 # check if everything is set correct
 check_lpjml(config_coupled_fn, model_path)
-# submit spinup job and get corresponding id
+# run lpjml simulation for coupling
 run_lpjml(
     config_file=config_coupled_fn, model_path=model_path,
     output_path=output_path
 )
+
+# --------------------------------------------------------------------------- #
+# OPEN SECOND LOGIN NODE
+# --------------------------------------------------------------------------- #
+import os
+os.chdir("/p/projects/open/Jannes/repos/pycoupler/pycoupler")
+from coupler import Coupler
+# reload(coupler)
+
+base_path = "/p/projects/open/Jannes/copan_core/lpjml_test"
+config_coupled_fn = f"{base_path}/config_coupled.json"
+couple = Coupler(config_file=config_coupled_fn)
+couple.close_channel()
