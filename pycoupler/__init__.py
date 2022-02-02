@@ -13,10 +13,10 @@ if os.path.isdir('/p/system'):
     exec(open(
         f"/p/system/packages/modules/{max(versions)}/init/python.py"
     ).read())
-    silent = module('load", 'lpjml')
-    os.environ('I_MPI_DAPL_UD') = 'disable'
-    os.environ('I_MPI_FABRICS') = 'shm:shm'
-    os.environ('I_MPI_DAPL_FABRIC') = 'shm:sh'
+    silent = module('load', 'lpjml')
+    os.environ['I_MPI_DAPL_UD'] = 'disable'
+    os.environ['I_MPI_FABRICS'] = 'shm:shm'
+    os.environ['I_MPI_DAPL_FABRIC'] = 'shm:sh'
 else:
     # if you are installing LPJmL somewhere else you are responsible to set
     #   the environment correct

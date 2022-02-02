@@ -3,8 +3,9 @@ import struct
 import numpy as np
 from enum import Enum
 from operator import itemgetter
-from config import read_config
-from data_info import Inputs, LpjmlTypes
+
+from pycoupler.config import read_config
+from pycoupler.data_info import Inputs, LpjmlTypes
 
 
 def recvall(channel, size):

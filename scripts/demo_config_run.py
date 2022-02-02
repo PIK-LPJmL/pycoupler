@@ -1,9 +1,9 @@
 import os
-os.chdir("/p/projects/open/Jannes/repos/pycoupler/pycoupler")
+os.chdir("/p/projects/open/Jannes/repos/pycoupler")
 
-from utils import check_lpjml, compile_lpjml, clone_lpjml
-from config import parse_config
-from run import run_lpjml
+from pycoupler.utils import check_lpjml, compile_lpjml, clone_lpjml
+from pycoupler.config import parse_config
+from pycoupler.run import run_lpjml
 
 
 # paths
@@ -120,8 +120,8 @@ run_lpjml(
 # OPEN SECOND LOGIN NODE
 # --------------------------------------------------------------------------- #
 import os
-os.chdir("/p/projects/open/Jannes/repos/pycoupler/pycoupler")
-from coupler import Coupler
+os.chdir("/p/projects/open/Jannes/repos/pycoupler")
+from pycoupler.coupler import Coupler
 # reload(coupler)
 
 base_path = "/p/projects/open/Jannes/copan_core/lpjml_test"

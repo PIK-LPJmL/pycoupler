@@ -3,7 +3,7 @@ import tempfile
 from enum import Enum
 from subprocess import run
 
-from config import read_config
+from pycoupler.config import read_config
 
 
 class Inputs(Enum):
