@@ -1,4 +1,4 @@
-from os import path, environ
+import os
 from subprocess import run, Popen, PIPE, CalledProcessError
 
 
@@ -12,8 +12,8 @@ def clone_lpjml(model_location=".", branch="lpjml53_copan"):
         Defaults to "lpjml53_copan".
     :type branch: str
     """
-    git_url = environ.get("GIT_LPJML_URL")
-    git_token = environ.get("GIT_READ_TOKEN")
+    git_url = os.environ.get("GIT_LPJML_URL")
+    git_token = os.environ.get("GIT_READ_TOKEN")
     cmd = ["git", "clone", f"https://oauth2:{git_token}@{git_url}"]
     with Popen(
         cmd, stdout=PIPE, bufsize=1, universal_newlines=True,
@@ -46,11 +46,11 @@ def compile_lpjml(model_path=".", make_fast=False, make_clean=False):
         False.
     :type make_clean: bool
     """
-    if not path.isdir(model_path):
+    if not os.path.isdir(model_path):
         raise ValueError(
             f"Folder of model_path '{model_path}' does not exist!"
         )
-    if not path.isfile(f"{model_path}/bin/lpjml"):
+    if not os.path.isfile(f"{model_path}/bin/lpjml"):
         proc_status = run(
             "./configure.sh", capture_output=True, cwd=model_path
         )
@@ -76,17 +76,17 @@ def compile_lpjml(model_path=".", make_fast=False, make_clean=False):
 
 def check_lpjml(config_file, model_path):
     """Check if config file is set correctly.
-    :param config_file: file_name (including path) to generated config json 
+    :param config_file: file_name (including path) to generated config json
         file.
     :type model_path: str
     :param model_path: path to `LPJmL_internal` (lpjml repository)
     :type model_path: str
     """
-    if not path.isdir(model_path):
+    if not os.path.isdir(model_path):
         raise ValueError(
             f"Folder of model_path '{model_path}' does not exist!"
         )
-    if path.isfile(f"{model_path}/bin/lpjcheck"):
+    if os.path.isfile(f"{model_path}/bin/lpjcheck"):
         proc_status = run(
             ["./bin/lpjcheck", "-param", config_file], capture_output=True,
             cwd=model_path

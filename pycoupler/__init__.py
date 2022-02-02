@@ -1,11 +1,11 @@
 __all__ = ["LpjmlConfig", "parse_config", "read_config", "submit_lpjml",
            "compile_lpjml", "check_lpjml", "clone_lpjml", "Coupler",
-           "run_lpjml"]
+           "run_lpjml", "supply_inputs"]
 
 import os
 from packaging import version
 
-# check if working environment is PIK's cluster
+# check if working environment is PIK's cluster (workaround by Ciaron)
 #   (might be adjusted to the new cluster coming soon ...)
 if os.path.isdir('/p/system'):
     versions = [version.parse(vers) for vers in os.listdir(

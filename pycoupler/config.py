@@ -22,14 +22,21 @@ class LpjmlConfig:
         """
         return list(self.__dict__.keys())
 
-    def get_inputs(self, id_only=True):
+    def get_inputs(self, id_only=True, inputs=None):
         """
         Get defined inputs as list
         """
         if id_only:
-            return list(self.input.__dict__.keys())
+            if inputs:
+                return [
+                    key for key in self.input.__dict__.keys() if key in inputs]
+            else:
+                return list(self.input.__dict__.keys())
         else:
-            return self.input.to_dict()
+            if inputs:
+                return {key: self.input.to_dict()[key] for key in inputs}
+            else:
+                return self.input.to_dict()
 
     # def get_input_map(self):
     #     inputs = self.input.to_dict()

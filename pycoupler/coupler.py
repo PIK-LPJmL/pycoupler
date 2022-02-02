@@ -1,9 +1,10 @@
 import socket
 import struct
 import numpy as np
-from enum import Enum, auto
+from enum import Enum
 from operator import itemgetter
 from config import read_config
+from data_info import Inputs, LpjmlTypes
 
 
 def recvall(channel, size):
@@ -94,43 +95,6 @@ class CopanStatus(Enum):
     """Available Inputs"""
     COPAN_OK: int = 0
     COPAN_ERR: int = -1
-
-
-class Inputs(Enum):
-    """Available Inputs"""
-    landuse: int = 6  # number of bands in landuse data
-    fertilizer_nr: int = 18  # number of bands in fertilizer data
-    manure_nr: int = 19  # number of bands in manure data
-    residue_on_field: int = 8  # number of bands in residue data
-    with_tillage: int = 7  # number of bands in tillage data
-
-    @property
-    def band(self):
-        if self.name == "landuse":
-            return 64
-        elif self.name in ["fertilizer_nr", "manure_nr", "residue_on_field"]:
-            return 32
-        elif self.name == "with_tillage":
-            return 2
-
-
-class LpjmlTypes(Enum):
-    """Available datatypes
-    """
-    LPJ_BYTE: int = 0
-    LPJ_SHORT: int = 1
-    LPJ_INT: int = 2
-    LPJ_FLOAT: int = 3
-    LPJ_DOUBLE: int = 4
-
-    @property
-    def type(self):
-        """Convert LPJmL data type to Python data types
-        """
-        if self.value > 2:
-            return float
-        else:
-            return int
 
 
 class Coupler:
@@ -436,7 +400,7 @@ class Coupler:
         input_names = [inp.name for inp in Inputs]
         # check if input is defined in Inputs (band size required)
         valid_inputs = {getattr(Inputs, sock).value: getattr(
-            Inputs, sock).band for sock in sockets if sock in input_names}
+            Inputs, sock).nband for sock in sockets if sock in input_names}
         if len(sockets) != len(valid_inputs):
             self.close_channel()
             raise ValueError(
@@ -459,8 +423,9 @@ class Coupler:
             read_int(self.__channel)).type
         # Check for static output if so increment static output counter
         if index == self.__globalflux_id:
-            self.flux = [
-                self.__output_types[index](0)] * self.__output_bands[index]
+            pass
+            # self.flux = [
+            #     self.__output_types[index](0)] * self.__output_bands[index]
         elif index in self.__static_id:
             self.__noutput_static += 1
         # check if only annual timesteps were set
@@ -530,7 +495,7 @@ class Coupler:
                              f"match the received year: {year}")
         if index in self.__input_ids.keys():
             # get corresponding number of bands from Inputs class
-            bands = Inputs(index).band
+            bands = Inputs(index).nband
             if not np.shape(data) == (self.__ncell, bands):
                 self.close_channel()
                 ValueError(
