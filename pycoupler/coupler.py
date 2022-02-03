@@ -281,7 +281,7 @@ class Coupler:
             raise RuntimeError("Sequence of send_input and read_output " +
                                "calls not matching.")
         # create list to temporarily store input data from input_dict
-        input_list = np.array([None] * self.__ninput)
+        input_list = np.array([None] * len(self.config.input.__dict__))
         input_list[list(self.__input_ids.keys())] = itemgetter(
             *list(self.__input_ids.values()))(input_dict)
         # iterate over outputs for private send_input_data
@@ -320,13 +320,14 @@ class Coupler:
             raise RuntimeError("Sequence of send_input and read_output " +
                                "calls not matching.")
         # iterate over outputs for private send_output_data
-        output_list = self.__iterate_operation(length=self.__noutput_sim,
+        output_dict = self.__iterate_operation(length=self.__noutput_sim,
                                                fun=self.__read_output_data,
                                                token=Token.PUT_DATA,
-                                               args={"validate_year": year})
+                                               args={"validate_year": year},
+                                               appendix=True)
         # convert output_list again to output_dict (format as above) and return
-        output_dict = {self.__output_ids[idx]: output_list[
-            idx] for idx in self.__output_ids.keys()}
+        # output_dict = {self.__output_ids[idx]: output_list[
+        #     idx] for idx in self.__output_ids.keys()}
         # decrement output iterations left (analogous to years left)
         self.__output_niteration -= 1
         # decrement general iteration counter
@@ -354,8 +355,9 @@ class Coupler:
         if length > 1:
             # if appendix results are appended/extended and returned as list
             if appendix:
-                result.extend(self.__iterate_operation(length-1, fun, token,
-                                                       args, appendix))
+                result = {**result, **self.__iterate_operation(
+                    length-1, fun, token, args, appendix)
+                }
                 return result
             else:
                 self.__iterate_operation(length-1, fun, token, args)
@@ -477,17 +479,25 @@ class Coupler:
         format and year for input index. If set correct executes private
         send_input_values method that does the sending.
         """
-        if not isinstance(data, np.ndarray):
+        index = read_int(self.__channel)
+        if not isinstance(data[index], np.ndarray):
             self.close_channel()
             raise TypeError("Unsupported object type. Please supply a numpy " +
                             "array with the dimension of (ncells, nband).")
-        index = read_int(self.__channel)
-        if not isinstance(data, self.__input_types[index]):
+        # type check conversion
+        if self.__input_types[index] == float:
+            type_check = np.floating
+        elif self.__input_types[index] == int:
+            type_check = np.integer
+        else:
+            raise TypeError(f"{self.__input_types[index]} is not supported.")
+
+        if not np.issubdtype(data[index].dtype, type_check):
             self.close_channel()
             raise TypeError(
-                f"Unsupported data type: {data.dtype} " +
+                f"Unsupported data type: {data[index].dtype} " +
                 "Please supply a numpy array with data type: " +
-                f"{self.__input_types[index]}."
+                f"{np.dtype(self.__input_types[index])}."
             )
         year = read_int(self.__channel)
         if not validate_year == year:
@@ -497,7 +507,7 @@ class Coupler:
         if index in self.__input_ids.keys():
             # get corresponding number of bands from Inputs class
             bands = Inputs(index).nband
-            if not np.shape(data) == (self.__ncell, bands):
+            if not np.shape(data[index]) == (self.__ncell, bands):
                 self.close_channel()
                 ValueError(
                     "The dimensions of the supplied data: " +
@@ -507,32 +517,26 @@ class Coupler:
                 )
             # execute sending values method to actually send the input to
             #   socket
-            self.__send_input_values(data)
+            self.__send_input_values(data[index])
 
-    def __send_input_values(self, data, cells=None, bands=None, dims=None):
+    def __send_input_values(self, data):
         """Iterate over all values to be send to socket. Recursive iteration
         with correct order of bands and cells for inputs
         """
-        # initiate cells, bands and dims for first level call
-        if not cells and not bands:
-            dims = np.shape(data)
-            cells = dims[0]
-            bands = dims[1]
-        # send float value for input (are all inputs floats?) - indices via
-        #   decremented cells, bands and orignal dims
-        send_float(self.__channel, data[dims[0]-cells, dims[1]-bands])
-        # iterate over bands first
-        if bands != 0 and cells != 0:
-            self.__send_input_values(data=data,
-                                     cells=cells,
-                                     bands=bands-1,
-                                     dims=dims)
-        # iterate over cells second
-        elif bands == 0 and cells != 0:
-            self.__send_input_values(data=data,
-                                     cells=cells-1,
-                                     bands=dims[1],
-                                     dims=dims)
+        dims = list(np.shape(data))
+        dims[0] -= 1
+        dims[1] -= 1
+        cells = dims[0]
+        bands = dims[1]
+        while cells >= 0 and bands >= 0:
+            # send float value for input (are all inputs floats?) - indices via
+            #   decremented cells, bands and orignal dims
+            send_float(self.__channel, data[dims[0]-cells, dims[1]-bands])
+            if bands > 0:
+                bands -= 1
+            elif bands == 0 and cells >= 0:
+                cells -= 1
+                bands = dims[1]
 
     def __read_output_data(self, validate_year):
         """Read output data checks supplied year and sets numpy array template
@@ -553,31 +557,27 @@ class Coupler:
                                    dtype=self.__output_types[index])
             # read and assign corresponding values from socket to numpy array
             output = self.__read_output_values(output=output_tmpl,
-                                               cells=self.__ncell, bands=bands,
-                                               dims=np.shape(output_tmpl))
+                                               dims=list(
+                                                   np.shape(output_tmpl)))
             # as list for appending/extending as list
-            return [output]
-        else:
-            # also as list even if empty/None
-            return [None]
+            return {self.__output_ids[index]: output}
 
-    def __read_output_values(self, output, cells=None, bands=None, dims=None):
+    def __read_output_values(self, output, dims=None):
         """Iterate over all values to be read from socket. Recursive iteration
         with correct order of cells and bands for outputs
         """
-        # read float value for output (are all outputs floats?) - indices via
-        #   decremented cells, bands and orignal dims
-        output[dims[0]-cells, dims[0]-bands] = read_float(self.__channel)
-        # iterate over cells first
-        if bands != 0 and cells != 0:
-            output = self.__read_output_values(output=output,
-                                               cells=cells-1,
-                                               bands=bands,
-                                               dims=dims)
-        # iterate over bands second
-        elif bands != 0 and cells == 0:
-            output = self.__read_output_values(output=output,
-                                               cells=dims[0],
-                                               bands=bands-1,
-                                               dims=dims)
+        dims[0] -= 1
+        dims[1] -= 1
+        cells = dims[0]
+        bands = dims[1]
+
+        while cells >= 0 and bands >= 0:
+            # read float value for output (are all outputs floats?) - indices
+            #   via decremented cells, bands and orignal dims
+            output[dims[0]-cells, dims[0]-bands] = read_float(self.__channel)
+            if cells > 0:
+                cells -= 1
+            elif cells == 0 and bands >= 0:
+                bands -= 1
+                cells = dims[0]
         return output

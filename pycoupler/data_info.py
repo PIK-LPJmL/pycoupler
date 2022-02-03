@@ -1,5 +1,6 @@
 import os
 import tempfile
+import xarray as xr
 from enum import Enum
 from subprocess import run
 
@@ -56,7 +57,7 @@ class LpjmlTypes(Enum):
 
 
 def supply_inputs(config_file, historic_config_file, input_path, model_path,
-                  start_year=None, end_year=None):
+                  start_year=None, end_year=None, return_xarray=False):
     """Convert and save input files as NetCDF4 files to input directory for
     selected years to avoid large file sizes
     """
@@ -68,6 +69,8 @@ def supply_inputs(config_file, historic_config_file, input_path, model_path,
     sock_inputs = historic_config.get_inputs(id_only=False, inputs=sock_inputs)
     # collect via key value pairs
     return_dict = {}
+    # utility function to get general temp folder for every system
+    temp_dir = tempfile.gettempdir()
     # iterate over each inputs to be send via sockets (get initial values)
     for key in sock_inputs:
         # check if working on the cluster (workaround by Ciaron)
@@ -89,25 +92,28 @@ def supply_inputs(config_file, historic_config_file, input_path, model_path,
         # predefine cut clm command for reusage
         cut_clm_start = [f"{model_path}/bin/cutclm",
                          str(start_year), sock_inputs[key]['name'],
-                         f"{tempfile.gettempdir()}/2_{file_name_tmp}"]
+                         f"{temp_dir}/1_{file_name_tmp}"]
         if start_year and not end_year:
             # run cut clm file before start year
-            run(cut_clm_start)
+            run(cut_clm_start, stdout=open(os.devnull, 'wb'))
+            use_tmp = '1'
         elif not start_year and end_year:
             # run cut clm file after end year
             run([f"{model_path}/bin/cutclm",
                  "-end", str(end_year), sock_inputs[key]['name'],
-                 f"{tempfile.gettempdir()}/2_{file_name_tmp}"])
-
+                 f"{temp_dir}/2_{file_name_tmp}"],
+                stdout=open(os.devnull, 'wb'))
+            use_tmp = '2'
         else:
             # run cut clm file before start year and after end year in sequence
-            run(cut_clm_start)
+            run(cut_clm_start, stdout=open(os.devnull, 'wb'))
             # cannot deal with overwriting a temp file with same name
             cut_clm_end = [f"{model_path}/bin/cutclm",
                            "-end", str(end_year),
-                           f"{tempfile.gettempdir()}/1_{file_name_tmp}",
-                           f"{tempfile.gettempdir()}/2_{file_name_tmp}"]
-            run(cut_clm_end)
+                           f"{temp_dir}/1_{file_name_tmp}",
+                           f"{temp_dir}/2_{file_name_tmp}"]
+            run(cut_clm_end, stdout=open(os.devnull, 'wb'))
+            use_tmp = '2'
         # a flag for multi (categorical) band input - if true, set "-landuse"
         if getattr(Inputs, key).bands:
             xarg = "-landuse"
@@ -124,13 +130,20 @@ def supply_inputs(config_file, historic_config_file, input_path, model_path,
         )
         # convert clm input to netcdf files
         run([f"{model_path}/bin/clm2cdf", xarg, key, grid_file,
-             f"{tempfile.gettempdir()}/2_{file_name_tmp}",
+             f"{temp_dir}/{use_tmp}_{file_name_tmp}",
              f"{input_path}/{file_name_nc}"])
         # remove the temporary clm (binary) files, 1_* is not created in every
         #   case
-        if os.path.isfile(f"{tempfile.gettempdir()}/{file_name_tmp}"):
-            os.remove(f"{tempfile.gettempdir()}/1_{file_name_tmp}")
-        os.remove(f"{tempfile.gettempdir()}/2_{file_name_tmp}")
+        if os.path.isfile(f"{temp_dir}/1_{file_name_tmp}"):
+            os.remove(f"{temp_dir}/1_{file_name_tmp}")
+        if os.path.isfile(f"{temp_dir}/2_{file_name_tmp}"):
+            os.remove(f"{temp_dir}/2_{file_name_tmp}")
         # collect created input filenames and connect with input key
         return_dict[key] = file_name_nc
-    return return_dict
+    if return_xarray:
+        return {key: getattr(xr.open_dataset(
+            f"{input_path}/{return_dict[key]}",
+            decode_times=True
+        ), key) for key in return_dict}
+    else:
+        return return_dict

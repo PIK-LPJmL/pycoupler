@@ -1,4 +1,4 @@
-from os import path
+import os
 from datetime import datetime
 from subprocess import run, Popen, PIPE, CalledProcessError
 
@@ -6,24 +6,33 @@ from subprocess import run, Popen, PIPE, CalledProcessError
 def run_lpjml(config_file, model_path, output_path=None):
     """Run LPJmL
     """
-    if not path.isdir(model_path):
+    if not os.path.isdir(model_path):
         raise ValueError(
             f"Folder of model_path '{model_path}' does not exist!"
         )
     if not output_path:
         output_path = model_path
     else:
-        if not path.isdir(output_path):
+        if not os.path.isdir(output_path):
             raise ValueError(
                 f"Folder of output_path '{output_path}' does not exist!"
             )
     cmd = [f"{model_path}/bin/lpjml", config_file]
+    # environment settings to be used for interartive LPJmL sessions
+    #   MPI settings conflict with (e.g. on login node)
+    os.environ['I_MPI_DAPL_UD'] = 'disable'
+    os.environ['I_MPI_FABRICS'] = 'shm:shm'
+    os.environ['I_MPI_DAPL_FABRIC'] = 'shm:sh'
     with Popen(
         cmd, stdout=PIPE, bufsize=1, universal_newlines=True,
         cwd=model_path
     ) as p:
         for line in p.stdout:
             print(line, end='')
+    # reset default MPI settings to be able to submit jobs in parallel again
+    os.environ['I_MPI_DAPL_UD'] = 'enable'
+    os.environ['I_MPI_FABRICS'] = 'shm:dapl'
+    del os.environ['I_MPI_DAPL_FABRIC']
     # raise error if returncode does not reflect successfull call
     if p.returncode != 0:
         raise CalledProcessError(p.returncode, p.args)
@@ -66,14 +75,14 @@ def submit_lpjml(config_file, model_path, output_path=None, group="copan",
     :return: return the submitted jobs id if submitted successfully.
     :rtype: str
     """
-    if not path.isdir(model_path):
+    if not os.path.isdir(model_path):
         raise ValueError(
             f"Folder of model_path '{model_path}' does not exist!"
         )
     if not output_path:
         output_path = model_path
     else:
-        if not path.isdir(output_path):
+        if not os.path.isdir(output_path):
             raise ValueError(
                 f"Folder of output_path '{output_path}' does not exist!"
             )

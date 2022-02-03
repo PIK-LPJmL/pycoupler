@@ -120,11 +120,48 @@ run_lpjml(
 # OPEN SECOND LOGIN NODE
 # --------------------------------------------------------------------------- #
 import os
+import xarray as xr
 os.chdir("/p/projects/open/Jannes/repos/pycoupler")
 from pycoupler.coupler import Coupler
+from pycoupler.data_info import supply_inputs
 # reload(coupler)
 
 base_path = "/p/projects/open/Jannes/copan_core/lpjml_test"
+model_location = "/p/projects/open/Jannes/copan_core/lpjml_test"
+model_path = f"{model_location}/LPJmL_internal"
+config_historic_fn = f"{base_path}/config_historic.json"
 config_coupled_fn = f"{base_path}/config_coupled.json"
-couple = Coupler(config_file=config_coupled_fn)
-couple.close_channel()
+coupler = Coupler(config_file=config_coupled_fn)
+
+# coupled simulation years
+years = range(1981, 2017)
+
+inputs = supply_inputs(config_file=config_coupled_fn,
+                       historic_config_file=config_historic_fn,
+                       input_path=f"{base_path}/input",
+                       model_path=model_path,
+                       start_year=1981, end_year=1981,
+                       return_xarray=True)
+
+lons = xr.DataArray(coupler.grid[:, 0], dims="cells")
+lats = xr.DataArray(coupler.grid[:, 1], dims="cells")
+input_data = {key: inputs[key].sel(
+    longitude=lons, latitude=lats, time=1980, method="nearest"
+).transpose("cells", ...).to_numpy() for key in inputs}
+
+#  The following could be your model/program/script
+for year in years:
+
+    # generate some inputs (could be based on last years or historic output)
+    ...
+    
+    # send input data to lpjml
+    coupler.send_inputs(input_data, 1981)
+    
+    # read output data
+    outputs = coupler.read_outputs(1981)
+    
+    # generate some results based on lpjml outputs
+    ...
+
+coupler.close_channel()
