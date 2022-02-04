@@ -280,15 +280,11 @@ class Coupler:
             self.close_channel()
             raise RuntimeError("Sequence of send_input and read_output " +
                                "calls not matching.")
-        # create list to temporarily store input data from input_dict
-        input_list = np.array([None] * len(self.config.input.__dict__))
-        input_list[list(self.__input_ids.keys())] = itemgetter(
-            *list(self.__input_ids.values()))(input_dict)
         # iterate over outputs for private send_input_data
         self.__iterate_operation(length=self.__ninput,
                                  fun=self.__send_input_data,
                                  token=Token.GET_DATA,
-                                 args={"data": input_list,
+                                 args={"data": input_dict,
                                        "validate_year": year})
         # decrement input iterations left (analogous to years left)
         self.__input_niteration -= 1
@@ -480,7 +476,7 @@ class Coupler:
         send_input_values method that does the sending.
         """
         index = read_int(self.__channel)
-        if not isinstance(data[index], np.ndarray):
+        if not isinstance(data[self.__input_ids[index]], np.ndarray):
             self.close_channel()
             raise TypeError("Unsupported object type. Please supply a numpy " +
                             "array with the dimension of (ncells, nband).")
@@ -492,10 +488,10 @@ class Coupler:
         else:
             raise TypeError(f"{self.__input_types[index]} is not supported.")
 
-        if not np.issubdtype(data[index].dtype, type_check):
+        if not np.issubdtype(data[self.__input_ids[index]].dtype, type_check):
             self.close_channel()
             raise TypeError(
-                f"Unsupported data type: {data[index].dtype} " +
+                f"Unsupported type: {data[self.__input_ids[index]].dtype} " +
                 "Please supply a numpy array with data type: " +
                 f"{np.dtype(self.__input_types[index])}."
             )
@@ -507,7 +503,9 @@ class Coupler:
         if index in self.__input_ids.keys():
             # get corresponding number of bands from Inputs class
             bands = Inputs(index).nband
-            if not np.shape(data[index]) == (self.__ncell, bands):
+            if not np.shape(
+                data[self.__input_ids[index]]
+            ) == (self.__ncell, bands):
                 self.close_channel()
                 ValueError(
                     "The dimensions of the supplied data: " +
@@ -517,7 +515,7 @@ class Coupler:
                 )
             # execute sending values method to actually send the input to
             #   socket
-            self.__send_input_values(data[index])
+            self.__send_input_values(data[self.__input_ids[index]])
 
     def __send_input_values(self, data):
         """Iterate over all values to be send to socket. Recursive iteration
@@ -528,6 +526,7 @@ class Coupler:
         dims[1] -= 1
         cells = dims[0]
         bands = dims[1]
+        # iterate over bands (first) and cells (second)
         while cells >= 0 and bands >= 0:
             # send float value for input (are all inputs floats?) - indices via
             #   decremented cells, bands and orignal dims
@@ -570,7 +569,7 @@ class Coupler:
         dims[1] -= 1
         cells = dims[0]
         bands = dims[1]
-
+        # iterate over cells (first) and bands (second)
         while cells >= 0 and bands >= 0:
             # read float value for output (are all outputs floats?) - indices
             #   via decremented cells, bands and orignal dims

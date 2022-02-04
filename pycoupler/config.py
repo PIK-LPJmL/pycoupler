@@ -222,8 +222,9 @@ class LpjmlConfig:
             Provide output id as identifier -> entry in list.
         :type inputs: list
         """
-        self.restart = False
+        self.write_restart = False
         self.nspinup = 0
+        self.float_grid = True
         self.sim_id = "lpjml_copan"
         self.set_sockets(inputs, outputs)
 

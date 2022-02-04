@@ -32,7 +32,7 @@ config_spinup.set_output_path(output_path=output_path)
 # set restart directory to restart from in subsequent historic run
 config_spinup.set_restart(path=restart_path)
 # only for single cell runs
-config_spinup.startgrid = 60400
+config_spinup.startgrid = 27410
 config_spinup.river_routing = False
 # write config (LpjmlConfig object) as json file
 config_spinup_fn = f"{base_path}/config_spinup.json"
@@ -59,7 +59,7 @@ config_historic.set_restart(path=restart_path)
 # set time range for historic run
 config_historic.set_timerange(start=1901, end=1980)  # write_start=1980
 # only for single cell runs
-config_historic.startgrid = 60400
+config_historic.startgrid = 27410
 config_historic.river_routing = False
 # write config (LpjmlConfig object) as json file
 config_historic_fn = f"{base_path}/config_historic.json"
@@ -81,7 +81,7 @@ config_coupled = parse_config(path=model_path)
 # set start from directory to start from historic run
 config_coupled.set_startfrom(path=restart_path)
 # set time range for coupled run
-config_coupled.set_timerange(start=1981, end=2014)
+config_coupled.set_timerange(start=1981, end=2005)
 # set output directory, outputs (relevant ones for pbs and agriculture)
 config_coupled.set_outputs(
     output_path,
@@ -100,7 +100,7 @@ config_coupled.set_coupler(
     inputs=["landuse", "fertilizer_nr"],
     outputs=["cftfrac", "pft_harvestc", "pft_harvestn"])
 # only for single cell runs
-config_coupled.startgrid = 60400
+config_coupled.startgrid = 27410
 config_coupled.river_routing = False
 # write config (LpjmlConfig object) as json file
 config_coupled_fn = f"{base_path}/config_coupled.json"
