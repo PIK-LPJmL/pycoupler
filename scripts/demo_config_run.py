@@ -1,9 +1,9 @@
 import os
-os.chdir("/p/projects/open/Jannes/repos/pycoupler/pycoupler")
+os.chdir("/p/projects/open/Jannes/repos/pycoupler")
 
-from utils import check_lpjml, compile_lpjml, clone_lpjml
-from config import parse_config
-from run import run_lpjml
+from pycoupler.utils import check_lpjml, compile_lpjml, clone_lpjml
+from pycoupler.config import parse_config
+from pycoupler.run import run_lpjml
 
 
 # paths
@@ -32,7 +32,7 @@ config_spinup.set_output_path(output_path=output_path)
 # set restart directory to restart from in subsequent historic run
 config_spinup.set_restart(path=restart_path)
 # only for single cell runs
-config_spinup.startgrid = 60400
+config_spinup.startgrid = 27410
 config_spinup.river_routing = False
 # write config (LpjmlConfig object) as json file
 config_spinup_fn = f"{base_path}/config_spinup.json"
@@ -59,7 +59,7 @@ config_historic.set_restart(path=restart_path)
 # set time range for historic run
 config_historic.set_timerange(start=1901, end=1980)  # write_start=1980
 # only for single cell runs
-config_historic.startgrid = 60400
+config_historic.startgrid = 27410
 config_historic.river_routing = False
 # write config (LpjmlConfig object) as json file
 config_historic_fn = f"{base_path}/config_historic.json"
@@ -81,7 +81,7 @@ config_coupled = parse_config(path=model_path)
 # set start from directory to start from historic run
 config_coupled.set_startfrom(path=restart_path)
 # set time range for coupled run
-config_coupled.set_timerange(start=1981, end=2017)
+config_coupled.set_timerange(start=1981, end=2005)
 # set output directory, outputs (relevant ones for pbs and agriculture)
 config_coupled.set_outputs(
     output_path,
@@ -100,7 +100,7 @@ config_coupled.set_coupler(
     inputs=["landuse", "fertilizer_nr"],
     outputs=["cftfrac", "pft_harvestc", "pft_harvestn"])
 # only for single cell runs
-config_coupled.startgrid = 60400
+config_coupled.startgrid = 27410
 config_coupled.river_routing = False
 # write config (LpjmlConfig object) as json file
 config_coupled_fn = f"{base_path}/config_coupled.json"
@@ -120,11 +120,48 @@ run_lpjml(
 # OPEN SECOND LOGIN NODE
 # --------------------------------------------------------------------------- #
 import os
-os.chdir("/p/projects/open/Jannes/repos/pycoupler/pycoupler")
-from coupler import Coupler
+import xarray as xr
+os.chdir("/p/projects/open/Jannes/repos/pycoupler")
+from pycoupler.coupler import Coupler
+from pycoupler.data_info import supply_inputs
 # reload(coupler)
 
 base_path = "/p/projects/open/Jannes/copan_core/lpjml_test"
+model_location = "/p/projects/open/Jannes/copan_core/lpjml_test"
+model_path = f"{model_location}/LPJmL_internal"
+config_historic_fn = f"{base_path}/config_historic.json"
 config_coupled_fn = f"{base_path}/config_coupled.json"
-couple = Coupler(config_file=config_coupled_fn)
-couple.close_channel()
+coupler = Coupler(config_file=config_coupled_fn)
+
+# coupled simulation years
+years = range(1981, 2017)
+
+inputs = supply_inputs(config_file=config_coupled_fn,
+                       historic_config_file=config_historic_fn,
+                       input_path=f"{base_path}/input",
+                       model_path=model_path,
+                       start_year=1981, end_year=1981,
+                       return_xarray=True)
+
+lons = xr.DataArray(coupler.grid[:, 0], dims="cells")
+lats = xr.DataArray(coupler.grid[:, 1], dims="cells")
+input_data = {key: inputs[key].sel(
+    longitude=lons, latitude=lats, time=1980, method="nearest"
+).transpose("cells", ...).to_numpy() for key in inputs}
+
+#  The following could be your model/program/script
+for year in years:
+
+    # generate some inputs (could be based on last years or historic output)
+    ...
+    
+    # send input data to lpjml
+    coupler.send_inputs(input_data, 1981)
+    
+    # read output data
+    outputs = coupler.read_outputs(1981)
+    
+    # generate some results based on lpjml outputs
+    ...
+
+coupler.close_channel()

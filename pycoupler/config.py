@@ -22,14 +22,21 @@ class LpjmlConfig:
         """
         return list(self.__dict__.keys())
 
-    def get_inputs(self, id_only=True):
+    def get_inputs(self, id_only=True, inputs=None):
         """
         Get defined inputs as list
         """
         if id_only:
-            return list(self.input.__dict__.keys())
+            if inputs:
+                return [
+                    key for key in self.input.__dict__.keys() if key in inputs]
+            else:
+                return list(self.input.__dict__.keys())
         else:
-            return self.input.to_dict()
+            if inputs:
+                return {key: self.input.to_dict()[key] for key in inputs}
+            else:
+                return self.input.to_dict()
 
     # def get_input_map(self):
     #     inputs = self.input.to_dict()
@@ -215,8 +222,9 @@ class LpjmlConfig:
             Provide output id as identifier -> entry in list.
         :type inputs: list
         """
-        self.restart = False
+        self.write_restart = False
         self.nspinup = 0
+        self.float_grid = True
         self.sim_id = "lpjml_copan"
         self.set_sockets(inputs, outputs)
 
@@ -236,6 +244,8 @@ class LpjmlConfig:
             if 'name' in sock_input.__dict__.keys():
                 del sock_input.__dict__['name']
             sock_input.__dict__['fmt'] = 'sock'
+        if "grid" not in outputs:
+            outputs.append("grid")
         for out in self.output:
             if out.id in outputs:
                 out.file.__dict__ = {'fmt': 'sock'}

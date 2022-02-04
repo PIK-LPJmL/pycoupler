@@ -1,9 +1,11 @@
 import socket
 import struct
 import numpy as np
-from enum import Enum, auto
+from enum import Enum
 from operator import itemgetter
-from config import read_config
+
+from pycoupler.config import read_config
+from pycoupler.data_info import Inputs, LpjmlTypes
 
 
 def recvall(channel, size):
@@ -87,43 +89,13 @@ class Token(Enum):
     GET_DATA_SIZE: int = 2  # Receiving data size from COPAN
     PUT_DATA_SIZE: int = 3  # Sending data size to COPAN
     END_DATA: int = 4       # Ending communication
+    GET_STATUS: int = 5     # Check status of COPAN
 
 
-class Inputs(Enum):
+class CopanStatus(Enum):
     """Available Inputs"""
-    landuse: int = 6  # number of bands in landuse data
-    fertilizer_nr: int = 18  # number of bands in fertilizer data
-    manure_nr: int = 19  # number of bands in manure data
-    residue_on_field: int = 8  # number of bands in residue data
-    with_tillage: int = 7  # number of bands in tillage data
-
-    @property
-    def band(self):
-        if self.name == "landuse":
-            return 64
-        elif self.name in ["fertilizer_nr", "manure_nr", "residue_on_field"]:
-            return 32
-        elif self.name == "with_tillage":
-            return 2
-
-
-class LpjmlTypes(Enum):
-    """Available datatypes
-    """
-    LPJ_BYTE: int = 0
-    LPJ_SHORT: int = 1
-    LPJ_INT: int = 2
-    LPJ_FLOAT: int = 3
-    LPJ_DOUBLE: int = 4
-
-    @property
-    def type(self):
-        """Convert LPJmL data type to Python data types
-        """
-        if self.value > 2:
-            return float
-        else:
-            return int
+    COPAN_OK: int = 0
+    COPAN_ERR: int = -1
 
 
 class Coupler:
@@ -169,7 +141,7 @@ class Coupler:
     :param port: port of the server address. Defaults to 2224
     :type port: int
     """
-    def __init__(self, config_file, version=2, host='', port=2224):
+    def __init__(self, config_file, version=3, host='', port=2224):
         """Constructor method
         """
         self.__config = read_config(config_file)
@@ -180,8 +152,8 @@ class Coupler:
         self.__channel = opentdt(host, port)
         # Check coupler protocol version
         self.version = read_int(self.__channel)
-        if (self.version != version):
-            self.__channel.close()
+        if self.version != version:
+            self.close_channel()
             raise ValueError(
                 f"Invalid coupler version {version}, must be {self.version}"
             )
@@ -200,8 +172,9 @@ class Coupler:
             token=Token.GET_DATA_SIZE,
         )
         # init list to be filled with nbands, nsteps per output
-        self.__output_bands = self.__output_steps = self.__output_types = [
-            -1] * len(self.config.outputvar)
+        self.__output_bands = [-1] * len(self.config.outputvar)
+        self.__output_steps = [-1] * len(self.config.outputvar)
+        self.__output_types = [-1] * len(self.config.outputvar)
         # init counter to be filled with number of static outputs
         self.__noutput_static = 0
         # Check for static output
@@ -217,6 +190,8 @@ class Coupler:
         self.__iterate_operation(length=self.__noutput,
                                  fun=self.__read_output_details,
                                  token=Token.PUT_DATA_SIZE)
+        # read and check LPJmL GET_STATUS, send COPAN_OK or COPAN_ERR
+        self.__communicate_status()
         # Read all static non time dependent outputs
         self.__grid = np.zeros(shape=(self.__ncell, 2),
                                dtype=self.__output_types[self.__grid_id])
@@ -297,23 +272,19 @@ class Coupler:
         # iteration step check - if number of iterations left exceed simulation
         #   steps (analogous to years left)
         if self.__input_niteration < 0:
-            self.__channel.close()
+            self.close_channel()
             raise IndexError("Number of simulation iterations exceeded")
         # iteration step check - if number of input iterations left does not
         #   match output iterations left (analogous to years left)
         if self.__input_niteration != self.__output_niteration:
-            self.__channel.close()
+            self.close_channel()
             raise RuntimeError("Sequence of send_input and read_output " +
                                "calls not matching.")
-        # create list to temporarily store input data from input_dict
-        input_list = np.array([None] * self.__ninput)
-        input_list[list(self.__input_ids.keys())] = itemgetter(
-            *list(self.__input_ids.values()))(input_dict)
         # iterate over outputs for private send_input_data
         self.__iterate_operation(length=self.__ninput,
                                  fun=self.__send_input_data,
                                  token=Token.GET_DATA,
-                                 args={"data": input_list,
+                                 args={"data": input_dict,
                                        "validate_year": year})
         # decrement input iterations left (analogous to years left)
         self.__input_niteration -= 1
@@ -336,22 +307,23 @@ class Coupler:
         # iteration step check - if number of iterations left exceed simulation
         #   steps (analogous to years left)
         if self.__output_niteration < 0:
-            self.__channel.close()
+            self.close_channel()
             raise IndexError("Number of simulation iterations exceeded")
         # iteration step check - if number of output iterations left does not
         #   match input iterations left (analogous to years left)
         if self.__input_niteration + 1 != self.__output_niteration:
-            self.__channel.close()
+            self.close_channel()
             raise RuntimeError("Sequence of send_input and read_output " +
                                "calls not matching.")
         # iterate over outputs for private send_output_data
-        output_list = self.__iterate_operation(length=self.__noutput_sim,
+        output_dict = self.__iterate_operation(length=self.__noutput_sim,
                                                fun=self.__read_output_data,
                                                token=Token.PUT_DATA,
-                                               args={"validate_year": year})
+                                               args={"validate_year": year},
+                                               appendix=True)
         # convert output_list again to output_dict (format as above) and return
-        output_dict = {self.__output_ids[idx]: output_list[
-            idx] for idx in self.__output_ids.keys()}
+        # output_dict = {self.__output_ids[idx]: output_list[
+        #     idx] for idx in self.__output_ids.keys()}
         # decrement output iterations left (analogous to years left)
         self.__output_niteration -= 1
         # decrement general iteration counter
@@ -366,7 +338,7 @@ class Coupler:
         # check if read token matches expected token and return read token
         token_check, received_token = self.__check_token(token)
         if not token_check:
-            self.__channel.close()
+            self.close_channel()
             raise ValueError(
                 f"Token {received_token.name} is not {token.name}"
             )
@@ -376,11 +348,12 @@ class Coupler:
         else:
             result = fun(**args)
         # recursive iteration
-        if length > 0:
+        if length > 1:
             # if appendix results are appended/extended and returned as list
             if appendix:
-                result.extend(self.__iterate_operation(length-1, fun, token,
-                                                       args, appendix))
+                result = {**result, **self.__iterate_operation(
+                    length-1, fun, token, args, appendix)
+                }
                 return result
             else:
                 self.__iterate_operation(length-1, fun, token, args)
@@ -392,7 +365,7 @@ class Coupler:
         """ check if read token matches the expected token
         """
         received_token = read_token(self.__channel)
-        if received_token is token:
+        if received_token == token:
             return True, token
         else:
             return False, token
@@ -406,7 +379,9 @@ class Coupler:
         if index in self.__input_bands.keys():
             # Send number of bands
             send_int(self.__channel, val=self.__input_bands[index])
-
+        else:
+            self.close_channel()
+            raise ValueError(f"Input of input ID {index} not supported.")
 
     def __set_input_types(self, index):
         """Convert received LPJmL data types into Python compatible types
@@ -424,9 +399,9 @@ class Coupler:
         input_names = [inp.name for inp in Inputs]
         # check if input is defined in Inputs (band size required)
         valid_inputs = {getattr(Inputs, sock).value: getattr(
-            Inputs, sock).band for sock in sockets if sock in input_names}
+            Inputs, sock).nband for sock in sockets if sock in input_names}
         if len(sockets) != len(valid_inputs):
-            self.__channel.close()
+            self.close_channel()
             raise ValueError(
                 f"Configurated sockets {list(sockets.keys())} not defined in" +
                 f" {input_names}!"
@@ -446,11 +421,35 @@ class Coupler:
         self.__output_types[index] = LpjmlTypes(
             read_int(self.__channel)).type
         # Check for static output if so increment static output counter
-        if index in self.__globalflux_id:
-            self.flux = [
-                self.__output_types[index](0)] * self.__output_bands[index]
+        if index == self.__globalflux_id:
+            pass
+            # self.flux = [
+            #     self.__output_types[index](0)] * self.__output_bands[index]
         elif index in self.__static_id:
             self.__noutput_static += 1
+        # check if only annual timesteps were set
+        if self.__output_steps[index] > 1:
+            send_int(self.__channel, CopanStatus.COPAN_ERR.value)
+            self.close_channel()
+            raise ValueError(f"Time step {self.__output_steps[index]} " +
+                             f" for output ID {index} invalid.")
+        else:
+            send_int(self.__channel, CopanStatus.COPAN_OK.value)
+
+    def __communicate_status(self):
+        """Check if LPJmL token equals GET_STATUS, send OK or ERROR
+        """
+        check_token = Token(read_int(self.__channel))
+        if check_token == Token.GET_STATUS:
+            if self.__ninput != 0 and self.__noutput != 0:
+                send_int(self.__channel, CopanStatus.COPAN_OK.value)
+            else:
+                self.close_channel()
+                send_int(self.__channel, CopanStatus.COPAN_ERR.value)
+                raise ValueError("No inputs OR outputs defined.")
+        else:
+            raise ValueError(f"Got Token {check_token.name}, though " +
+                             f"Token {Token.GET_STATUS} was expected.")
 
     def __read_static_data(self):
         """Read static data to be called within initialization of coupler.
@@ -460,9 +459,7 @@ class Coupler:
         if index == self.__grid_id:
             # Check for datatype grid data and assign right read function and
             #   define scale factor
-            if LpjmlTypes(
-                self.__output_types[self.__grid_id]
-            ) == LpjmlTypes.LPJ_SHORT:
+            if self.__output_types[self.__grid_id] == int:
                 read_grid_val = read_short
                 type_fact = 0.01
             else:
@@ -470,36 +467,46 @@ class Coupler:
                 type_fact = 1
             # iterate over ncell and read + assign lon and lat values
             for ii in range(0, self.__ncell):
-                self.__grid[1, ii] = read_grid_val(self.__channel) * type_fact
-                self.__grid[2, ii] = read_grid_val(self.__channel) * type_fact
+                self.__grid[ii, 0] = read_grid_val(self.__channel) * type_fact
+                self.__grid[ii, 1] = read_grid_val(self.__channel) * type_fact
 
     def __send_input_data(self, data, validate_year):
         """Send input data checks supplied object type, object dimensions data
         format and year for input index. If set correct executes private
         send_input_values method that does the sending.
         """
-        if not isinstance(data, np.ndarray):
-            self.__channel.close()
+        index = read_int(self.__channel)
+        if not isinstance(data[self.__input_ids[index]], np.ndarray):
+            self.close_channel()
             raise TypeError("Unsupported object type. Please supply a numpy " +
                             "array with the dimension of (ncells, nband).")
-        index = read_int(self.__channel)
-        if not isinstance(data, self.__input_types[index]):
-            self.__channel.close()
+        # type check conversion
+        if self.__input_types[index] == float:
+            type_check = np.floating
+        elif self.__input_types[index] == int:
+            type_check = np.integer
+        else:
+            raise TypeError(f"{self.__input_types[index]} is not supported.")
+
+        if not np.issubdtype(data[self.__input_ids[index]].dtype, type_check):
+            self.close_channel()
             raise TypeError(
-                f"Unsupported data type: {data.dtype} " +
+                f"Unsupported type: {data[self.__input_ids[index]].dtype} " +
                 "Please supply a numpy array with data type: " +
-                f"{self.__input_types[index]}."
+                f"{np.dtype(self.__input_types[index])}."
             )
         year = read_int(self.__channel)
         if not validate_year == year:
-            self.__channel.close()
+            self.close_channel()
             raise ValueError(f"The expected year: {validate_year} does not " +
                              f"match the received year: {year}")
         if index in self.__input_ids.keys():
             # get corresponding number of bands from Inputs class
-            bands = Inputs(index).band
-            if not np.shape(data) == (self.__ncell, bands):
-                self.__channel.close()
+            bands = Inputs(index).nband
+            if not np.shape(
+                data[self.__input_ids[index]]
+            ) == (self.__ncell, bands):
+                self.close_channel()
                 ValueError(
                     "The dimensions of the supplied data: " +
                     f"{(self.__ncell, bands)} does not match the required " +
@@ -508,32 +515,27 @@ class Coupler:
                 )
             # execute sending values method to actually send the input to
             #   socket
-            self.__send_input_values(data)
+            self.__send_input_values(data[self.__input_ids[index]])
 
-    def __send_input_values(self, data, cells=None, bands=None, dims=None):
+    def __send_input_values(self, data):
         """Iterate over all values to be send to socket. Recursive iteration
         with correct order of bands and cells for inputs
         """
-        # initiate cells, bands and dims for first level call
-        if not cells and not bands:
-            dims = np.shape(data)
-            cells = dims[0]
-            bands = dims[1]
-        # send float value for input (are all inputs floats?) - indices via
-        #   decremented cells, bands and orignal dims
-        send_float(self.__channel, data[dims[0]-cells, dims[1]-bands])
-        # iterate over bands first
-        if bands != 0 and cells != 0:
-            self.__send_input_values(data=data,
-                                     cells=cells,
-                                     bands=bands-1,
-                                     dims=dims)
-        # iterate over cells second
-        elif bands == 0 and cells != 0:
-            self.__send_input_values(data=data,
-                                     cells=cells-1,
-                                     bands=dims[1],
-                                     dims=dims)
+        dims = list(np.shape(data))
+        dims[0] -= 1
+        dims[1] -= 1
+        cells = dims[0]
+        bands = dims[1]
+        # iterate over bands (first) and cells (second)
+        while cells >= 0 and bands >= 0:
+            # send float value for input (are all inputs floats?) - indices via
+            #   decremented cells, bands and orignal dims
+            send_float(self.__channel, data[dims[0]-cells, dims[1]-bands])
+            if bands > 0:
+                bands -= 1
+            elif bands == 0 and cells >= 0:
+                cells -= 1
+                bands = dims[1]
 
     def __read_output_data(self, validate_year):
         """Read output data checks supplied year and sets numpy array template
@@ -543,7 +545,7 @@ class Coupler:
         index = read_int(self.__channel)
         year = read_int(self.__channel)
         if not validate_year == year:
-            self.__channel.close()
+            self.close_channel()
             raise ValueError(f"The expected year: {validate_year} does not " +
                              f"match the received year: {year}")
         if index in self.__output_ids.keys():
@@ -554,31 +556,27 @@ class Coupler:
                                    dtype=self.__output_types[index])
             # read and assign corresponding values from socket to numpy array
             output = self.__read_output_values(output=output_tmpl,
-                                               cells=self.__ncell, bands=bands,
-                                               dims=np.shape(output_tmpl))
+                                               dims=list(
+                                                   np.shape(output_tmpl)))
             # as list for appending/extending as list
-            return [output]
-        else:
-            # also as list even if empty/None
-            return [None]
+            return {self.__output_ids[index]: output}
 
-    def __read_output_values(self, output, cells=None, bands=None, dims=None):
+    def __read_output_values(self, output, dims=None):
         """Iterate over all values to be read from socket. Recursive iteration
         with correct order of cells and bands for outputs
         """
-        # read float value for output (are all outputs floats?) - indices via
-        #   decremented cells, bands and orignal dims
-        output[dims[0]-cells, dims[0]-bands] = read_float(self.__channel)
-        # iterate over cells first
-        if bands != 0 and cells != 0:
-            output = self.__read_output_values(output=output,
-                                               cells=cells-1,
-                                               bands=bands,
-                                               dims=dims)
-        # iterate over bands second
-        elif bands != 0 and cells == 0:
-            output = self.__read_output_values(output=output,
-                                               cells=dims[0],
-                                               bands=bands-1,
-                                               dims=dims)
+        dims[0] -= 1
+        dims[1] -= 1
+        cells = dims[0]
+        bands = dims[1]
+        # iterate over cells (first) and bands (second)
+        while cells >= 0 and bands >= 0:
+            # read float value for output (are all outputs floats?) - indices
+            #   via decremented cells, bands and orignal dims
+            output[dims[0]-cells, dims[0]-bands] = read_float(self.__channel)
+            if cells > 0:
+                cells -= 1
+            elif cells == 0 and bands >= 0:
+                bands -= 1
+                cells = dims[0]
         return output
