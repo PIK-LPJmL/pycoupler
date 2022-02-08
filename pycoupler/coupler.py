@@ -2,7 +2,6 @@ import socket
 import struct
 import numpy as np
 from enum import Enum
-from operator import itemgetter
 
 from pycoupler.config import read_config
 from pycoupler.data_info import Inputs, LpjmlTypes
