@@ -87,5 +87,5 @@ check_lpjml(config_coupled_fn, model_path)
 historic_jobid = submit_lpjml(
     config_file=config_coupled_fn, model_path=model_path,
     output_path=output_path, dependency=historic_jobid,
-    couple="<COPAN:CORE>"
+    couple_to="<COPAN:CORE>"
 )
