@@ -1,5 +1,5 @@
 import os
-os.chdir("/p/projects/open/Jannes/repos/pycoupler")
+# os.chdir("/p/projects/open/Jannes/repos/pycoupler")
 
 from pycoupler.utils import check_lpjml, compile_lpjml, clone_lpjml
 from pycoupler.config import parse_config
@@ -121,7 +121,7 @@ run_lpjml(
 # --------------------------------------------------------------------------- #
 import os
 import xarray as xr
-os.chdir("/p/projects/open/Jannes/repos/pycoupler")
+# os.chdir("/p/projects/open/Jannes/repos/pycoupler")
 from pycoupler.coupler import Coupler
 from pycoupler.data_info import supply_inputs
 # reload(coupler)
