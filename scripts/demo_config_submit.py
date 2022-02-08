@@ -1,12 +1,12 @@
-from utils import check_lpjml, compile_lpjml, clone_lpjml
-from config import parse_config
-from submit import submit_lpjml
+from pycoupler.utils import check_lpjml, compile_lpjml, clone_lpjml
+from pycoupler.config import parse_config
+from pycoupler.run import submit_lpjml
 
 
 # paths
-model_location = "/p/projects/open/Jannes/copan_core/lpjml"
+model_location = "<INSERT_MODEL_LOCATION>"
 model_path = f"{model_location}/LPJmL_internal"
-base_path = "/p/projects/open/Jannes/copan_core/coupling_tests"
+base_path = "<INSERT_PATH_TO_ENCLOSING_FOLDER_OF_MODEL_OUTPUT_RESTART_INPUT>"
 output_path = f"{base_path}/output"
 restart_path = f"{base_path}/restart"
 

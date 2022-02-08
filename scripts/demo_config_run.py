@@ -1,15 +1,12 @@
-import os
-# os.chdir("/p/projects/open/Jannes/repos/pycoupler")
-
 from pycoupler.utils import check_lpjml, compile_lpjml, clone_lpjml
 from pycoupler.config import parse_config
 from pycoupler.run import run_lpjml
 
 
 # paths
-model_location = "/p/projects/open/Jannes/copan_core/lpjml_test"
+model_location = "<INSERT_MODEL_LOCATION>"
 model_path = f"{model_location}/LPJmL_internal"
-base_path = "/p/projects/open/Jannes/copan_core/lpjml_test"
+base_path = "<INSERT_PATH_TO_ENCLOSING_FOLDER_OF_MODEL_OUTPUT_RESTART_INPUT>"
 output_path = f"{base_path}/output"
 restart_path = f"{base_path}/restart"
 
@@ -119,15 +116,13 @@ run_lpjml(
 # --------------------------------------------------------------------------- #
 # OPEN SECOND LOGIN NODE
 # --------------------------------------------------------------------------- #
-import os
 import xarray as xr
-# os.chdir("/p/projects/open/Jannes/repos/pycoupler")
 from pycoupler.coupler import Coupler
 from pycoupler.data_info import supply_inputs
-# reload(coupler)
 
-base_path = "/p/projects/open/Jannes/copan_core/lpjml_test"
-model_location = "/p/projects/open/Jannes/copan_core/lpjml_test"
+
+model_location = "<INSERT_MODEL_LOCATION>"
+base_path = "<INSERT_PATH_TO_ENCLOSING_FOLDER_OF_MODEL_OUTPUT_RESTART_INPUT>"
 model_path = f"{model_location}/LPJmL_internal"
 config_historic_fn = f"{base_path}/config_historic.json"
 config_coupled_fn = f"{base_path}/config_coupled.json"
