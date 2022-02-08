@@ -40,7 +40,7 @@ def run_lpjml(config_file, model_path, output_path=None):
 
 def submit_lpjml(config_file, model_path, output_path=None, group="copan",
                  sclass="short", ntasks=256, wtime=None, dependency=None,
-                 blocking=None):
+                 blocking=None, couple_to=None):
     """Submit LPJmL run to Slurm using `lpjsubmit` and a generated
     (class LpjmlConfig) config file. Provide arguments for Slurm sbatch
     depending on the run. Similar to R function `lpjmlKit::submit_lpjml`.
@@ -72,6 +72,9 @@ def submit_lpjml(config_file, model_path, output_path=None, group="copan",
     :type depdendency: int/str
     :param blocking: cores to be blocked. For more information have a look
         [here](https://www.pik-potsdam.de/en/institute/about/it-services/hpc/user-guides/slurm#section-18).
+    :type blocking: int
+    :param couple_to: path to program/model/script LPJmL should be coupled to
+    :type couple_to: str
     :return: return the submitted jobs id if submitted successfully.
     :rtype: str
     """
@@ -105,6 +108,9 @@ def submit_lpjml(config_file, model_path, output_path=None, group="copan",
     # if cores to be blocked
     if blocking:
         cmd.extend(["-blocking", blocking])
+    # run in coupled mode and pass coupling program/model
+    if couple_to:
+        cmd.extend(["-copan", couple_to])
     cmd.extend([str(ntasks), config_file])
     # call lpjsubmit via subprocess and return status if successfull
     submit_status = run(cmd, capture_output=True)

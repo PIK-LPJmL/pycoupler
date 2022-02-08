@@ -24,10 +24,8 @@ compile_lpjml(model_path=model_path)
 
 # create config for spinup run
 config_spinup = parse_config(path=model_path, spin_up=True)
-# set output directory
-config_spinup.set_output_path(output_path=output_path)
-# set restart directory to restart from in subsequent historic run
-config_spinup.set_restart(path=restart_path)
+# set spinup run configuration
+config_spinup.set_spinup(output_path, restart_path)
 # write config (LpjmlConfig object) as json file
 config_spinup_fn = f"{base_path}/config_spinup.json"
 config_spinup.to_json(file=config_spinup_fn)
@@ -45,14 +43,9 @@ spinup_jobid = submit_lpjml(
 
 # create config for historic run
 config_historic = parse_config(path=model_path)
-# set output directory
-config_historic.set_outputs(output_path, outputs=[])  # file_format="cdf"
-# set start from directory to start from spinup run
-config_historic.set_startfrom(path=restart_path)
-# set restart directory to restart from in subsequent transient run
-config_historic.set_restart(path=restart_path)
-# set time range for historic run
-config_historic.set_timerange(start=1901, end=1980)  # write_start=1980
+# set historic run configuration
+config_historic.set_historic(output_path, restart_path, start=1901, end=1980,
+                             write_start=1980)  # write_start=1980
 # write config (LpjmlConfig object) as json file
 config_historic_fn = f"{base_path}/config_historic.json"
 config_historic.to_json(file=config_historic_fn)
@@ -70,25 +63,17 @@ historic_jobid = submit_lpjml(
 
 # create config for coupled run
 config_coupled = parse_config(path=model_path)
-# set start from directory to start from historic run
-config_coupled.set_startfrom(path=restart_path)
-# set output directory, outputs (relevant ones for pbs and agriculture)
-config_coupled.set_outputs(
-    output_path,
-    outputs=["prec", "transp", "interc", "evap", "runoff", "discharge",
-             "fpc", "vegc", "soilc", "litc", "cftfrac", "pft_harvestc",
-             "pft_harvestn", "pft_rharvestc", "pft_rharvestn", "pet",
-             "leaching"],
-    temporal_resolution=["monthly", "monthly", "monthly", "monthly",
-                         "monthly", "monthly", "annual", "annual", "annual",
-                         "annual", "annual", "annual", "annual", "annual",
-                         "annual", "monthly", "monthly"],
-    file_format="cdf"
-)
-# set coupling parameters
-config_coupled.set_coupler(
-    inputs=["landuse", "fertilizer_nr", "with_tillage", "residue_on_field"],
-    outputs=["cftfrac", "pft_harvestc", "pft_harvestn"])
+# set coupled run configuration
+config_coupled.set_couple(output_path, restart_path, start=1981, end=2005,
+                          inputs=["landuse", "fertilizer_nr"],
+                          outputs=["cftfrac", "pft_harvestc", "pft_harvestn"],
+                          write_outputs=["prec", "transp", "interc", "evap",
+                                         "runoff", "discharge", "fpc", "vegc",
+                                         "soilc", "litc", "cftfrac",
+                                         "pft_harvestc", "pft_harvestn",
+                                         "pft_rharvestc", "pft_rharvestn",
+                                         "pet", "leaching"],
+                          write_temporal_resolution="annual")
 
 # write config (LpjmlConfig object) as json file
 config_coupled_fn = f"{base_path}/config_coupled.json"
@@ -102,5 +87,5 @@ check_lpjml(config_coupled_fn, model_path)
 historic_jobid = submit_lpjml(
     config_file=config_coupled_fn, model_path=model_path,
     output_path=output_path, dependency=historic_jobid,
-    couple="<COPAN:CORE>"
+    couple_to="<COPAN:CORE>"
 )

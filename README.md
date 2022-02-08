@@ -44,24 +44,20 @@ output_path ="<DIR_TO_WRITE_LPJML_OUTPUT>"
 # create config for coupled run based on lpjml.js in LPJROOT
 config_coupled = parse_config(path=model_path)
 
-# set time range for coupled run
-config_coupled.set_timerange(start=1981, end=2017)
+# set coupled run configuration
+config_coupled.set_couple(output_path, restart_path, start=1981, end=2005,
+                          inputs=["landuse", "fertilizer_nr"],
+                          outputs=["cftfrac", "pft_harvestc", "pft_harvestn"],
+                          write_outputs=["prec", "transp", "interc", "evap",
+                                         "runoff", "discharge", "fpc", "vegc",
+                                         "soilc", "litc", "cftfrac",
+                                         "pft_harvestc", "pft_harvestn",
+                                         "pft_rharvestc", "pft_rharvestn",
+                                         "pet", "leaching"],
+                          write_temporal_resolution="annual")
 
-# set output directory, outputs (relevant ones for pbs and agriculture)
-config_coupled.set_outputs(
-    output_path,
-    outputs=["vegc", "soilc", "litc", "cftfrac", "pft_harvestc"],
-    temporal_resolution="annual",
-    file_format="cdf"
-)
-
-# set coupling parameters
-config_coupled.set_coupler(
-    inputs=["landuse", "fertilizer_nr"],
-    outputs=["cftfrac", "pft_harvestc"]
-)
 # only for single cell runs
-config_coupled.startgrid = 60400
+config_coupled.startgrid = 27410
 config_coupled.river_routing = False
 
 # write config (LpjmlConfig object) as json file
@@ -90,23 +86,27 @@ config_coupled_fn = f"{base_path}/config_coupled.json"
 # initiate coupler after run_lpjml on LOGIN NODE 1
 coupler = Coupler(config_file=config_coupled_fn)
 
+# get and process initial inputs
+inputs = supply_inputs(config_file=config_coupled_fn,
+                       historic_config_file=config_historic_fn,
+                       input_path=f"{base_path}/input",
+                       model_path=model_path,
+                       start_year=1981, end_year=1981)
+input_data = preprocess_inputs(inputs, grid=coupler.grid, time=1980)
+
 # coupled simulation years
 years = range(1981, 2017)
-
 #  The following could be your model/program/script
 for year in years:
-    
-    # generate some inputs (could be based on last years or historic output)
-    ...
-    
+
     # send input data to lpjml
-    coupler.send_inputs(..., year)
-    
+    coupler.send_inputs(input_data, year)
+
     # read output data
     outputs = coupler.read_outputs(year)
-    
+
     # generate some results based on lpjml outputs
-    ...
+    # ....
 
 coupler.close_channel()
 
