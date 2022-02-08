@@ -4,7 +4,7 @@ import numpy as np
 from enum import Enum
 
 from pycoupler.config import read_config
-from pycoupler.data_info import Inputs, LpjmlTypes
+from pycoupler.data import Inputs, LpjmlTypes
 
 
 def recvall(channel, size):

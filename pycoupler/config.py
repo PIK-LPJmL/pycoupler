@@ -58,6 +58,87 @@ class LpjmlConfig:
         else:
             return self.to_dict()['output']
 
+    def set_spinup(self, output_path, restart_path):
+        """Set configuration required for spinup model runs
+        :param output_path: define output_path the output is written to. If
+            `append_output == True` output_path is only altered for appended
+            `outputs`.
+        :type output_path: str
+        :param restart_path: define restart_path the restart files to start
+            model runs from. Has to match with `restart_path` from
+            `set_historic`
+        :type restart_path: str
+        """
+        # set output directory
+        self.set_output_path(output_path=output_path)
+        # set restart directory to restart from in subsequent historic run
+        self.set_restart(path=restart_path)
+
+    def set_historic(self, output_path, restart_path, start, end,
+                     write_start=None):
+        """Set configuration required for historic model runs
+        :param output_path: define output_path the output is written to. If
+            `append_output == True` output_path is only altered for appended
+            `outputs`.
+        :type output_path: str
+        :param restart_path: define restart_path the restart files to start
+            model runs from. Has to match with `restart_path` from
+            `set_historic`
+        :type restart_path: str
+        :param start: start year of simulation
+        :type start: int
+        :param end: end year of simulation
+        :type end: int
+        :param write_start: first year of output being written
+        :type write_start: int
+        """
+        # set time range for historic run
+        self.set_timerange(start=start, end=end, write_start=write_start)
+        # set output directory
+        self.set_outputs(output_path)  # file_format="cdf"
+        # set start from directory to start from spinup run
+        self.set_startfrom(path=restart_path)
+        # set restart directory to restart from in subsequent transient run
+        self.set_restart(path=restart_path)
+
+    def set_couple(self, output_path, restart_path, start, end,
+                   inputs, outputs, write_outputs,
+                   write_temporal_resolution="annual"):
+        """Set configuration required for coupled model runs
+        :param output_path: define output_path the output is written to. If
+            `append_output == True` output_path is only altered for appended
+            `outputs`.
+        :type output_path: str
+        :param restart_path: define restart_path the restart files to start
+            model runs from. Has to match with `restart_path` from
+            `set_historic`
+        :type restart_path: str
+        :param start: start year of simulation
+        :type start: int
+        :param end: end year of simulation
+        :type end: int
+        :param write_start: first year of output being written
+        :type write_start: int
+        :param write_outputs: output ids of `outputs` to be written by
+            LPJmL. Make sure to check if required output is available via
+            `get_outputs_avail`
+        :type write_outputs: list
+        :param write_temporal_resolution: list of temporal resolutions
+            corresponding to `outputs` or str to set the same resolution for
+            all `outputs`. Defaults to "annual" (for all `outputs`).
+        :type write_temporal_resolution: list/str
+        """
+        # set time range for coupled run
+        self.set_timerange(start=start, end=end)
+        # set output directory, outputs (relevant ones for pbs and agriculture)
+        self.set_outputs(output_path, outputs=write_outputs,
+                         temporal_resolution=write_temporal_resolution,
+                         file_format="cdf")
+        # set coupling parameters
+        self.set_coupler(inputs=inputs, outputs=outputs)
+        # set start from directory to start from historic run
+        self.set_startfrom(path=restart_path)
+
     def set_outputs(self, output_path, outputs=[], file_format="raw",
                     temporal_resolution="annual", append_output=False):
         """Set outputs to be written by LPJmL, define temporal resolution
@@ -130,7 +211,7 @@ class LpjmlConfig:
                     'id': outputvars[outputvar_names[out]]['name'],
                     'file': self.__class__({
                         'fmt': file_format,
-                        'time_step': temp_res,
+                        'timestep': temp_res,
                         'name': f"{output_path}/"
                                 f"{outputvars[outputvar_names[out]]['name']}"
                                 f".{formats_avail[file_format]}"
@@ -167,7 +248,11 @@ class LpjmlConfig:
         if path is not None:
             file_name = self.restart_filename.split("/")
             file_name.reverse()
-            self.restart_filename = f"{path}/{file_name[0]}"
+            if self.nspinup < 1:
+                self.restart_filename = (
+                    f"{path}/restart_{self.firstyear-1}.lpj")
+            else:
+                self.restart_filename = f"{path}/{file_name[0]}"
         elif file_name is not None:
             file_check = file_name.split(".")
             file_check.reverse()
@@ -187,7 +272,12 @@ class LpjmlConfig:
         if path is not None:
             file_name = self.write_restart_filename.split("/")
             file_name.reverse()
-            self.write_restart_filename = f"{path}/{file_name[0]}"
+            if self.nspinup < 500:
+                self.write_restart_filename = (
+                    f"{path}/restart_{self.lastyear}.lpj")
+            else:
+                self.write_restart_filename = f"{path}/{file_name[0]}"
+            self.restart_year = self.lastyear
         elif file_name is not None:
             file_check = file_name.split(".")
             file_check.reverse()
@@ -246,9 +336,16 @@ class LpjmlConfig:
             sock_input.__dict__['fmt'] = 'sock'
         if "grid" not in outputs:
             outputs.append("grid")
-        for out in self.output:
-            if out.id in outputs:
-                out.file.__dict__ = {'fmt': 'sock'}
+        check_outputs = [
+            out.name for out in self.outputvar if out.name in outputs]
+        for output in outputs:
+            if output in check_outputs:
+                to_append = self.__class__({
+                    "id": output,
+                    'file': {
+                        'fmt': 'sock'}
+                })
+                self.output.append(to_append)
 
     def get_input_sockets(self):
         """get defined socket inputs as dict
@@ -313,9 +410,9 @@ def parse_config(path, js_filename="lpjml.js", spin_up=False,
     :type path: str
     :param js_filename: js file filename, defaults to lpjml.js
     :type js_filename: str
-    :param from_restart: convenience argument to set macro whether to start
+    :param spin_up: convenience argument to set macro whether to start
         from restart file (`True`) or not (`False`). Defaults to `True`
-    :type from_restart: bool
+    :type spin_up: bool
     :param macros: provide a macro in the form of "-DMACRO" or list of macros
     :type macros: str, list
     :param return_dict: if `True` an LpjmlConfig object is returned,
