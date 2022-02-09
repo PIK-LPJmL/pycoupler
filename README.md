@@ -78,7 +78,7 @@ run_lpjml(
 ##### **2. TERMINAL (login node): your model, program or script**
 
 ```python
-from coupler import Coupler
+from pycoupler.coupler import Coupler
 from pycoupler.data import supply_inputs, preprocess_inputs
 
 
