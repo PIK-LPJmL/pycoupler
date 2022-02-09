@@ -71,8 +71,9 @@ run_lpjml(
 config_coupled = parse_config(path=model_path)
 # set coupled run configuration
 config_coupled.set_couple(output_path, restart_path, start=1981, end=2005,
-                          inputs=["landuse", "fertilizer_nr"],
-                          outputs=["cftfrac", "pft_harvestc", "pft_harvestn"],
+                          couple_inputs=["landuse", "fertilizer_nr"],
+                          couple_outputs=["cftfrac", "pft_harvestc",
+                                          "pft_harvestn"],
                           write_outputs=["prec", "transp", "interc", "evap",
                                          "runoff", "discharge", "fpc", "vegc",
                                          "soilc", "litc", "cftfrac",

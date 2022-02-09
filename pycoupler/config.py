@@ -102,7 +102,7 @@ class LpjmlConfig:
         self.set_restart(path=restart_path)
 
     def set_couple(self, output_path, restart_path, start, end,
-                   inputs, outputs, write_outputs,
+                   couple_inputs, couple_outputs, write_outputs,
                    write_temporal_resolution="annual"):
         """Set configuration required for coupled model runs
         :param output_path: define output_path the output is written to. If
@@ -117,8 +117,12 @@ class LpjmlConfig:
         :type start: int
         :param end: end year of simulation
         :type end: int
-        :param write_start: first year of output being written
-        :type write_start: int
+        :param couple_inputs: list of inputs to be used as socket for coupling.
+            Provide dictionary/json key as identifier -> entry in list.
+        :type couple_inputs: list
+        :param couple_outputs: list of outputs to be used as socket for
+            coupling. Provide output id as identifier -> entry in list.
+        :type couple_outputs: list
         :param write_outputs: output ids of `outputs` to be written by
             LPJmL. Make sure to check if required output is available via
             `get_outputs_avail`
@@ -135,7 +139,7 @@ class LpjmlConfig:
                          temporal_resolution=write_temporal_resolution,
                          file_format="cdf")
         # set coupling parameters
-        self.set_coupler(inputs=inputs, outputs=outputs)
+        self.set_coupler(inputs=couple_inputs, outputs=couple_outputs)
         # set start from directory to start from historic run
         self.set_startfrom(path=restart_path)
 
@@ -308,9 +312,9 @@ class LpjmlConfig:
         :param inputs: list of inputs to be used as socket for coupling.
             Provide dictionary/json key as identifier -> entry in list.
         :type inputs: list
-        :param inputs: list of outputs to be used as socket for coupling.
+        :param outputs: list of outputs to be used as socket for coupling.
             Provide output id as identifier -> entry in list.
-        :type inputs: list
+        :type outputs: list
         """
         self.write_restart = False
         self.nspinup = 0
