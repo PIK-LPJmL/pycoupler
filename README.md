@@ -34,6 +34,7 @@ from pycoupler.config import parse_config
 from pycoupler.utils import check_lpjml
 from pycoupler.run import run_lpjml
 
+
 # paths
 model_path = "<LPJROOT>"
 output_path ="<DIR_TO_WRITE_LPJML_OUTPUT>"
@@ -84,7 +85,6 @@ from pycoupler.data import supply_inputs, preprocess_inputs
 # paths
 base_path = "/p/projects/open/Jannes/copan_core/lpjml_test"
 config_coupled_fn = f"{base_path}/config_coupled.json"
-
 
 start_year = 1981
 end_year = 2005
