@@ -141,7 +141,8 @@ def supply_inputs(config_file, historic_config_file, input_path, model_path,
                     stdout=open(os.devnull, 'wb'))
                 use_tmp = '2'
             else:
-                # run cut clm file before start year and after end year in sequence
+                # run cut clm file before start year and after end year in
+                #   sequence
                 run(cut_clm_start, stdout=open(os.devnull, 'wb'))
                 # cannot deal with overwriting a temp file with same name
                 cut_clm_end = [f"{model_path}/bin/cutclm",
@@ -150,7 +151,8 @@ def supply_inputs(config_file, historic_config_file, input_path, model_path,
                                f"{temp_dir}/2_{file_name_tmp}"]
                 run(cut_clm_end, stdout=open(os.devnull, 'wb'))
                 use_tmp = '2'
-            # a flag for multi (categorical) band input - if true, set "-landuse"
+            # a flag for multi (categorical) band input - if true, set
+            #   "-landuse"
             if getattr(Inputs, key).bands:
                 xarg = "-landuse"
             else:
@@ -163,8 +165,8 @@ def supply_inputs(config_file, historic_config_file, input_path, model_path,
             run([f"{model_path}/bin/clm2cdf", xarg, key, grid_file,
                  f"{temp_dir}/{use_tmp}_{file_name_tmp}",
                  f"{input_path}/{file_name_nc}"])
-            # remove the temporary clm (binary) files, 1_* is not created in every
-            #   case
+            # remove the temporary clm (binary) files, 1_* is not created in
+            #   every case
             if os.path.isfile(f"{temp_dir}/1_{file_name_tmp}"):
                 os.remove(f"{temp_dir}/1_{file_name_tmp}")
             if os.path.isfile(f"{temp_dir}/2_{file_name_tmp}"):

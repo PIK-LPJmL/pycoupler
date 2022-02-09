@@ -100,7 +100,6 @@ run_lpjml(
 # --------------------------------------------------------------------------- #
 # OPEN SECOND LOGIN NODE
 # --------------------------------------------------------------------------- #
-import xarray as xr
 from pycoupler.coupler import Coupler
 from pycoupler.data import supply_inputs, preprocess_inputs
 
