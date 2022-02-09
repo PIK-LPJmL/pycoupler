@@ -78,10 +78,16 @@ run_lpjml(
 
 ```python
 from coupler import Coupler
+from pycoupler.data import supply_inputs, preprocess_inputs
+
 
 # paths
 base_path = "/p/projects/open/Jannes/copan_core/lpjml_test"
 config_coupled_fn = f"{base_path}/config_coupled.json"
+
+
+start_year = 1981
+end_year = 2005
 
 # initiate coupler after run_lpjml on LOGIN NODE 1
 coupler = Coupler(config_file=config_coupled_fn)
@@ -91,11 +97,11 @@ inputs = supply_inputs(config_file=config_coupled_fn,
                        historic_config_file=config_historic_fn,
                        input_path=f"{base_path}/input",
                        model_path=model_path,
-                       start_year=1981, end_year=1981)
-input_data = preprocess_inputs(inputs, grid=coupler.grid, time=1980)
+                       start_year=start_year, end_year=start_year)
+input_data = preprocess_inputs(inputs, grid=coupler.grid, time=start_year)
 
 # coupled simulation years
-years = range(1981, 2017)
+years = range(start_year, end_year+1)
 #  The following could be your model/program/script
 for year in years:
 
