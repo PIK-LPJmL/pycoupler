@@ -103,7 +103,8 @@ class LpjmlConfig:
 
     def set_couple(self, output_path, restart_path, start, end,
                    couple_inputs, couple_outputs, write_outputs,
-                   write_temporal_resolution="annual"):
+                   write_temporal_resolution="annual",
+                   model_name="copan:CORE"):
         """Set configuration required for coupled model runs
         :param output_path: define output_path the output is written to. If
             `append_output == True` output_path is only altered for appended
@@ -131,6 +132,9 @@ class LpjmlConfig:
             corresponding to `outputs` or str to set the same resolution for
             all `outputs`. Defaults to "annual" (for all `outputs`).
         :type write_temporal_resolution: list/str
+        :param model_name: model name of the coupled program which also sets
+            the model to coupled mode (without coupling coupled_model = None)
+        :type model_name: str
         """
         # set time range for coupled run
         self.set_timerange(start=start, end=end)
@@ -139,7 +143,8 @@ class LpjmlConfig:
                          temporal_resolution=write_temporal_resolution,
                          file_format="cdf")
         # set coupling parameters
-        self.set_coupler(inputs=couple_inputs, outputs=couple_outputs)
+        self.set_coupler(inputs=couple_inputs, outputs=couple_outputs,
+                         model_name=model_name)
         # set start from directory to start from historic run
         self.set_startfrom(path=restart_path)
 
@@ -306,7 +311,7 @@ class LpjmlConfig:
             self.outputyear = start
         self.lastyear = end
 
-    def set_coupler(self, inputs, outputs):
+    def set_coupler(self, inputs, outputs, model_name="copan:CORE"):
         """Coupled settings - no spinup, not write restart file and set sockets
         for inputs and outputs (via corresponding ids)
         :param inputs: list of inputs to be used as socket for coupling.
@@ -315,11 +320,14 @@ class LpjmlConfig:
         :param outputs: list of outputs to be used as socket for coupling.
             Provide output id as identifier -> entry in list.
         :type outputs: list
+        :param model_name: model name of the coupled program which also sets
+            the model to coupled mode (without coupling coupled_model = None)
+        :type model_name: str
         """
         self.write_restart = False
         self.nspinup = 0
         self.float_grid = True
-        self.sim_id = "lpjml_copan"
+        self.coupled_model = model_name
         self.set_sockets(inputs, outputs)
 
     def set_sockets(self, inputs=[], outputs=[]):
