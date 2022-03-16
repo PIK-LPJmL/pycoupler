@@ -96,3 +96,25 @@ def check_lpjml(config_file, model_path):
     else:
         print(proc_status.stdout.decode('utf-8'))
         print(proc_status.stderr.decode('utf-8'))
+
+
+def create_subdirs(base_path):
+    """Check if config file is set correctly.
+    :param base_path: directory to check wether required subfolders exists. If
+        not create corresponding folder (input, output, restart)
+    :type base_path: str
+    """
+    if not os.path.exists(base_path):
+        raise OSError(f"Path '{base_path}' does not exist.")
+
+    if not os.path.exists(f"{base_path}/input"):
+        os.makedirs(f"{base_path}/input")
+        print(f"Input path '{base_path}/input' was created.")
+
+    if not os.path.exists(f"{base_path}/output"):
+        os.makedirs(f"{base_path}/output")
+        print(f"Output path '{base_path}/output' was created.")
+
+    if not os.path.exists(f"{base_path}/restart"):
+        os.makedirs(f"{base_path}/restart")
+        print(f"Restart path '{base_path}/restart' was created.")

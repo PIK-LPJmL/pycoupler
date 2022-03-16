@@ -1,4 +1,5 @@
-from pycoupler.utils import check_lpjml, compile_lpjml, clone_lpjml
+from pycoupler.utils import check_lpjml, compile_lpjml, clone_lpjml, \
+    create_subdirs
 from pycoupler.config import parse_config
 from pycoupler.run import submit_lpjml
 
@@ -19,6 +20,9 @@ clone_lpjml(model_location=model_location, branch="lpjml53_copan")
 # if patched and existing compiled version use make_fast=True or if error is
 #   thrown, use arg make_clean=True without make_fast=True
 compile_lpjml(model_path=model_path)
+# create required subdirectories to store model related data:
+#   restart, output, input
+create_subdirs(base_path)
 
 # define and submit spinup run ---------------------------------------------- #
 

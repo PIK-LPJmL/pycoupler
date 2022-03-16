@@ -1,4 +1,5 @@
-from pycoupler.utils import check_lpjml, compile_lpjml, clone_lpjml
+from pycoupler.utils import check_lpjml, compile_lpjml, clone_lpjml, \
+    create_subdirs
 from pycoupler.config import parse_config
 from pycoupler.run import run_lpjml
 
@@ -20,6 +21,9 @@ clone_lpjml(model_location=model_location, branch="lpjml53_copan")
 # if patched and existing compiled version use make_fast=True or if error is
 #   thrown, use arg make_clean=True without make_fast=True
 compile_lpjml(model_path=model_path)
+# create required subdirectories to store model related data:
+#   restart, output, input
+create_subdirs(base_path)
 
 # define and submit spinup run ---------------------------------------------- #
 
@@ -121,7 +125,7 @@ inputs = supply_inputs(config_file=config_coupled_fn,
 input_data = preprocess_inputs(inputs, grid=coupler.grid, time=1980)
 
 # coupled simulation years
-years = range(1981, 2005)
+years = range(1981, 2006)
 #  The following could be your model/program/script
 for year in years:
     # send input data to lpjml
