@@ -42,11 +42,14 @@ class LpjmlConfig:
     #     inputs = self.input.to_dict()
     #     return {inp: inputs[inp]["id"] for inp in inputs}
 
-    def get_outputs_avail(self, id_only=True):
+    def get_outputs_avail(self, id_only=True, with_description=True):
         """Get available output (outputvar) names (== output ids) as list
         """
         if id_only:
-            return [out.name for out in self.outputvar]
+            if with_description:
+                return {out.name: out.descr for out in self.outputvar}
+            else:
+                return [out.name for out in self.outputvar]
         else:
             return self.to_dict()["outputvar"]
 
