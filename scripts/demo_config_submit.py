@@ -19,7 +19,7 @@ restart_path = f"{base_path}/restart"
 clone_lpjml(model_location=model_location, branch="lpjml53_copan")
 # if patched and existing compiled version use make_fast=True or if error is
 #   thrown, use arg make_clean=True without make_fast=True
-compile_lpjml(model_path=model_path)
+compile_lpjml(model_path=model_path, make_fast=True)
 # create required subdirectories to store model related data:
 #   restart, output, input
 create_subdirs(base_path)

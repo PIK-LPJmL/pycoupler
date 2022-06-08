@@ -11,7 +11,8 @@ base_path = "<INSERT_PATH_TO_ENCLOSING_FOLDER_OF_MODEL_OUTPUT_RESTART_INPUT>"
 output_path = f"{base_path}/output"
 restart_path = f"{base_path}/restart"
 
-cell = 27410
+startcell = 27410
+endcell = startcell
 
 # set up lpjml -------------------------------------------------------------- #
 
@@ -20,7 +21,7 @@ cell = 27410
 clone_lpjml(model_location=model_location, branch="lpjml53_copan")
 # if patched and existing compiled version use make_fast=True or if error is
 #   thrown, use arg make_clean=True without make_fast=True
-compile_lpjml(model_path=model_path)
+compile_lpjml(model_path=model_path, make_fast=True)
 # create required subdirectories to store model related data:
 #   restart, output, input
 create_subdirs(base_path)
@@ -31,8 +32,9 @@ create_subdirs(base_path)
 config_spinup = parse_config(path=model_path, spin_up=True)
 # set spinup run configuration
 config_spinup.set_spinup(output_path, restart_path)
-# only for single cell runs
-config_spinup.startgrid = cell
+# only for single startcell runs
+config_spinup.startgrid = startcell
+config_spinup.endgrid = endcell
 config_spinup.river_routing = False
 # write config (LpjmlConfig object) as json file
 config_spinup_fn = f"{base_path}/config_spinup.json"
@@ -53,8 +55,9 @@ config_historic = parse_config(path=model_path)
 # set historic run configuration
 config_historic.set_historic(output_path, restart_path, start=1901, end=1980,
                              write_start=1980)
-# only for single cell runs
-config_historic.startgrid = cell
+# only for single startcell runs
+config_historic.startgrid = startcell
+config_historic.endgrid = endcell
 config_historic.river_routing = False
 # write config (LpjmlConfig object) as json file
 config_historic_fn = f"{base_path}/config_historic.json"
@@ -85,8 +88,9 @@ config_coupled.set_couple(output_path, restart_path, start=1981, end=2005,
                                          "pft_rharvestc", "pft_rharvestn",
                                          "pet", "leaching"],
                           write_temporal_resolution="annual")
-# only for single cell runs
-config_coupled.startgrid = cell
+# only for single startcell runs
+config_coupled.startgrid = startcell
+config_coupled.endgrid = endcell
 config_coupled.river_routing = False
 # write config (LpjmlConfig object) as json file
 config_coupled_fn = f"{base_path}/config_coupled.json"
