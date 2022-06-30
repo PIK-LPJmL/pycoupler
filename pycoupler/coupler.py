@@ -249,6 +249,7 @@ class Coupler:
     def close_channel(self):
         """Close socket channel
         """
+        print("Socket channel has been closed.")
         self.__channel.close()
 
     def send_inputs(self, input_dict, year):
@@ -505,13 +506,16 @@ class Coupler:
             if not np.shape(
                 data[self.__input_ids[index]]
             ) == (self.__ncell, bands):
-                self.close_channel()
-                ValueError(
-                    "The dimensions of the supplied data: " +
-                    f"{(self.__ncell, bands)} does not match the required " +
-                    f"dimensions for {self.__input_ids[index]}: " +
-                    f"{(self.__ncell, bands)}."
-                )
+                if bands == 1 and not np.shape(
+                    data[self.__input_ids[index]]
+                ) == (self.__ncell, ):
+                    self.close_channel()
+                    raise ValueError(
+                        "The dimensions of the supplied data: " +
+                        f"{(self.__ncell, bands)} does not match the needed " +
+                        f"dimensions for {self.__input_ids[index]}: " +
+                        f"{(self.__ncell, bands)}."
+                    )
             # execute sending values method to actually send the input to
             #   socket
             self.__send_input_values(data[self.__input_ids[index]])
@@ -521,6 +525,17 @@ class Coupler:
         with correct order of bands and cells for inputs
         """
         dims = list(np.shape(data))
+        if len(dims) == 1:
+            dims.append(1)
+            one_band = True
+        else:
+            one_band = False
+
+        if "int" in str(data.dtype):
+            send_function = send_int
+        else:
+            send_function = send_float
+
         dims[0] -= 1
         dims[1] -= 1
         cells = dims[0]
@@ -529,7 +544,13 @@ class Coupler:
         while cells >= 0 and bands >= 0:
             # send float value for input (are all inputs floats?) - indices via
             #   decremented cells, bands and orignal dims
-            send_float(self.__channel, data[dims[0]-cells, dims[1]-bands])
+            if one_band:
+                send_function(self.__channel, data[dims[0]-cells])
+            else:
+                send_function(
+                    self.__channel, data[dims[0]-cells, dims[1]-bands]
+                )
+
             if bands > 0:
                 bands -= 1
             elif bands == 0 and cells >= 0:
