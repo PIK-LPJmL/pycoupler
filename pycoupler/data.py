@@ -156,15 +156,20 @@ def supply_inputs(config_file, historic_config_file, input_path, model_path,
             if getattr(Inputs, key).bands:
                 xarg = "-landuse"
             else:
-                xarg = ""
+                xarg = None
             # default grid file (only valid for 0.5 degree inputs)
             grid_file = (
                 "/p/projects/lpjml/input/historical/input_VERSION2/grid.bin"
             )
             # convert clm input to netcdf files
-            run([f"{model_path}/bin/clm2cdf", xarg, key, grid_file,
-                 f"{temp_dir}/{use_tmp}_{file_name_tmp}",
-                 f"{input_path}/{file_name_nc}"])
+            conversion_cmd = [
+                f"{model_path}/bin/clm2cdf", xarg, key, grid_file,
+                f"{temp_dir}/{use_tmp}_{file_name_tmp}",
+                f"{input_path}/{file_name_nc}"
+            ]
+            if None in conversion_cmd:
+                conversion_cmd.remove(None)
+            run(conversion_cmd)
             # remove the temporary clm (binary) files, 1_* is not created in
             #   every case
             if os.path.isfile(f"{temp_dir}/1_{file_name_tmp}"):

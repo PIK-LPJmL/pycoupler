@@ -365,9 +365,9 @@ class Coupler:
         """
         received_token = read_token(self.__channel)
         if received_token == token:
-            return True, token
+            return True, received_token
         else:
-            return False, token
+            return False, received_token
 
     def __send_band_size(self):
         """Send input band size for read index to socket
