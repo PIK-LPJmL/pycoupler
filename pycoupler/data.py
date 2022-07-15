@@ -27,6 +27,15 @@ class Inputs(Enum):
             return 1
 
     @property
+    def type(self):
+        """ get amount of bands
+        """
+        if self.name in ["with_tillage"]:
+            return int
+        else:
+            return float
+
+    @property
     def bands(self):
         """ check if multiple bands - better check for categorical bands
         (ADJUST WHEN REQUIRED)
@@ -154,17 +163,22 @@ def supply_inputs(config_file, historic_config_file, input_path, model_path,
             # a flag for multi (categorical) band input - if true, set
             #   "-landuse"
             if getattr(Inputs, key).bands:
-                xarg = "-landuse"
+                is_multiband = "-landuse"
             else:
-                xarg = None
+                is_multiband = None
+            # a flag for integer input - if true, set "-int"
+            if getattr(Inputs, key).type == int:
+                is_int = "-intnetcdf"
+            else:
+                is_int = None
             # default grid file (only valid for 0.5 degree inputs)
             grid_file = (
                 "/p/projects/lpjml/input/historical/input_VERSION2/grid.bin"
             )
             # convert clm input to netcdf files
             conversion_cmd = [
-                f"{model_path}/bin/clm2cdf", xarg, key, grid_file,
-                f"{temp_dir}/{use_tmp}_{file_name_tmp}",
+                f"{model_path}/bin/clm2cdf", is_int, is_multiband, key,
+                grid_file, f"{temp_dir}/{use_tmp}_{file_name_tmp}",
                 f"{input_path}/{file_name_nc}"
             ]
             if None in conversion_cmd:
@@ -178,10 +192,11 @@ def supply_inputs(config_file, historic_config_file, input_path, model_path,
                 os.remove(f"{temp_dir}/2_{file_name_tmp}")
             # collect created input filenames and connect with input key
         return_dict[key] = file_name_nc
+    print(f"{input_path}/{return_dict[key]}")
     if return_xarray:
         return {key: getattr(xr.open_dataset(
             f"{input_path}/{return_dict[key]}",
-            decode_times=True
+            decode_times=True, mask_and_scale=False
         ), key) for key in return_dict}
     else:
         return return_dict
