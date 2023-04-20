@@ -11,24 +11,17 @@ pycoupler was written with the intention to support the coupling of
 Use the package manager [pip](https://pip.pypa.io/en/stable/) to install pycoupler.
 
 ```bash
-pip install
+pip install .
 ```
 
-Please make sure to also have set the [working environment for LPJmL](https://gitlab.pik-potsdam.de/lpjml/LPJmL_internal/-/blob/master/INSTALL) correctly if you are not working
+Please make to clone LPJmL in advance and provide its path via `model_path`.  
+Also make sure to also have set the [working environment for LPJmL](https://gitlab.pik-potsdam.de/lpjml/LPJmL_internal/-/blob/master/INSTALL) correctly if you are not working
 on the PIK cluster (with Slurm Workload Manager).  
-Else it is recommended to add something like this to the working environment or your `.profile`.
 
-```bash
-export LPJROOT=<PATH_TO_LOCAL_LPJML_REPOSITORY>/LPJmL_internal
-# ONLY if you do not have access to [LPJmL](https://gitlab.pik-potsdam.de/lpjml/LPJmL_internal)
-#   for usage of python function clone_lpjml
-export GIT_LPJML_URL="gitlab.pik-potsdam.de/lpjml/LPJmL_internal.git"
-export GIT_READ_TOKEN="<ASK_THE_AUTHOR_OF_THIS_PACKAGE>"
-```
 
 ## Usage
 
-##### **1. TERMINAL (login node): run LPJmL**
+##### **1. terminal: run LPJmL**
 ```python
 from pycoupler.config import parse_config
 from pycoupler.utils import check_lpjml
@@ -36,8 +29,8 @@ from pycoupler.run import run_lpjml
 
 
 # paths
-model_path = "<LPJROOT>"
-output_path ="<DIR_TO_WRITE_LPJML_OUTPUT>"
+model_path = "<model directory>"
+output_path ="<output writing directory>"
 
 # define a coupled LPJmL run provided the spinup and historic runs have already
 #   been performed (else look into ./scripts/demo_config_run.py)
@@ -46,16 +39,14 @@ output_path ="<DIR_TO_WRITE_LPJML_OUTPUT>"
 config_coupled = parse_config(path=model_path)
 
 # set coupled run configuration
-config_coupled.set_couple(output_path, restart_path, start=1981, end=2005,
+config_coupled.set_couple(output_path, restart_path, start=2023, end=2032,
                           couple_inputs=["landuse", "fertilizer_nr"],
                           couple_outputs=["cftfrac", "pft_harvestc",
                                           "pft_harvestn"],
                           write_outputs=["prec", "transp", "interc", "evap",
                                          "runoff", "discharge", "fpc", "vegc",
-                                         "soilc", "litc", "cftfrac",
-                                         "pft_harvestc", "pft_harvestn",
-                                         "pft_rharvestc", "pft_rharvestn",
-                                         "pet", "leaching"],
+                                         "soilc", "litc", "pft_rharvestc",
+                                         "pft_rharvestn", "pet", "leaching"],
                           write_temporal_resolution="annual")
 
 # only for single cell runs
@@ -63,7 +54,7 @@ config_coupled.startgrid = 27410
 config_coupled.river_routing = False
 
 # write config (LpjmlConfig object) as json file
-config_coupled_fn = "config_coupled.json"
+config_coupled_fn = "./config_coupled.json"
 config_coupled.to_json(file=config_coupled_fn)
 
 # check if everything is set correct
@@ -76,7 +67,7 @@ run_lpjml(
 )
 ```
 
-##### **2. TERMINAL (login node): your program (model, script, ...)**
+##### **2. terminal: your program (model, script, ...)**
 
 ```python
 from pycoupler.coupler import Coupler
@@ -84,12 +75,12 @@ from pycoupler.data import supply_inputs, preprocess_inputs
 
 
 # paths
-base_path = "/p/projects/open/Jannes/copan_core/lpjml_test"
-config_coupled_fn = f"{base_path}/config_coupled.json"
+input_path = "<input data directory>"
+config_coupled_fn = "./config_coupled.json"
 
 # coupled simulation years
-start_year = 1981
-end_year = 2005
+start_year = 2023
+end_year = 2032
 sim_years = range(start_year, end_year+1)
 
 # initiate coupler after run_lpjml on LOGIN NODE 1
@@ -98,9 +89,10 @@ coupler = Coupler(config_file=config_coupled_fn)
 # get and process initial inputs
 inputs = supply_inputs(config_file=config_coupled_fn,
                        historic_config_file=config_historic_fn,
-                       input_path=f"{base_path}/input",
+                       input_path=input_path,
                        model_path=model_path,
-                       start_year=start_year, end_year=start_year)
+                       start_year=start_year,
+                       end_year=start_year)
 input_data = preprocess_inputs(inputs, grid=coupler.grid, time=start_year)
 
 # coupled simulation years
@@ -122,6 +114,7 @@ coupler.close_channel()
 ```
 
 ## Contributing
-Merge requests are welcome. For major changes, please open an issue first to discuss what you would like to change.
+Merge requests are welcome. For major changes, please open an issue first to
+discuss what you would like to change.
 
 Please make sure to update tests as appropriate.

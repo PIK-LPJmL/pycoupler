@@ -93,6 +93,8 @@ def submit_lpjml(config_file, model_path, output_path=None, group="copan",
     timestamp = datetime.now().strftime("%Y%m%d_%H%M")
     stdout = f"{output_path}/outfile_{timestamp}.out"
     stderr = f"{output_path}/errfile_{timestamp}.err"
+
+    lpjroot = os.environ['LPJROOT']
     # prepare lpjsubmit command to be called via subprocess
     cmd = [f"{model_path}/bin/lpjsubmit"]
     # specify sbatch arguments required by lpjsubmit internally
@@ -112,8 +114,16 @@ def submit_lpjml(config_file, model_path, output_path=None, group="copan",
     if couple_to:
         cmd.extend(["-copan", couple_to])
     cmd.extend([str(ntasks), config_file])
-    # call lpjsubmit via subprocess and return status if successfull
-    submit_status = run(cmd, capture_output=True)
+    # set LPJROOT to model_path to be able to call lpjsubmit
+    try:
+        os.environ['LPJROOT'] = model_path
+        # call lpjsubmit via subprocess and return status if successfull
+        submit_status = run(cmd, capture_output=True)
+    except Exception as e:
+        print("Error occurred:", e)
+    finally:
+        os.environ['LPJROOT'] = lpjroot
+
     # print stdout and stderr if not successful
     if submit_status.returncode == 0:
         print(submit_status.stdout.decode('utf-8'))

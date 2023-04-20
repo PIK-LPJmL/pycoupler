@@ -2,3 +2,6 @@ __pycache__/
 env/
 venv/
 *JB.py
+
+pycoupler.egg-info/
+build/
