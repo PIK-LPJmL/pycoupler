@@ -1,22 +1,27 @@
+import os
 from pycoupler.utils import check_lpjml, compile_lpjml, clone_lpjml, \
     create_subdirs
 from pycoupler.config import parse_config
-from pycoupler.run import submit_lpjml
+from pycoupler.run import run_lpjml
 
 
 # paths
-model_location = "<INSERT_MODEL_LOCATION>"
-model_path = f"{model_location}/LPJmL_internal"
-base_path = "<INSERT_PATH_TO_ENCLOSING_FOLDER_OF_MODEL_OUTPUT_RESTART_INPUT>"
-output_path = f"{base_path}/output"
-restart_path = f"{base_path}/restart"
+base_path = "<INSERT_MODEL_LOCATION>"
+model_path = f"{base_path}/LPJmL_internal"
 
+output_path = f"{base_path}/output"
+if not os.path.exists(output_path):
+    os.makedirs(output_path)
+
+restart_path = f"{base_path}/restart"
+if not os.path.exists(restart_path):
+    os.makedirs(restart_path)
 
 # set up lpjml -------------------------------------------------------------- #
 
 # clone function to model location via oauth token (set as enironment var) and
 #   checkout copan branch (default until it is merged)
-clone_lpjml(model_location=model_location, branch="lpjml53_copan")
+clone_lpjml(model_location=base_path, branch="master")
 # if patched and existing compiled version use make_fast=True or if error is
 #   thrown, use arg make_clean=True without make_fast=True
 compile_lpjml(model_path=model_path, make_fast=True)

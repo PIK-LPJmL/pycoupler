@@ -1,6 +1,6 @@
+import os
 import subprocess
 import json
-import warnings
 
 
 class LpjmlConfig:
@@ -107,6 +107,7 @@ class LpjmlConfig:
     def set_couple(self, output_path, restart_path, start, end,
                    couple_inputs, couple_outputs, write_outputs,
                    write_temporal_resolution="annual",
+                   append_output=True,
                    model_name="copan:CORE"):
         """Set configuration required for coupled model runs
         :param output_path: define output_path the output is written to. If
@@ -135,6 +136,10 @@ class LpjmlConfig:
             corresponding to `outputs` or str to set the same resolution for
             all `outputs`. Defaults to "annual" (for all `outputs`).
         :type write_temporal_resolution: list/str
+        :param append_output: if True defined output entries are appended by
+            defined `outputs`. Please mind that the existing ones are not
+            altered.
+        :param append_output: bool
         :param model_name: model name of the coupled program which also sets
             the model to coupled mode (without coupling coupled_model = None)
         :type model_name: str
@@ -142,9 +147,12 @@ class LpjmlConfig:
         # set time range for coupled run
         self.set_timerange(start=start, end=end)
         # set output directory, outputs (relevant ones for pbs and agriculture)
+        write_outputs += [
+            item for item in couple_outputs if item not in write_outputs
+        ]
         self.set_outputs(output_path, outputs=write_outputs,
                          temporal_resolution=write_temporal_resolution,
-                         file_format="cdf")
+                         file_format="cdf", append_output=append_output)
         # set coupling parameters
         self.set_coupler(inputs=couple_inputs, outputs=couple_outputs,
                          model_name=model_name)
@@ -152,7 +160,7 @@ class LpjmlConfig:
         self.set_startfrom(path=restart_path)
 
     def set_outputs(self, output_path, outputs=[], file_format="raw",
-                    temporal_resolution="annual", append_output=False):
+                    temporal_resolution="annual", append_output=True):
         """Set outputs to be written by LPJmL, define temporal resolution
         :param output_path: define output_path the output is written to. If
             `append_output == True` output_path is only altered for appended
@@ -175,68 +183,83 @@ class LpjmlConfig:
             altered.
         :param append_output: bool
         """
-        resolution_avail = ('annual', 'monthly', 'daily')
-        formats_avail = {'raw': 'bin', 'clm': 'clm', 'cdf': 'nc4'}
-        if isinstance(temporal_resolution, list):
-            if any(
-                res not in resolution_avail for res in temporal_resolution
-            ):
-                raise ValueError("Temporal resolution not available for " +
-                                 "LPJmL. Choose from 'annual', 'monthly' " +
-                                 "and 'daily'.")
+        available_res = ('annual', 'monthly', 'daily')
+        available_formats = {'raw': 'bin', 'clm': 'clm', 'cdf': 'nc4'}
+        nonvariable_outputs = ('globalflux')
+
+        # add grid output if not already defined
+        if "grid" not in outputs:
+            outputs.append("grid")
+            if isinstance(temporal_resolution, list) > 1:
+                temporal_resolution.append("annual")
+
+        # check if temporal resolution is of length one
+        if not isinstance(temporal_resolution, list):
+            temporal_resolution = [temporal_resolution] * len(outputs)
+            single_res = True
+        else:
             if len(outputs) != len(temporal_resolution):
                 raise ValueError("outputs and temporal_resolution have a " +
                                  "different length. Please adjust.")
-        elif isinstance(temporal_resolution, str):
-            if temporal_resolution not in resolution_avail:
-                raise ValueError("Temporal resolution not available for " +
-                                 "LPJmL. Choose from 'annual', 'monthly' " +
-                                 "and 'daily'.")
-        else:
-            TypeError("Provide a list or a str to temporal_resolution")
+            single_res = False
+
+        # check if temporal resolution is available
+        if any(res not in available_res for res in temporal_resolution):
+            raise ValueError("Temporal resolution not available for " +
+                             "LPJmL. Choose from 'annual', 'monthly' " +
+                             "and 'daily'.")
+
         # create dict of outputvar names with indexes for iteration
         outputvar_names = {
-            ov.name: idx for idx, ov in enumerate(self.outputvar)
+            ov.name: pos for pos, ov in enumerate(self.outputvar)
         }
         # extract dict of outputvar for manipulation
         outputvars = self.to_dict()['outputvar']
-        # empty list to collect if defined outputs are not in outputvar
-        not_found = []
+
         if not append_output:
-            # empty output to be filled with defined entries (outputs)
-            self.output = [self.__class__({
-                "id": "grid",
-                "file": self.__class__({
-                    "fmt": file_format,
-                    "name": f"{output_path}/grid.bin"
-                })
-            })]
+            self.output = list()
+        else:
+            # create dict of output names with indexes for iteration
+            output_names = list()
+            # modify existing output entries
+            for pos, out in enumerate(self.output):
+                output_names.append(out.id)
+                # only change temporal_resolution if not defined as list
+                # thus not specifically for each output
+                if single_res:
+                    self.output[pos].file.timestep = temporal_resolution[0]
+                if out.id not in nonvariable_outputs:
+                    self.output[pos].file.fmt = file_format
+                    self.output[pos].file.name = (
+                        f"{output_path}/{out.id}"
+                        f"{available_formats[file_format]}"
+                    )
+                else:
+                    self.output[pos].file.name = (
+                        f"{output_path}/{out.id}"
+                        f".{os.path.splitext(self.output[pos].file.name)[1]}"
+                    )
+
         # handle each defined output
-        for idx, out in enumerate(outputs):
-            # check temporal_resolution instance list/str
-            if isinstance(temporal_resolution, list):
-                temp_res = temporal_resolution[idx]
-            else:
-                temp_res = temporal_resolution
-            if out in outputvar_names:
+        for pos, out in enumerate(outputs):
+            if out in outputvar_names and out not in output_names:
+                # create new output entry
                 new_out = self.__class__({
                     'id': outputvars[outputvar_names[out]]['name'],
                     'file': self.__class__({
                         'fmt': file_format,
-                        'timestep': temp_res,
+                        'timestep': temporal_resolution[pos],
                         'name': f"{output_path}/"
                                 f"{outputvars[outputvar_names[out]]['name']}"
-                                f".{formats_avail[file_format]}"
+                                f".{available_formats[file_format]}"
                     })
                 })
                 self.output.append(new_out)
-            else:
-                # collect if defined outputs are not in outputvar
-                not_found.append(out)
-        if not_found:
-            # warning for defined outputs that are not listed in outputvar
-            warnings.warn("The following outputs do not exist in the" +
-                          f" current model version: {not_found}")
+            elif out not in outputvar_names:
+                # raise error if defined outputs are not in outputvar
+                raise ValueError(
+                    f"The following output is not defined in outputvar: {out}"
+                )
 
     def set_output_path(self, output_path):
         """Set output path of specified outputs
@@ -331,15 +354,13 @@ class LpjmlConfig:
         self.nspinup = 0
         self.float_grid = True
         self.coupled_model = model_name
-        self.set_sockets(inputs, outputs)
+        self.set_input_sockets(inputs)
+        self.set_output_sockets(outputs)
 
-    def set_sockets(self, inputs=[], outputs=[]):
+    def set_input_sockets(self, inputs=[]):
         """Set sockets for inputs and outputs (via corresponding ids)
         :param inputs: list of inputs to be used as socket for coupling.
             Provide dictionary/json key as identifier -> entry in list.
-        :type inputs: list
-        :param inputs: list of outputs to be used as socket for coupling.
-            Provide output id as identifier -> entry in list.
         :type inputs: list
         """
         for inp in inputs:
@@ -349,18 +370,38 @@ class LpjmlConfig:
             if 'name' in sock_input.__dict__.keys():
                 del sock_input.__dict__['name']
             sock_input.__dict__['fmt'] = 'sock'
+
+    def set_output_sockets(self, outputs=[]):
+        """Set sockets for inputs and outputs (via corresponding ids)
+
+        :param outputs: list of outputs to be used as socket for coupling.
+            Provide output id as identifier -> entry in list.
+        :type outputs: list
+        """
         if "grid" not in outputs:
             outputs.append("grid")
-        check_outputs = [
-            out.name for out in self.outputvar if out.name in outputs]
-        for output in outputs:
-            if output in check_outputs:
-                to_append = self.__class__({
-                    "id": output,
-                    'file': {
-                        'fmt': 'sock'}
-                })
-                self.output.append(to_append)
+
+        # get names/ids only of outputs that are defined in outputvar
+        valid_outs = {
+            out.name for out in self.outputvar if out.name in outputs
+        }
+
+        # check if all outputs are valid
+        nonvalid_outputs = list(set(outputs) - valid_outs)
+        if nonvalid_outputs:
+            raise ValueError(
+                "The following outputs are not defined in outputvar: "
+                f"{nonvalid_outputs}"
+            )
+        # get position of valid outputs in config output list
+        output_pos = [
+            pos for pos, out in enumerate(self.output) if out.id in valid_outs
+        ]
+
+        # set socket to true for corresponding outputs
+        for pos in output_pos:
+            if self.output[pos].id in valid_outs:
+                self.output[pos].file.socket = True
 
     def get_input_sockets(self):
         """get defined socket inputs as dict

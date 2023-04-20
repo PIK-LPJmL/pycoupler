@@ -88,7 +88,7 @@ def check_lpjml(config_file, model_path):
         )
     if os.path.isfile(f"{model_path}/bin/lpjcheck"):
         proc_status = run(
-            ["./bin/lpjcheck", "-param", config_file], capture_output=True,
+            ["./bin/lpjcheck", config_file], capture_output=True,  # "-param",
             cwd=model_path
         )
     if proc_status.returncode == 0:
