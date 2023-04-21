@@ -2,8 +2,15 @@
 
 An LPJmL Python interface to operate
 [LPJmL](https://github.com/PIK-LPJmL) within a Python
-environment and to couple it to Python models, programs or simple programming scripts. *pycoupler* is written with the intention to establish the coupling of
-[copan:core](https://github.com/pik-copan/pycopancore/) with LPJmL. Coupling with LPJmL is possible on an annual basis, i.e. for each year in which LPJmL is in coupling mode, the desired inputs must be passed via *pycoupler*. LPJmL then continues with the simulation of the corresponding year and returns the desired outputs at the end of the year. Based on the output data, the coupled program can now generate new inputs.
+environment and to couple it to Python models, programs or simple programming
+scripts.
+*pycoupler* is written with the intention to establish the coupling of
+[copan:core](https://github.com/pik-copan/pycopancore/) with LPJmL.
+Coupling with LPJmL is possible on an annual basis, i.e. for each year in which
+LPJmL is in coupling mode, the desired inputs must be passed via *pycoupler*.
+LPJmL subsequently simulates the corresponding year and returns the desired
+outputs at the end of the year.
+Based on the output data, the coupled program can (again) generate new inputs.
 
 ## Overview
 
