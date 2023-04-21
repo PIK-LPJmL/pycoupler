@@ -3,7 +3,7 @@ import subprocess
 import json
 
 
-class LpjmlConfig:
+class SubConfig:
     """This serves as an LPJmL config class that can be easily accessed,
     converted to a dictionary or written as a json file. It also provides
     methods to get/set outputs, restarts and sockets for model coupling.
@@ -16,6 +16,50 @@ class LpjmlConfig:
         """Constructor method
         """
         self.__dict__.update(config_dict)
+
+    def to_dict(self):
+        """Convert class object to dictionary
+        """
+        def obj_to_dict(obj):
+            if not hasattr(obj, '__dict__'):
+                return obj
+            result = {}
+            for key, val in obj.__dict__.items():
+                if key.startswith("_"):
+                    continue
+                element = []
+                if isinstance(val, list):
+                    for item in val:
+                        element.append(obj_to_dict(item))
+                else:
+                    element = obj_to_dict(val)
+                result[key] = element
+            return result
+        return obj_to_dict(self)
+
+    def to_json(self, path):
+        """Write json file
+        :param file: file name (including relative/absolute path) to write json
+            to
+        :type: str
+        """
+        # convert class to dict
+        config_dict = self.to_dict()
+
+        # configuration file name
+        json_file = f"{path}/config_{self.sim_name}.json"
+
+        # write json and prettify via indent
+        with open(json_file, 'w') as con:
+            json.dump(config_dict, con, indent=2)
+
+        return json_file
+
+    def __repr__(self):
+        return f"<{self.__class__.__name__} object>"
+
+
+class LpjmlConfig(SubConfig):
 
     def fields(self):
         """Return object fields
@@ -38,10 +82,6 @@ class LpjmlConfig:
             else:
                 return self.input.to_dict()
 
-    # def get_input_map(self):
-    #     inputs = self.input.to_dict()
-    #     return {inp: inputs[inp]["id"] for inp in inputs}
-
     def get_outputs_avail(self, id_only=True, with_description=True):
         """Get available output (outputvar) names (== output ids) as list
         """
@@ -61,67 +101,84 @@ class LpjmlConfig:
         else:
             return self.to_dict()['output']
 
-    def set_spinup(self, output_path, restart_path):
+    def set_spinup(self, sim_path):
         """Set configuration required for spinup model runs
-        :param output_path: define output_path the output is written to. If
-            `append_output == True` output_path is only altered for appended
-            `outputs`.
-        :type output_path: str
+        :param sim_path: define sim_path data is written to
+        :type sim_path: str
         :param restart_path: define restart_path the restart files to start
             model runs from. Has to match with `restart_path` from
             `set_historic`
         :type restart_path: str
         """
-        # set output directory
-        self.set_output_path(output_path=output_path)
+        self.sim_name = "spinup"
+        output_path = f"{sim_path}/output/{self.sim_name}"
+
+        # set output writing
+        self.set_output_path(output_path)
         # set restart directory to restart from in subsequent historic run
-        self.set_restart(path=restart_path)
+        self.set_restart(path=sim_path)
 
-    def set_historic(self, output_path, restart_path, start, end,
-                     write_start=None):
+        return output_path
+
+    def set_historic(self, sim_path, start_year, end_year,
+                     write_start_year=None, write_outputs=[],
+                     write_temporal_resolution=None,
+                     append_output=True):
         """Set configuration required for historic model runs
-        :param output_path: define output_path the output is written to. If
-            `append_output == True` output_path is only altered for appended
-            `outputs`.
-        :type output_path: str
-        :param restart_path: define restart_path the restart files to start
-            model runs from. Has to match with `restart_path` from
-            `set_historic`
-        :type restart_path: str
-        :param start: start year of simulation
-        :type start: int
-        :param end: end year of simulation
-        :type end: int
-        :param write_start: first year of output being written
-        :type write_start: int
+        :param sim_path: define sim_path data is written to
+        :type sim_path: str
+        :param start_year: start year of simulation
+        :type start_year: int
+        :param end_year: end year of simulation
+        :type end_year: int
+        :param write_start_year: first year of output being written
+        :type write_start_year: int
+        :param write_outputs: output ids of `outputs` to be written by
+            LPJmL. Make sure to check if required output is available via
+            `get_outputs_avail`
+        :type write_outputs: list
+        :param write_temporal_resolution: list of temporal resolutions
+            corresponding to `outputs` or str to set the same resolution for
+            all `outputs`. Choose between "annual", "monthly", "daily".
+            Defaults to None (use default output/outputvar resolution).
+        :type write_temporal_resolution: list/str/None
+        :param append_output: if True defined output entries are appended by
+            defined `outputs`. Please mind that the existing ones are not
+            altered.
+        :param append_output: bool
         """
+        self.sim_name = "historic"
+        output_path = f"{sim_path}/output/{self.sim_name}"
         # set time range for historic run
-        self.set_timerange(start=start, end=end, write_start=write_start)
-        # set output directory
-        self.set_outputs(output_path)  # file_format="cdf"
+        self.set_timerange(start_year=start_year,
+                           end_year=end_year,
+                           write_start_year=write_start_year)
+        # set output writing
+        self.set_outputs(output_path,
+                         outputs=write_outputs,
+                         temporal_resolution=write_temporal_resolution,
+                         file_format="cdf",
+                         append_output=append_output)
         # set start from directory to start from spinup run
-        self.set_startfrom(path=restart_path)
+        self.set_startfrom(path=sim_path)
         # set restart directory to restart from in subsequent transient run
-        self.set_restart(path=restart_path)
+        self.set_restart(path=sim_path)
 
-    def set_couple(self, output_path, restart_path, start, end,
-                   couple_inputs, couple_outputs, write_outputs,
-                   write_temporal_resolution="annual",
-                   append_output=True,
-                   model_name="copan:CORE"):
+        return output_path
+
+    def set_coupled(self, sim_path, start_year, end_year,
+                    couple_inputs, couple_outputs,
+                    write_outputs=[],
+                    write_temporal_resolution=None,
+                    append_output=True,
+                    model_name="copan:CORE"):
         """Set configuration required for coupled model runs
-        :param output_path: define output_path the output is written to. If
-            `append_output == True` output_path is only altered for appended
-            `outputs`.
-        :type output_path: str
-        :param restart_path: define restart_path the restart files to start
-            model runs from. Has to match with `restart_path` from
-            `set_historic`
-        :type restart_path: str
-        :param start: start year of simulation
-        :type start: int
-        :param end: end year of simulation
-        :type end: int
+        :param sim_path: define sim_path data is written to
+        :type sim_path: str
+        :param start_year: start year of simulation
+        :type start_year int
+        :param end_year: end year of simulation
+        :type end_year: int
         :param couple_inputs: list of inputs to be used as socket for coupling.
             Provide dictionary/json key as identifier -> entry in list.
         :type couple_inputs: list
@@ -134,8 +191,9 @@ class LpjmlConfig:
         :type write_outputs: list
         :param write_temporal_resolution: list of temporal resolutions
             corresponding to `outputs` or str to set the same resolution for
-            all `outputs`. Defaults to "annual" (for all `outputs`).
-        :type write_temporal_resolution: list/str
+            all `outputs`. Choose between "annual", "monthly", "daily".
+            Defaults to None (use default output/outputvar resolution).
+        :type write_temporal_resolution: list/str/None
         :param append_output: if True defined output entries are appended by
             defined `outputs`. Please mind that the existing ones are not
             altered.
@@ -144,20 +202,26 @@ class LpjmlConfig:
             the model to coupled mode (without coupling coupled_model = None)
         :type model_name: str
         """
+        self.sim_name = "coupled"
+        output_path = f"{sim_path}/output/{self.sim_name}"
         # set time range for coupled run
-        self.set_timerange(start=start, end=end)
+        self.set_timerange(start_year=start_year, end_year=end_year)
         # set output directory, outputs (relevant ones for pbs and agriculture)
         write_outputs += [
             item for item in couple_outputs if item not in write_outputs
         ]
-        self.set_outputs(output_path, outputs=write_outputs,
+        self.set_outputs(output_path,
+                         outputs=write_outputs,
                          temporal_resolution=write_temporal_resolution,
-                         file_format="cdf", append_output=append_output)
+                         file_format="cdf",
+                         append_output=append_output)
         # set coupling parameters
         self.set_coupler(inputs=couple_inputs, outputs=couple_outputs,
                          model_name=model_name)
         # set start from directory to start from historic run
-        self.set_startfrom(path=restart_path)
+        self.set_startfrom(path=sim_path)
+
+        return output_path
 
     def set_outputs(self, output_path, outputs=[], file_format="raw",
                     temporal_resolution="annual", append_output=True):
@@ -193,21 +257,21 @@ class LpjmlConfig:
             if isinstance(temporal_resolution, list) > 1:
                 temporal_resolution.append("annual")
 
-        # check if temporal resolution is of length one
-        if not isinstance(temporal_resolution, list):
-            temporal_resolution = [temporal_resolution] * len(outputs)
-            single_res = True
-        else:
-            if len(outputs) != len(temporal_resolution):
-                raise ValueError("outputs and temporal_resolution have a " +
-                                 "different length. Please adjust.")
-            single_res = False
+        if temporal_resolution:
+            # check if temporal resolution is of length one
+            if isinstance(temporal_resolution, list):
+                temp_res = temporal_resolution
+                if len(outputs) != len(temporal_resolution):
+                    raise ValueError("outputs and temporal_resolution have a" +
+                                     " different length. Please adjust.")
+            else:
+                temp_res = [temporal_resolution]
 
-        # check if temporal resolution is available
-        if any(res not in available_res for res in temporal_resolution):
-            raise ValueError("Temporal resolution not available for " +
-                             "LPJmL. Choose from 'annual', 'monthly' " +
-                             "and 'daily'.")
+            # check if temporal resolution is available
+            if any(res not in available_res for res in temp_res):
+                raise ValueError("Temporal resolution not available for " +
+                                 "LPJmL. Choose from 'annual', 'monthly' " +
+                                 "and 'daily'.")
 
         # create dict of outputvar names with indexes for iteration
         outputvar_names = {
@@ -224,15 +288,16 @@ class LpjmlConfig:
             # modify existing output entries
             for pos, out in enumerate(self.output):
                 output_names.append(out.id)
-                # only change temporal_resolution if not defined as list
-                # thus not specifically for each output
-                if single_res:
-                    self.output[pos].file.timestep = temporal_resolution[0]
+                self.output[pos].file.socket = False
+                # Only change temporal_resolution if string, so not
+                # specifically for each output
+                if isinstance(temporal_resolution, str):
+                    self.output[pos].file.timestep = temporal_resolution
                 if out.id not in nonvariable_outputs:
                     self.output[pos].file.fmt = file_format
                     self.output[pos].file.name = (
                         f"{output_path}/{out.id}"
-                        f"{available_formats[file_format]}"
+                        f".{available_formats[file_format]}"
                     )
                 else:
                     self.output[pos].file.name = (
@@ -243,15 +308,25 @@ class LpjmlConfig:
         # handle each defined output
         for pos, out in enumerate(outputs):
             if out in outputvar_names and out not in output_names:
+
+                # check if temporal resolution is defined for output
+                if not temporal_resolution:
+                    timestep = outputvars[outputvar_names[out]]['timestep']
+                elif isinstance(temporal_resolution, list):
+                    timestep = temporal_resolution[pos]
+                else:
+                    timestep = temporal_resolution
+
                 # create new output entry
                 new_out = self.__class__({
                     'id': outputvars[outputvar_names[out]]['name'],
                     'file': self.__class__({
                         'fmt': file_format,
-                        'timestep': temporal_resolution[pos],
+                        'socket': False,
+                        'timestep': timestep,
                         'name': f"{output_path}/"
                                 f"{outputvars[outputvar_names[out]]['name']}"
-                                f".{available_formats[file_format]}"
+                                f".{available_formats[file_format]}",
                     })
                 })
                 self.output.append(new_out)
@@ -321,21 +396,24 @@ class LpjmlConfig:
         else:
             raise ValueError('Please provide either a path or a file_name.')
 
-    def set_timerange(self, start=1901, end=2017, write_start=None):
+    def set_timerange(self,
+                      start_year=1901,
+                      end_year=2017,
+                      write_start_year=None):
         """Set simulation time range, outputyear to start as a default here.
-        :param start: start year of simulation
-        :type start: int
-        :param end: end year of simulation
-        :type end: int
-        :param write_start: first year of output being written
-        :type write_start: int
+        :param start_year: start year of simulation
+        :type start_year: int
+        :param end_year: end year of simulation
+        :type end_year: int
+        :param write_start_year: first year of output being written
+        :type write_start_year: int
         """
-        self.firstyear = start
-        if write_start:
-            self.outputyear = write_start
+        self.firstyear = start_year
+        if write_start_year:
+            self.outputyear = write_start_year
         else:
-            self.outputyear = start
-        self.lastyear = end
+            self.outputyear = start_year
+        self.lastyear = end_year
 
     def set_coupler(self, inputs, outputs, model_name="copan:CORE"):
         """Coupled settings - no spinup, not write restart file and set sockets
@@ -402,6 +480,7 @@ class LpjmlConfig:
         for pos in output_pos:
             if self.output[pos].id in valid_outs:
                 self.output[pos].file.socket = True
+                self.output[pos].file.timestep = "annual"
 
     def get_input_sockets(self):
         """get defined socket inputs as dict
@@ -419,47 +498,12 @@ class LpjmlConfig:
         return {
             out["id"]: dict(
                 {'index': name_id[out["id"]]}, **out
-            ) for out in outputs if out["file"]["fmt"] == "sock"
+            ) for out in outputs if out["file"]["socket"]
         }
 
-    def to_dict(self):
-        """Convert class object to dictionary
-        """
-        def obj_to_dict(obj):
-            if not hasattr(obj, '__dict__'):
-                return obj
-            result = {}
-            for key, val in obj.__dict__.items():
-                if key.startswith("_"):
-                    continue
-                element = []
-                if isinstance(val, list):
-                    for item in val:
-                        element.append(obj_to_dict(item))
-                else:
-                    element = obj_to_dict(val)
-                result[key] = element
-            return result
-        return obj_to_dict(self)
 
-    def to_json(self, file="./config.json"):
-        """Write json file
-        :param file: file name (including relative/absolute path) to write json
-            to
-        :type: str
-        """
-        # convert class to dict
-        config_dict = self.to_dict()
-        # write json and prettify via indent
-        with open(file, 'w') as con:
-            json.dump(config_dict, con, indent=2)
-
-    def __repr__(self):
-        return f"<{self.__class__.__name__} object>"
-
-
-def parse_config(path, js_filename="lpjml.js", spin_up=False,
-                 macros=None, return_dict=False):
+def parse_config(file_name="./lpjml.js", spin_up=False,
+                 macros=None, config_class=False):
     """Precompile lpjml.js and return LpjmlConfig object or dict. Also
     evaluate macros. Analogous to R function `lpjmlKit::parse_config`.
     :param path: path to lpjml root
@@ -471,9 +515,9 @@ def parse_config(path, js_filename="lpjml.js", spin_up=False,
     :type spin_up: bool
     :param macros: provide a macro in the form of "-DMACRO" or list of macros
     :type macros: str, list
-    :param return_dict: if `True` an LpjmlConfig object is returned,
-        else (`False`) a dictionary is returned
-    :type return_dict: bool
+    :param config_class: class of config object to be returned or None
+        (return dict)
+    :type config_class: class
     :return: if `return_dict == True` -> LpjmlConfig object, else a
         a dictionary
     :rtype: LpjmlConfig, dict
@@ -488,19 +532,18 @@ def parse_config(path, js_filename="lpjml.js", spin_up=False,
             cmd.extend(macros)
         else:
             cmd.append(macros)
-    cmd.append(f"./{js_filename}")
-    if not return_dict:
-        config = LpjmlConfig
-    else:
-        config = None
-    # subprocess call of cmd - return stdout
-    tmp_json_str = subprocess.run(cmd, cwd=path, capture_output=True)
-    # convert to dict
-    tmp_json = json.loads(tmp_json_str.stdout, object_hook=config)
-    return tmp_json
+    cmd.append(file_name)
+
+    # Subprocess call of cmd - return stdout
+    json_str = subprocess.run(cmd, capture_output=True)
+
+    # Convert to dict
+    lpjml_config = json.loads(json_str.stdout, object_hook=config_class)
+
+    return lpjml_config
 
 
-def read_config(file_name, return_dict=False):
+def read_config(file_name, spin_up=False, macros=None, return_dict=False):
     """Read function for config files to be returned as LpjmlConfig object or
     alternatively dict.
     :param file_name: file name (including relative/absolute path) of the
@@ -514,8 +557,23 @@ def read_config(file_name, return_dict=False):
     :rtype: LpjmlConfig, dict
     """
     if not return_dict:
-        config = LpjmlConfig
+        config = SubConfig
     else:
         config = None
-    with open(file_name) as file_con:
-        return json.load(file_con, object_hook=config)
+
+    # Try to read file as json
+    try:
+        with open(file_name) as file_con:
+            lpjml_config = json.load(file_con, object_hook=config)
+
+    # If not possible, precompile and parse JSON
+    except json.decoder.JSONDecodeError:
+        lpjml_config = parse_config(
+            file_name, spin_up=spin_up, macros=macros, config_class=config
+        )
+
+    # Convert first level to LpjmlConfig object
+    if not return_dict:
+        lpjml_config.__class__ = LpjmlConfig
+
+    return lpjml_config

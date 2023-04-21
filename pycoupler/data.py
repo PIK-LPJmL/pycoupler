@@ -95,12 +95,15 @@ def supply_inputs(config_file, historic_config_file, input_path, model_path,
         matching.
     :type overwrite: bool
     :return: inputs dictionary with input keys (as keys) and
-        xarray.DataArray(s) as value - CANNOT BE SENT TO LPJML (via Coupler) -
-        please use `preprocess_inputs` first
+        xarray.DataArray(s) as value - CANNOT BE SENT TO LPJML
+        (via LPJmLCoupler) - please use `preprocess_inputs` first
     :rtype: dict (values as DataArray.array)
     """
     # get defined input sockets
     config = read_config(config_file)
+    if not os.path.isdir(input_path):
+        os.makedirs(input_path)
+        print(f"Created input path '{input_path}'")
     sock_inputs_keys = config.get_input_sockets().keys()
     # get input paths for historic run
     historic_config = read_config(file_name=historic_config_file)
@@ -215,7 +218,7 @@ def preprocess_inputs(inputs, grid, time):
     :param time: years to be extracted
     :type time: int, list(int)
     :return: inputs dictionary with input keys (as keys) and numpy.array(s)
-        as value, that CAN DIRECTLY BE SEND TO LPJML AS INPUT (via Coupler)
+        as value, that CAN DIRECTLY BE SEND TO LPJML AS INPUT (via LPJmLCoupler)
     :rtype: dict (values as numpy.array)
     """
 

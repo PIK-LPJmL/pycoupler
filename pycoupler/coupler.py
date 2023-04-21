@@ -97,9 +97,9 @@ class CopanStatus(Enum):
     COPAN_ERR: int = -1
 
 
-class Coupler:
-    """ Coupler class serves as the interface between LPJmL and the model to
-    couple with. It initiates a socket channel, provides it and follows the
+class LPJmLCoupler:
+    """ LPJmLCoupler class serves as the interface between LPJmL and the model
+    to couple with. It initiates a socket channel, provides it and follows the
     initialization protocol (->: receiving, <-: sending, for: iteration):
     -> version (int32)
     -> number of cells (int32)
@@ -125,8 +125,8 @@ class Coupler:
         else:
             <next>
     The protocol may vary from version to version hence this only reflects the
-    current state of the protocol. Please use the Coupler Instance throughout
-    the Simulation and do not close or reinitiate in between.
+    current state of the protocol. Please use the LPJmLCoupler Instance
+    throughout the Simulation and do not close or reinitiate in between.
 
     :param config_file: file name (including relative/absolute path) of the
         corresponding LPJmL configuration to be read simulation details from

@@ -10,13 +10,14 @@ def run_lpjml(config_file, model_path, output_path=None):
         raise ValueError(
             f"Folder of model_path '{model_path}' does not exist!"
         )
+
     if not output_path:
         output_path = model_path
     else:
         if not os.path.isdir(output_path):
-            raise ValueError(
-                f"Folder of output_path '{output_path}' does not exist!"
-            )
+            os.makedirs(output_path)
+            print(f"Created output_path '{output_path}'")
+
     cmd = [f"{model_path}/bin/lpjml", config_file]
     # environment settings to be used for interartive LPJmL sessions
     #   MPI settings conflict with (e.g. on login node)
