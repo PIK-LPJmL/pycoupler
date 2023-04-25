@@ -61,7 +61,7 @@ def compile_lpjml(model_path=".", make_fast=False, make_clean=False):
     # make all call with possibility to make fast via -j8 arg
     cmd = ['make']
     if make_fast:
-        cmd.append('-j8')
+        cmd.append('-j16')
     cmd.append('all')
     # open process to be iteratively printed to the console
     with Popen(

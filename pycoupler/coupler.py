@@ -144,10 +144,16 @@ class LPJmLCoupler:
         """Constructor method
         """
         self.__config__ = read_config(config_file)
-        self.__niteration__ = len(range(self.__config__.firstyear,
-                                        self.__config__.lastyear+1))
-        self.__output_niteration__ = self.__niteration__
-        self.__input_niteration__ = self.__niteration__
+        self.__output_niteration__ = len(range(self.__config__.firstyear,
+                                               self.__config__.lastyear+1))
+
+        if self.__config__.start_coupling:
+            self.__input_niteration__ = len(
+                range(self.__config__.start_coupling,
+                      self.__config__.lastyear+1)
+            )
+        else:
+            self.__input_niteration__ = self.__output_niteration__
 
         # open/initialize socket channel
         self.__channel__ = opentdt(host, port)
@@ -155,7 +161,7 @@ class LPJmLCoupler:
         # Check coupler protocol version
         self.version = read_int(self.__channel__)
         if self.version != version:
-            self.close_channel()
+            self.close()
             raise ValueError(
                 f"Invalid coupler version {version}, must be {self.version}"
             )
@@ -188,7 +194,7 @@ class LPJmLCoupler:
         self.__noutput_static__ = 0
 
         # Check for static output
-        outputs_avail = self.__config__.get_outputs_avail(id_only=False)
+        outputs_avail = self.__config__.get_output_avail(id_only=False)
 
         # Get output ids
         self.__globalflux_id__ = [out["id"] for out in outputs_avail if out[
@@ -243,7 +249,7 @@ class LPJmLCoupler:
         :getter: Number of left coupled iterations
         :type: int
         """
-        return self.__niteration__
+        return self.__input_niteration__
 
     @property
     def ncell(self):
@@ -262,13 +268,13 @@ class LPJmLCoupler:
         """
         return self.__grid__
 
-    def close_channel(self):
+    def close(self):
         """Close socket channel
         """
         print("Socket channel has been closed.")
         self.__channel__.close()
 
-    def send_inputs(self, input_dict, year):
+    def send_input(self, input_dict, year):
         """Send input data of iterated year as dictionary to LPJmL. Dictionary
         has to supplied in the form of (example):
         my_dict = {
@@ -288,14 +294,9 @@ class LPJmLCoupler:
         # iteration step check - if number of iterations left exceed simulation
         #   steps (analogous to years left)
         if self.__input_niteration__ < 0:
-            self.close_channel()
+            self.close()
             raise IndexError("Number of simulation iterations exceeded")
-        # iteration step check - if number of input iterations left does not
-        #   match output iterations left (analogous to years left)
-        if self.__input_niteration__ != self.__output_niteration__:
-            self.close_channel()
-            raise RuntimeError("Sequence of send_input and read_output " +
-                               "calls not matching.")
+
         # iterate over outputs for private send_input_data
         self.__iterate_operation__(length=self.__ninput__,
                                    fun=self.__send_input_data__,
@@ -305,7 +306,7 @@ class LPJmLCoupler:
         # decrement input iterations left (analogous to years left)
         self.__input_niteration__ -= 1
 
-    def read_outputs(self, year):
+    def read_output(self, year):
         """Read LPJmL output data of iterated year. Returned output comes in
         the same format as input is supplied to send_input, with output id/name
         as dict keys:
@@ -323,14 +324,9 @@ class LPJmLCoupler:
         # iteration step check - if number of iterations left exceed simulation
         #   steps (analogous to years left)
         if self.__output_niteration__ < 0:
-            self.close_channel()
+            self.close()
             raise IndexError("Number of simulation iterations exceeded")
-        # iteration step check - if number of output iterations left does not
-        #   match input iterations left (analogous to years left)
-        if self.__input_niteration__ + 1 != self.__output_niteration__:
-            self.close_channel()
-            raise RuntimeError("Sequence of send_input and read_output " +
-                               "calls not matching.")
+
         # iterate over outputs for private send_output_data
         output_dict = self.__iterate_operation__(length=self.__noutput_sim__,
                                                  fun=self.__read_output_data__,
@@ -342,8 +338,7 @@ class LPJmLCoupler:
         #     idx] for idx in self.__output_ids__.keys()}
         # decrement output iterations left (analogous to years left)
         self.__output_niteration__ -= 1
-        # decrement general iteration counter
-        self.__niteration__ -= 1
+
         return output_dict
 
     def __iterate_operation__(self, length, fun, token, args=None,
@@ -354,7 +349,7 @@ class LPJmLCoupler:
         # check if read token matches expected token and return read token
         token_check, received_token = self.__check_token__(token)
         if not token_check:
-            self.close_channel()
+            self.close()
             raise ValueError(
                 f"Token {received_token.name} is not {token.name}"
             )
@@ -396,7 +391,7 @@ class LPJmLCoupler:
             # Send number of bands
             send_int(self.__channel__, val=self.__input_bands__[index])
         else:
-            self.close_channel()
+            self.close()
             raise ValueError(f"Input of input ID {index} not supported.")
 
     def __set_input_types__(self, index):
@@ -417,7 +412,7 @@ class LPJmLCoupler:
         valid_inputs = {getattr(Inputs, sock).value: getattr(
             Inputs, sock).nband for sock in sockets if sock in input_names}
         if len(sockets) != len(valid_inputs):
-            self.close_channel()
+            self.close()
             raise ValueError(
                 f"Configurated sockets {list(sockets.keys())} not defined in" +
                 f" {input_names}!"
@@ -444,7 +439,7 @@ class LPJmLCoupler:
         # check if only annual timesteps were set
         if self.__output_steps__[index] > 1:
             send_int(self.__channel__, CopanStatus.COPAN_ERR.value)
-            self.close_channel()
+            self.close()
             raise ValueError(f"Time step {self.__output_steps__[index]} " +
                              f" for output ID {index} invalid.")
         else:
@@ -458,7 +453,7 @@ class LPJmLCoupler:
             if self.__ninput__ != 0 and self.__noutput__ != 0:
                 send_int(self.__channel__, CopanStatus.COPAN_OK.value)
             else:
-                self.close_channel()
+                self.close()
                 send_int(self.__channel__, CopanStatus.COPAN_ERR.value)
                 raise ValueError("No inputs OR outputs defined.")
         else:
@@ -495,7 +490,7 @@ class LPJmLCoupler:
         """
         index = read_int(self.__channel__)
         if not isinstance(data[self.__input_ids__[index]], np.ndarray):
-            self.close_channel()
+            self.close()
             raise TypeError("Unsupported object type. Please supply a numpy " +
                             "array with the dimension of (ncells, nband).")
         # type check conversion
@@ -509,7 +504,7 @@ class LPJmLCoupler:
         if not np.issubdtype(
             data[self.__input_ids__[index]].dtype, type_check
         ):
-            self.close_channel()
+            self.close()
             raise TypeError(
                 f"Unsupported type: {data[self.__input_ids__[index]].dtype} " +
                 "Please supply a numpy array with data type: " +
@@ -517,7 +512,7 @@ class LPJmLCoupler:
             )
         year = read_int(self.__channel__)
         if not validate_year == year:
-            self.close_channel()
+            self.close()
             raise ValueError(f"The expected year: {validate_year} does not " +
                              f"match the received year: {year}")
         if index in self.__input_ids__.keys():
@@ -529,7 +524,7 @@ class LPJmLCoupler:
                 if bands == 1 and not np.shape(
                     data[self.__input_ids__[index]]
                 ) == (self.__ncell__, ):
-                    self.close_channel()
+                    self.close()
                     raise ValueError(
                         "The dimensions of the supplied data: " +
                         f"{(self.__ncell__, bands)} does not match the " +
@@ -585,7 +580,7 @@ class LPJmLCoupler:
         index = read_int(self.__channel__)
         year = read_int(self.__channel__)
         if not validate_year == year:
-            self.close_channel()
+            self.close()
             raise ValueError(f"The expected year: {validate_year} does not " +
                              f"match the received year: {year}")
         if index in self.__output_ids__.keys():
@@ -609,11 +604,23 @@ class LPJmLCoupler:
         dims[1] -= 1
         cells = dims[0]
         bands = dims[1]
+
+        if dims[0] > 0 and dims[1] == 0:
+            one_band = True
+        else:
+            one_band = False
+
         # iterate over cells (first) and bands (second)
         while cells >= 0 and bands >= 0:
             # read float value for output (are all outputs floats?) - indices
             #   via decremented cells, bands and orignal dims
-            output[dims[0]-cells, dims[0]-bands] = read_float(self.__channel__)
+            if one_band:
+                output[dims[0]-cells] = read_float(self.__channel__)
+            else:
+                output[dims[0]-cells, dims[0]-bands] = read_float(
+                    self.__channel__
+                )
+
             if cells > 0:
                 cells -= 1
             elif cells == 0 and bands >= 0:

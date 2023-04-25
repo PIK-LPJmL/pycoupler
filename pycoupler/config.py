@@ -61,28 +61,23 @@ class SubConfig:
 
 class LpjmlConfig(SubConfig):
 
-    def fields(self):
-        """Return object fields
+    def get_input(self, id_only=True, input=None):
         """
-        return list(self.__dict__.keys())
-
-    def get_inputs(self, id_only=True, inputs=None):
-        """
-        Get defined inputs as list
+        Get defined input as list
         """
         if id_only:
-            if inputs:
+            if input:
                 return [
-                    key for key in self.input.__dict__.keys() if key in inputs]
+                    key for key in self.input.__dict__.keys() if key in input]
             else:
                 return list(self.input.__dict__.keys())
         else:
-            if inputs:
-                return {key: self.input.to_dict()[key] for key in inputs}
+            if input:
+                return {key: self.input.to_dict()[key] for key in input}
             else:
                 return self.input.to_dict()
 
-    def get_outputs_avail(self, id_only=True, with_description=True):
+    def get_output_avail(self, id_only=True, with_description=True):
         """Get available output (outputvar) names (== output ids) as list
         """
         if id_only:
@@ -93,7 +88,7 @@ class LpjmlConfig(SubConfig):
         else:
             return self.to_dict()["outputvar"]
 
-    def get_outputs(self, id_only=True):
+    def get_output(self, id_only=True):
         """Get defined output ids as list
         """
         if id_only:
@@ -107,23 +102,26 @@ class LpjmlConfig(SubConfig):
         :type sim_path: str
         :param restart_path: define restart_path the restart files to start
             model runs from. Has to match with `restart_path` from
-            `set_historic`
+            `set_transient`
         :type restart_path: str
         """
         self.sim_name = "spinup"
         output_path = f"{sim_path}/output/{self.sim_name}"
 
         # set output writing
-        self.set_output_path(output_path)
+        self._set_output_path_(output_path)
         # set restart directory to restart from in subsequent historic run
-        self.set_restart(path=sim_path)
+        self._set_restart_(path=f"{sim_path}/restart")
 
         return output_path
 
-    def set_historic(self, sim_path, start_year, end_year,
-                     write_start_year=None, write_outputs=[],
-                     write_temporal_resolution=None,
-                     append_output=True):
+    def set_transient(self,
+                      sim_path,
+                      start_year, end_year,
+                      write_start_year=None,
+                      write_output=[],
+                      write_temporal_resolution=None,
+                      append_output=True):
         """Set configuration required for historic model runs
         :param sim_path: define sim_path data is written to
         :type sim_path: str
@@ -132,11 +130,11 @@ class LpjmlConfig(SubConfig):
         :param end_year: end year of simulation
         :type end_year: int
         :param write_start_year: first year of output being written
-        :type write_start_year: int
-        :param write_outputs: output ids of `outputs` to be written by
+        :type write_start_year: int/None
+        :param write_output: output ids of `outputs` to be written by
             LPJmL. Make sure to check if required output is available via
-            `get_outputs_avail`
-        :type write_outputs: list
+            `get_output_avail`
+        :type write_output: list
         :param write_temporal_resolution: list of temporal resolutions
             corresponding to `outputs` or str to set the same resolution for
             all `outputs`. Choose between "annual", "monthly", "daily".
@@ -150,25 +148,29 @@ class LpjmlConfig(SubConfig):
         self.sim_name = "historic"
         output_path = f"{sim_path}/output/{self.sim_name}"
         # set time range for historic run
-        self.set_timerange(start_year=start_year,
-                           end_year=end_year,
-                           write_start_year=write_start_year)
+        self._set_timerange_(start_year=start_year,
+                             end_year=end_year,
+                             write_start_year=write_start_year)
         # set output writing
-        self.set_outputs(output_path,
-                         outputs=write_outputs,
-                         temporal_resolution=write_temporal_resolution,
-                         file_format="cdf",
-                         append_output=append_output)
+        self._set_output_(output_path,
+                          outputs=write_output,
+                          temporal_resolution=write_temporal_resolution,
+                          file_format="cdf",
+                          append_output=append_output)
         # set start from directory to start from spinup run
-        self.set_startfrom(path=sim_path)
+        self._set_startfrom_(path=f"{sim_path}/restart")
         # set restart directory to restart from in subsequent transient run
-        self.set_restart(path=sim_path)
+        self._set_restart_(path=f"{sim_path}/restart")
 
         return output_path
 
-    def set_coupled(self, sim_path, start_year, end_year,
-                    couple_inputs, couple_outputs,
-                    write_outputs=[],
+    def set_coupled(self,
+                    sim_path,
+                    start_year, end_year,
+                    coupled_input, coupled_output,
+                    coupled_start_year=None,
+                    write_output=[],
+                    write_start_year=None,
                     write_temporal_resolution=None,
                     append_output=True,
                     model_name="copan:CORE"):
@@ -179,16 +181,20 @@ class LpjmlConfig(SubConfig):
         :type start_year int
         :param end_year: end year of simulation
         :type end_year: int
-        :param couple_inputs: list of inputs to be used as socket for coupling.
+        :param coupled_input: list of inputs to be used as socket for coupling.
             Provide dictionary/json key as identifier -> entry in list.
-        :type couple_inputs: list
-        :param couple_outputs: list of outputs to be used as socket for
+        :type coupled_input: list
+        :param coupled_output: list of outputs to be used as socket for
             coupling. Provide output id as identifier -> entry in list.
-        :type couple_outputs: list
-        :param write_outputs: output ids of `outputs` to be written by
+        :type coupled_output: list
+        :param coupled_start_year: start year of coupled simulation
+        :type coupled_start_year: int/None
+        :param write_output: output ids of `outputs` to be written by
             LPJmL. Make sure to check if required output is available via
-            `get_outputs_avail`
-        :type write_outputs: list
+            `get_output_avail`
+        :type write_output: list
+        :param write_start_year: first year of output being written
+        :type write_start_year: int/None
         :param write_temporal_resolution: list of temporal resolutions
             corresponding to `outputs` or str to set the same resolution for
             all `outputs`. Choose between "annual", "monthly", "daily".
@@ -205,26 +211,30 @@ class LpjmlConfig(SubConfig):
         self.sim_name = "coupled"
         output_path = f"{sim_path}/output/{self.sim_name}"
         # set time range for coupled run
-        self.set_timerange(start_year=start_year, end_year=end_year)
+        self._set_timerange_(start_year=start_year,
+                             end_year=end_year,
+                             write_start_year=write_start_year)
         # set output directory, outputs (relevant ones for pbs and agriculture)
-        write_outputs += [
-            item for item in couple_outputs if item not in write_outputs
+        write_output += [
+            item for item in coupled_output if item not in write_output
         ]
-        self.set_outputs(output_path,
-                         outputs=write_outputs,
-                         temporal_resolution=write_temporal_resolution,
-                         file_format="cdf",
-                         append_output=append_output)
+        self._set_output_(output_path,
+                          outputs=write_output,
+                          temporal_resolution=write_temporal_resolution,
+                          file_format="cdf",
+                          append_output=append_output)
         # set coupling parameters
-        self.set_coupler(inputs=couple_inputs, outputs=couple_outputs,
-                         model_name=model_name)
+        self._set_coupling_(inputs=coupled_input,
+                            outputs=coupled_output,
+                            start_year=coupled_start_year,
+                            model_name=model_name)
         # set start from directory to start from historic run
-        self.set_startfrom(path=sim_path)
+        self._set_startfrom_(path=f"{sim_path}/restart")
 
         return output_path
 
-    def set_outputs(self, output_path, outputs=[], file_format="raw",
-                    temporal_resolution="annual", append_output=True):
+    def _set_output_(self, output_path, outputs=[], file_format="raw",
+                     temporal_resolution="annual", append_output=True):
         """Set outputs to be written by LPJmL, define temporal resolution
         :param output_path: define output_path the output is written to. If
             `append_output == True` output_path is only altered for appended
@@ -232,7 +242,7 @@ class LpjmlConfig(SubConfig):
         :type output_path: str
         :param outputs: output ids of `outputs` to be written by LPJmL. Make
             sure to check if required output is available via
-            `get_outputs_avail`
+            `get_output_avail`
         :type outputs: list
         :param file_format: file format for `outputs` (not to be used for
             sockets!). "raw" (binary), "clm" (binary with header) and "cdf"
@@ -288,7 +298,7 @@ class LpjmlConfig(SubConfig):
             # modify existing output entries
             for pos, out in enumerate(self.output):
                 output_names.append(out.id)
-                self.output[pos].file.socket = False
+                # self.output[pos].file.socket = False
                 # Only change temporal_resolution if string, so not
                 # specifically for each output
                 if isinstance(temporal_resolution, str):
@@ -322,7 +332,7 @@ class LpjmlConfig(SubConfig):
                     'id': outputvars[outputvar_names[out]]['name'],
                     'file': self.__class__({
                         'fmt': file_format,
-                        'socket': False,
+                        # 'socket': False,
                         'timestep': timestep,
                         'name': f"{output_path}/"
                                 f"{outputvars[outputvar_names[out]]['name']}"
@@ -336,7 +346,7 @@ class LpjmlConfig(SubConfig):
                     f"The following output is not defined in outputvar: {out}"
                 )
 
-    def set_output_path(self, output_path):
+    def _set_output_path_(self, output_path):
         """Set output path of specified outputs
         :param output_path: path for outputs to be written, could also b
             relative path
@@ -347,59 +357,31 @@ class LpjmlConfig(SubConfig):
             file_name.reverse()
             out.file.name = f"{output_path}/{file_name[0]}"
 
-    def get_startfrom(self):
+    def _set_startfrom_(self, path):
         """Set restart file from which LPJmL starts the transient run
         """
-        return self.restart_filename
-
-    def set_startfrom(self, path=None, file_name=None):
-        """Set restart file from which LPJmL starts the transient run
-        """
-        if path is not None:
+        if os.path.isfile(f"{path}/restart_{self.firstyear-1}.lpj"):
+            self.restart_filename = (
+                f"{path}/restart_{self.firstyear-1}.lpj")
+        elif os.path.isfile(f"{path}/restart_{self.firstyear}.lpj"):
+            self.restart_filename = (
+                f"{path}/restart_{self.firstyear}.lpj")
+        else:
             file_name = self.restart_filename.split("/")
             file_name.reverse()
-            if self.nspinup < 1:
-                self.restart_filename = (
-                    f"{path}/restart_{self.firstyear-1}.lpj")
-            else:
-                self.restart_filename = f"{path}/{file_name[0]}"
-        elif file_name is not None:
-            file_check = file_name.split(".")
-            file_check.reverse()
-            if file_check[0] == 'lpj':
-                self.restart_filename = file_name
-        else:
-            raise ValueError('Please provide either a path or a file_name.')
+            self.restart_filename = f"{path}/{file_name[0]}"
 
-    def get_restart(self):
+    def _set_restart_(self, path):
         """Set restart file from which LPJmL starts the transient run
         """
-        return self.write_restart_filename
+        self.write_restart_filename = (
+            f"{path}/restart_{self.lastyear}.lpj")
+        self.restart_year = self.lastyear
 
-    def set_restart(self, path=None, file_name=None):
-        """Set restart file from which LPJmL starts the transient run
-        """
-        if path is not None:
-            file_name = self.write_restart_filename.split("/")
-            file_name.reverse()
-            if self.nspinup < 500:
-                self.write_restart_filename = (
-                    f"{path}/restart_{self.lastyear}.lpj")
-            else:
-                self.write_restart_filename = f"{path}/{file_name[0]}"
-            self.restart_year = self.lastyear
-        elif file_name is not None:
-            file_check = file_name.split(".")
-            file_check.reverse()
-            if file_check[0] == 'lpj':
-                self.write_restart_filename = file_name
-        else:
-            raise ValueError('Please provide either a path or a file_name.')
-
-    def set_timerange(self,
-                      start_year=1901,
-                      end_year=2017,
-                      write_start_year=None):
+    def _set_timerange_(self,
+                        start_year=1901,
+                        end_year=2017,
+                        write_start_year=None):
         """Set simulation time range, outputyear to start as a default here.
         :param start_year: start year of simulation
         :type start_year: int
@@ -413,9 +395,14 @@ class LpjmlConfig(SubConfig):
             self.outputyear = write_start_year
         else:
             self.outputyear = start_year
+
         self.lastyear = end_year
 
-    def set_coupler(self, inputs, outputs, model_name="copan:CORE"):
+    def _set_coupling_(self,
+                       inputs,
+                       outputs,
+                       start_year=None,
+                       model_name="copan:CORE"):
         """Coupled settings - no spinup, not write restart file and set sockets
         for inputs and outputs (via corresponding ids)
         :param inputs: list of inputs to be used as socket for coupling.
@@ -424,6 +411,8 @@ class LpjmlConfig(SubConfig):
         :param outputs: list of outputs to be used as socket for coupling.
             Provide output id as identifier -> entry in list.
         :type outputs: list
+        :param start_year: start year of model coupling
+        :type start_year: int
         :param model_name: model name of the coupled program which also sets
             the model to coupled mode (without coupling coupled_model = None)
         :type model_name: str
@@ -432,10 +421,14 @@ class LpjmlConfig(SubConfig):
         self.nspinup = 0
         self.float_grid = True
         self.coupled_model = model_name
-        self.set_input_sockets(inputs)
-        self.set_output_sockets(outputs)
+        self._set_input_sockets_(inputs)
+        self._set_output_sockets_(outputs)
+        if start_year:
+            self.start_coupling = start_year
+        else:
+            self.start_coupling = self.firstyear
 
-    def set_input_sockets(self, inputs=[]):
+    def _set_input_sockets_(self, inputs=[]):
         """Set sockets for inputs and outputs (via corresponding ids)
         :param inputs: list of inputs to be used as socket for coupling.
             Provide dictionary/json key as identifier -> entry in list.
@@ -445,11 +438,9 @@ class LpjmlConfig(SubConfig):
             sock_input = getattr(self.input, inp)
             if 'id' not in sock_input.__dict__.keys():
                 raise ValueError('Please use a config with input ids.')
-            if 'name' in sock_input.__dict__.keys():
-                del sock_input.__dict__['name']
-            sock_input.__dict__['fmt'] = 'sock'
+            sock_input.__dict__['socket'] = True
 
-    def set_output_sockets(self, outputs=[]):
+    def _set_output_sockets_(self, outputs=[]):
         """Set sockets for inputs and outputs (via corresponding ids)
 
         :param outputs: list of outputs to be used as socket for coupling.
@@ -487,7 +478,8 @@ class LpjmlConfig(SubConfig):
         """
         inputs = self.input.to_dict()
         return {
-            inp: inputs[inp] for inp in inputs if inputs[inp]["fmt"] == "sock"
+            inp: inputs[inp] for inp in inputs if (
+                "socket" in inputs[inp]) and inputs[inp]["socket"]
         }
 
     def get_output_sockets(self):
@@ -498,7 +490,8 @@ class LpjmlConfig(SubConfig):
         return {
             out["id"]: dict(
                 {'index': name_id[out["id"]]}, **out
-            ) for out in outputs if out["file"]["socket"]
+            ) for out in outputs if (
+                "socket" in out["file"]) and out["file"]["socket"]
         }
 
 

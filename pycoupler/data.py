@@ -65,9 +65,9 @@ class LpjmlTypes(Enum):
             return int
 
 
-def supply_inputs(config_file, historic_config_file, input_path, model_path,
-                  start_year=None, end_year=None, return_xarray=True,
-                  overwrite=False):
+def supply_input(config_file, historic_config_file, input_path, model_path,
+                 start_year=None, end_year=None, return_xarray=True,
+                 overwrite=False):
     """Convert and save input files as NetCDF4 files to input directory for
     selected years to make them easily readable as well as to avoid large
     file sizes
@@ -107,8 +107,8 @@ def supply_inputs(config_file, historic_config_file, input_path, model_path,
     sock_inputs_keys = config.get_input_sockets().keys()
     # get input paths for historic run
     historic_config = read_config(file_name=historic_config_file)
-    sock_inputs = historic_config.get_inputs(id_only=False,
-                                             inputs=sock_inputs_keys)
+    sock_inputs = historic_config.get_input(id_only=False,
+                                            input=sock_inputs_keys)
     # collect via key value pairs
     return_dict = {}
     # utility function to get general temp folder for every system
@@ -206,7 +206,7 @@ def supply_inputs(config_file, historic_config_file, input_path, model_path,
 
 
 def preprocess_inputs(inputs, grid, time):
-    """ Process returned xarray dict from supply_inputs to extract required
+    """ Process returned xarray dict from supply_input to extract required
     cells and year(s). The returned object can be supplied as initial coupling
     input.
     :param inputs: inputs dictionary with input keys (as keys) and
