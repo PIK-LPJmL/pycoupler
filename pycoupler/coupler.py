@@ -4,7 +4,7 @@ import numpy as np
 from enum import Enum
 
 from pycoupler.config import read_config
-from pycoupler.data import Inputs, LpjmlTypes
+from pycoupler.data import Inputs, LpjmlTypes, append_to_dict
 
 
 def recvall(channel, size):
@@ -144,6 +144,7 @@ class LPJmLCoupler:
         """Constructor method
         """
         self.__config__ = read_config(config_file)
+        self.__sim_year__ = self.__config__.firstyear
         self.__output_niteration__ = len(range(self.__config__.firstyear,
                                                self.__config__.lastyear+1))
 
@@ -244,14 +245,6 @@ class LPJmLCoupler:
         return self.__config__
 
     @property
-    def niteration(self):
-        """Get the number of coupled simulation iterations left (!)
-        :getter: Number of left coupled iterations
-        :type: int
-        """
-        return self.__input_niteration__
-
-    @property
     def ncell(self):
         """Get the number of LPJmL cells for in- and output
         :getter: Number of LPJmL cells
@@ -267,6 +260,96 @@ class LPJmLCoupler:
         :type: numpy.array
         """
         return self.__grid__
+
+    @property
+    def sim_years(self):
+        """Get a list of all simulation years
+        :getter: List of all simulation years
+        :type: list
+        """
+        return [year for year in self.get_sim_years()]
+
+    @property
+    def historic_years(self):
+        """Get a list of all historic years
+        :getter: List of all historic years
+        :type: list
+        """
+        return [year for year in self.get_historic_years(match_period=False)]
+
+    @property
+    def coupled_years(self):
+        """Get a list of all coupled years
+        :getter: List of all coupled years
+        :type: list
+        """
+        return [year for year in self.get_coupled_years(
+            match_period=False
+        )]
+
+    def get_sim_years(self):
+        """Get a generator for all simulation years
+        :return: Generator for all simulation years
+        :rtype: generator
+        """
+        start_year = self.__sim_year__
+        end_year = self.__config__.lastyear
+        current_year = start_year
+        while current_year <= end_year:
+            yield current_year
+            current_year += 1
+
+    def get_historic_years(self, match_period=True):
+        """Get a generator for all historic years
+        :return: Generator for all historic years
+        :rtype: generator
+        """
+        start_year = self.__sim_year__
+        end_year = self.config.start_coupling
+        if match_period and start_year >= end_year:
+            raise ValueError(
+                f"No historic years available. Simulated year {start_year} "
+                f"is greater than coupled year {end_year}."
+            )
+        current_year = start_year
+        while current_year < end_year:
+            yield current_year
+            current_year += 1
+
+    def get_coupled_years(self, match_period=True):
+        """Get a generator for all coupled years
+        :return: Generator for all coupled years
+        :rtype: generator
+        """
+        start_year = self.__sim_year__
+        end_year = self.config.lastyear
+        if match_period and (
+            start_year < self.config.start_coupling
+        ):
+            raise ValueError(
+                f"Historic years left. Simulated year {start_year} "
+                f"is smaller than coupled_year {end_year}."
+            )
+        current_year = start_year
+        while current_year <= end_year:
+            yield current_year
+            current_year += 1
+
+    def read_historic_output(self):
+        """Read historic output from LPJmL
+        :return: Dictionary with output keys and corresponding output as numpy
+            arrays with dimensions (ncell, nband)
+        :rtype: dict
+        """
+        # read all historic outputs
+        for year in self.get_historic_years():
+            if year == self.config.firstyear:
+                output_dict = self.read_output(year)
+            else:
+                output_dict = append_to_dict(output_dict,
+                                             self.read_output(year))
+
+        return output_dict
 
     def close(self):
         """Close socket channel
@@ -338,6 +421,7 @@ class LPJmLCoupler:
         #     idx] for idx in self.__output_ids__.keys()}
         # decrement output iterations left (analogous to years left)
         self.__output_niteration__ -= 1
+        self.__sim_year__ += 1
 
         return output_dict
 

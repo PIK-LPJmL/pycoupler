@@ -31,7 +31,7 @@ create_subdirs(sim_path)
 config_spinup = read_config(file_name=f"{model_path}/lpjml.js", spin_up=True)
 
 # set spinup run configuration
-spinup_path = config_spinup.set_spinup(sim_path)
+config_spinup.set_spinup(sim_path)
 
 # only for single cell runs
 config_spinup.startgrid = startcell
@@ -47,62 +47,23 @@ check_lpjml(config_file=config_spinup_fn, model_path=model_path)
 run_lpjml(
     config_file=config_spinup_fn,
     model_path=model_path,
-    output_path=spinup_path
+    sim_path=sim_path
 )
-
-# define and submit historic run -------------------------------------------- #
-
-# create config for historic run
-config_historic = read_config(file_name=f"{model_path}/lpjml.js")
-
-# set historic run configuration
-historic_path = config_historic.set_historic(sim_path,
-                                             start_year=1901, end_year=1980,
-                                             write_start_year=1980)
-
-# only for single cell runs
-config_historic.startgrid = startcell
-config_historic.endgrid = endcell
-config_historic.river_routing = False
-
-# write config (Config object) as json file
-config_historic_fn = config_historic.to_json(path=sim_path)
-
-
-# check if everything is set correct
-check_lpjml(config_historic_fn, model_path)
-# run spinup job
-run_lpjml(
-    config_file=config_historic_fn,
-    model_path=model_path,
-    output_path=historic_path
-)
-
 
 # define coupled run -------------------------------------------------------- #
 
 # create config for coupled run
 config_coupled = read_config(file_name=f"{model_path}/lpjml.js")
+
 # set coupled run configuration
-coupled_path = config_coupled.set_coupled(sim_path,
-                                          start_year=1981, end_year=2005,
-                                          couple_inputs=["landuse",
-                                                         "fertilizer_nr"],
-                                          couple_outputs=["cftfrac",
-                                                          "pft_harvestc",
-                                                          "pft_harvestn"],
-                                          write_outputs=["prec", "transp", 
-                                                         "interc", "evap",
-                                                         "runoff", "discharge",
-                                                         "fpc", "vegc",
-                                                         "soilc", "litc",
-                                                         "cftfrac",
-                                                         "pft_harvestc",
-                                                         "pft_harvestn",
-                                                         "pft_rharvestc",
-                                                         "pft_rharvestn",
-                                                         "pet", "leaching"],
-                                          write_temporal_resolution=None)
+config_coupled.set_coupled(sim_path,
+                           start_year=1901, end_year=2005,
+                           coupled_year=1981,
+                           coupled_input=["landuse",
+                                          "fertilizer_nr"],
+                           coupled_output=["cftfrac",
+                                           "pft_harvestc",
+                                           "pft_harvestn"])
 
 # only for single cell runs
 config_coupled.startgrid = startcell
@@ -120,41 +81,39 @@ check_lpjml(config_coupled_fn, model_path)
 run_lpjml(
     config_file=config_coupled_fn,
     model_path=model_path,
-    output_path=coupled_path
+    sim_path=sim_path
 )
 
 # --------------------------------------------------------------------------- #
 # OPEN SECOND LOGIN NODE
 # --------------------------------------------------------------------------- #
 from pycoupler.coupler import LPJmLCoupler
-from pycoupler.data import supply_inputs, preprocess_inputs
+from pycoupler.data import convert_coupled_input, read_coupled_input
 
 
 sim_path = "/p/projects/open/Jannes/copan_core/lpjml"
 model_path = f"{sim_path}/LPJmL_internal"
-config_historic_fn = f"{sim_path}/config_historic.json"
 config_coupled_fn = f"{sim_path}/config_coupled.json"
 coupler = LPJmLCoupler(config_file=config_coupled_fn)
 
-
 # get and process initial inputs
-inputs = supply_inputs(config_file=config_coupled_fn,
-                       historic_config_file=config_historic_fn,
-                       input_path=f"{sim_path}/input",
-                       model_path=model_path,
-                       start_year=1981, end_year=1981)
+convert_coupled_input(coupler=coupler,
+                      sim_path=sim_path,
+                      model_path=model_path)
 
-input_data = preprocess_inputs(inputs, grid=coupler.grid, time=1980)
+input_dict = read_coupled_input(coupler=coupler,
+                                sim_path=sim_path)
 
-# coupled simulation years
-years = range(1981, 2006)
+# get historic outputs
+historic_outputs = coupler.read_historic_output()
+
 #  The following could be your model/program/script
-for year in years:
+for year in coupler.get_sim_years():
     # send input data to lpjml
-    coupler.send_inputs(input_data, year)
+    coupler.send_input(input_dict, year)
     # read output data
-    outputs = coupler.read_outputs(year)
-    # generate some results based on lpjml outputs
+    outputs = coupler.read_output(year)
+    # generate some results based on lpjml output
     # ....
 
-coupler.close_channel()
+coupler.close()

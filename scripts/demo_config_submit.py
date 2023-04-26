@@ -28,7 +28,7 @@ create_subdirs(sim_path)
 config_spinup = read_config(file_name=f"{model_path}/lpjml.js", spin_up=True)
 
 # set spinup run configuration
-spinup_path = config_spinup.set_spinup(sim_path)
+config_spinup.set_spinup(sim_path)
 
 # write config (Config object) as json file
 config_spinup_fn = config_spinup.to_json(path=sim_path)
@@ -39,60 +39,23 @@ check_lpjml(config_file=config_spinup_fn, model_path=model_path)
 spinup_jobid = submit_lpjml(
     config_file=config_spinup_fn,
     model_path=model_path,
-    output_path=spinup_path
+    sim_path=sim_path
 )
-
-
-# define and submit historic run -------------------------------------------- #
-
-# create config for historic run
-config_historic = read_config(file_name=f"{model_path}/lpjml.js")
-
-# set historic run configuration
-historic_path = config_historic.set_historic(sim_path,
-                                             start_year=1901, end_year=1980,
-                                             write_start_year=1980)
-
-
-# write config (Config object) as json file
-config_historic_fn = config_historic.to_json(path=sim_path)
-
-
-# check if everything is set correct
-check_lpjml(config_historic_fn, model_path)
-# submit spinup job and get corresponding id
-historic_jobid = submit_lpjml(
-    config_file=config_historic_fn,
-    model_path=model_path,
-    output_path=historic_path,
-    dependency=spinup_jobid
-)
-
 
 # define coupled run -------------------------------------------------------- #
 
 # create config for coupled run
 config_coupled = read_config(file_name=f"{model_path}/lpjml.js")
+
 # set coupled run configuration
-coupled_path = config_coupled.set_coupled(sim_path,
-                                          start_year=1981, end_year=2005,
-                                          couple_inputs=["landuse",
-                                                         "fertilizer_nr"],
-                                          couple_outputs=["cftfrac",
-                                                          "pft_harvestc",
-                                                          "pft_harvestn"],
-                                          write_outputs=["prec", "transp", 
-                                                         "interc", "evap",
-                                                         "runoff", "discharge",
-                                                         "fpc", "vegc",
-                                                         "soilc", "litc",
-                                                         "cftfrac",
-                                                         "pft_harvestc",
-                                                         "pft_harvestn",
-                                                         "pft_rharvestc",
-                                                         "pft_rharvestn",
-                                                         "pet", "leaching"],
-                                          write_temporal_resolution=None)
+config_coupled.set_coupled(sim_path,
+                           start_year=1901, end_year=2005,
+                           coupled_year=1981,
+                           coupled_input=["landuse",
+                                          "fertilizer_nr"],
+                           coupled_output=["cftfrac",
+                                           "pft_harvestc",
+                                           "pft_harvestn"])
 
 # write config (Config object) as json file
 config_coupled_fn = config_coupled.to_json(path=sim_path)
@@ -105,7 +68,7 @@ check_lpjml(config_coupled_fn, model_path)
 historic_jobid = submit_lpjml(
     config_file=config_coupled_fn,
     model_path=model_path,
-    output_path=coupled_path,
-    dependency=historic_jobid,
+    sim_path=sim_path,
+    dependency=spinup_jobid,
     couple_to="<COPAN:CORE>"
 )

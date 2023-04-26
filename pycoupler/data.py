@@ -1,10 +1,10 @@
 import os
 import tempfile
 import xarray as xr
+import numpy as np
+
 from enum import Enum
 from subprocess import run
-
-from pycoupler.config import read_config
 
 
 class Inputs(Enum):
@@ -65,172 +65,187 @@ class LpjmlTypes(Enum):
             return int
 
 
-def supply_input(config_file, historic_config_file, input_path, model_path,
-                 start_year=None, end_year=None, return_xarray=True,
-                 overwrite=False):
+def convert_coupled_input(coupler,
+                          sim_path,
+                          model_path,
+                          start_year=None,
+                          end_year=None):
     """Convert and save input files as NetCDF4 files to input directory for
     selected years to make them easily readable as well as to avoid large
-    file sizes
-    :param config_file: file name including path if not current to config_file
-        of coupled config (to get set socket inputs)
-    :type config_file: str
-    :param historic_config_file: file name including path if not current to
-        config_file of historic config (to get original input paths)
-    :type config_file: str
-    :param input_path: path where the created nc file inputs should be stored
-    :type input_path: str
-    :param model_path: path to `LPJmL_internal` (lpjml repository)
-    :type input_path: str
-    :param start_year: first year of the created input file (years before are
-        cut off). Defaults to None (no cutoff).
+    file sizes.
+    :param coupler: LPJmLCoupler object
+    :type coupler: LPJmLCoupler
+    :param sim_path: path to simulation directory
+    :type sim_path: str
+    :param model_path: path to model directory
+    :type model_path: str
+    :param start_year: start year of input data
     :type start_year: int
-    :param end_year: last year of the created input file (years after are
-        cut off). Defaults to None (no cutoff).
+    :param end_year: end year of input data
     :type end_year: int
-    :param return_xarray: if True (default) xarray.DataArray(s) are returned as
-        dictionary values
-    :type return_xarray: bool
-    :param overwrite: if False (default) already existing input nc files in
-        input_path are used if input type and start_year + end_year are
-        matching.
-    :type overwrite: bool
-    :return: inputs dictionary with input keys (as keys) and
-        xarray.DataArray(s) as value - CANNOT BE SENT TO LPJML
-        (via LPJmLCoupler) - please use `preprocess_inputs` first
-    :rtype: dict (values as DataArray.array)
     """
+    input_path = f"{sim_path}/input"
     # get defined input sockets
-    config = read_config(config_file)
     if not os.path.isdir(input_path):
         os.makedirs(input_path)
         print(f"Created input path '{input_path}'")
-    sock_inputs_keys = config.get_input_sockets().keys()
-    # get input paths for historic run
-    historic_config = read_config(file_name=historic_config_file)
-    sock_inputs = historic_config.get_input(id_only=False,
-                                            input=sock_inputs_keys)
+    sock_inputs = coupler.config.get_input_sockets()
     # collect via key value pairs
     return_dict = {}
     # utility function to get general temp folder for every system
     temp_dir = tempfile.gettempdir()
+
+    if not start_year and not end_year:
+        start_year = end_year = coupler.config.start_coupling - 1
+
     # iterate over each inputs to be send via sockets (get initial values)
     for key in sock_inputs:
         # check if working on the cluster (workaround by Ciaron)
         #   (might be adjusted to the new cluster coming soon ...)
-        if os.path.isdir('/p/system'):
-            # only then the following is valid and has to be replaced by
-            #   absolute path names
-            if not sock_inputs[key]['name'].startswith('/p/'):
-                sock_inputs[key]['name'] = (
-                    "/p/projects/lpjml/input/" +
-                    f"historical/{sock_inputs[key]['name']}"
-                )
-        # create file name with extension to inform about the extracted time
-        #   span
-        file_name_nc = (
-            f"{key}_{start_year}-{end_year}.nc"
+        if coupler.config.inpath and (
+            not sock_inputs[key]['name'].startswith("/")
+        ):
+            sock_inputs[key]['name'] = (
+                f"{coupler.config.inpath}/{sock_inputs[key]['name']}"
+            )
+        # get input file name
+        file_name_clm = sock_inputs[key]['name'].split("/")[-1]
+        # name tmp file after original name (even though could be random)
+        file_name_tmp = (
+            f"{file_name_clm.split('.')[0]}_tmp.clm"
         )
-        if overwrite or not os.path.isfile(f"{input_path}/{file_name_nc}"):
-            # get input file name
-            file_name_clm = sock_inputs[key]['name'].split("/")[-1]
-            # name tmp file after original name (even though could be random)
-            file_name_tmp = (
-                f"{file_name_clm.split('.')[0]}_tmp.clm"
-            )
-            # predefine cut clm command for reusage
-            cut_clm_start = [f"{model_path}/bin/cutclm",
-                             str(start_year), sock_inputs[key]['name'],
-                             f"{temp_dir}/1_{file_name_tmp}"]
-            if start_year and not end_year:
-                # run cut clm file before start year
-                run(cut_clm_start, stdout=open(os.devnull, 'wb'))
-                use_tmp = '1'
-            elif not start_year and end_year:
-                # run cut clm file after end year
-                run([f"{model_path}/bin/cutclm",
-                     "-end", str(end_year), sock_inputs[key]['name'],
-                     f"{temp_dir}/2_{file_name_tmp}"],
-                    stdout=open(os.devnull, 'wb'))
-                use_tmp = '2'
-            else:
-                # run cut clm file before start year and after end year in
-                #   sequence
-                run(cut_clm_start, stdout=open(os.devnull, 'wb'))
-                # cannot deal with overwriting a temp file with same name
-                cut_clm_end = [f"{model_path}/bin/cutclm",
-                               "-end", str(end_year),
-                               f"{temp_dir}/1_{file_name_tmp}",
-                               f"{temp_dir}/2_{file_name_tmp}"]
-                run(cut_clm_end, stdout=open(os.devnull, 'wb'))
-                use_tmp = '2'
-            # a flag for multi (categorical) band input - if true, set
-            #   "-landuse"
-            if getattr(Inputs, key).bands:
-                is_multiband = "-landuse"
-            else:
-                is_multiband = None
-            # a flag for integer input - if true, set "-int"
-            if getattr(Inputs, key).type == int:
-                is_int = "-intnetcdf"
-            else:
-                is_int = None
-            # default grid file (only valid for 0.5 degree inputs)
+        # predefine cut clm command for reusage
+        cut_clm_start = [f"{model_path}/bin/cutclm",
+                         str(start_year),
+                         sock_inputs[key]['name'],
+                         f"{temp_dir}/1_{file_name_tmp}"]
+        if start_year and not end_year:
+            # run cut clm file before start year
+            run(cut_clm_start, stdout=open(os.devnull, 'wb'))
+            use_tmp = '1'
+        elif not start_year and end_year:
+            # run cut clm file after end year
+            run([f"{model_path}/bin/cutclm",
+                 "-end",
+                 str(end_year),
+                 sock_inputs[key]['name'],
+                 f"{temp_dir}/2_{file_name_tmp}"],
+                stdout=open(os.devnull, 'wb'))
+            use_tmp = '2'
+        else:
+            # run cut clm file before start year and after end year in
+            #   sequence
+            run(cut_clm_start, stdout=open(os.devnull, 'wb'))
+            # cannot deal with overwriting a temp file with same name
+            cut_clm_end = [f"{model_path}/bin/cutclm",
+                           "-end", str(end_year),
+                           f"{temp_dir}/1_{file_name_tmp}",
+                           f"{temp_dir}/2_{file_name_tmp}"]
+            run(cut_clm_end, stdout=open(os.devnull, 'wb'))
+            use_tmp = '2'
+        # a flag for multi (categorical) band input - if true, set
+        #   "-landuse"
+        if getattr(Inputs, key).bands:
+            is_multiband = "-landuse"
+        else:
+            is_multiband = None
+        # a flag for integer input - if true, set "-int"
+        if getattr(Inputs, key).type == int:
+            is_int = "-intnetcdf"
+        else:
+            is_int = None
+        # default grid file (only valid for 0.5 degree inputs)
+        if coupler.config.input.coord.name.startswith("/"):
+            grid_file = coupler.config.input.coord.name
+        else:
             grid_file = (
-                "/p/projects/lpjml/input/historical/input_VERSION2/grid.bin"
+                f"{coupler.config.inpath}/{coupler.config.input.coord.name}"
             )
-            # convert clm input to netcdf files
-            conversion_cmd = [
-                f"{model_path}/bin/clm2cdf", is_int, is_multiband, key,
-                grid_file, f"{temp_dir}/{use_tmp}_{file_name_tmp}",
-                f"{input_path}/{file_name_nc}"
-            ]
-            if None in conversion_cmd:
-                conversion_cmd.remove(None)
-            run(conversion_cmd)
-            # remove the temporary clm (binary) files, 1_* is not created in
-            #   every case
-            if os.path.isfile(f"{temp_dir}/1_{file_name_tmp}"):
-                os.remove(f"{temp_dir}/1_{file_name_tmp}")
-            if os.path.isfile(f"{temp_dir}/2_{file_name_tmp}"):
-                os.remove(f"{temp_dir}/2_{file_name_tmp}")
-            # collect created input filenames and connect with input key
-        return_dict[key] = file_name_nc
-    print(f"{input_path}/{return_dict[key]}")
-    if return_xarray:
-        return {key: getattr(xr.open_dataset(
-            f"{input_path}/{return_dict[key]}",
-            decode_times=True, mask_and_scale=False
-        ), key) for key in return_dict}
-    else:
-        return return_dict
+        # convert clm input to netcdf files
+        conversion_cmd = [
+            f"{model_path}/bin/clm2cdf", is_int, is_multiband, key,
+            grid_file, f"{temp_dir}/{use_tmp}_{file_name_tmp}",
+            f"{input_path}/{key}.nc"
+        ]
+        if None in conversion_cmd:
+            conversion_cmd.remove(None)
+        run(conversion_cmd)
+        # remove the temporary clm (binary) files, 1_* is not created in
+        #   every case
+        if os.path.isfile(f"{temp_dir}/1_{file_name_tmp}"):
+            os.remove(f"{temp_dir}/1_{file_name_tmp}")
+        if os.path.isfile(f"{temp_dir}/2_{file_name_tmp}"):
+            os.remove(f"{temp_dir}/2_{file_name_tmp}")
 
 
-def preprocess_inputs(inputs, grid, time):
-    """ Process returned xarray dict from supply_input to extract required
-    cells and year(s). The returned object can be supplied as initial coupling
-    input.
-    :param inputs: inputs dictionary with input keys (as keys) and
-        xarray.DataArray(s) as value
-    :type inputs: dict (xarray.DataArray)
-    :param grid: numpy.array of shape (ncell, 2) with size 2 being longitude
-        and latitude.
-    :type: numpy.array
-    :param time: years to be extracted
-    :type time: int, list(int)
-    :return: inputs dictionary with input keys (as keys) and numpy.array(s)
-        as value, that CAN DIRECTLY BE SEND TO LPJML AS INPUT (via LPJmLCoupler)
-    :rtype: dict (values as numpy.array)
+def read_netcdf(file_name, var_name=None, return_xarray=True):
+    """Read netcdf file and return data as numpy array or xarray.DataArray.
+    :param file_name: path to netcdf file
+    :type file_name: str
+    :param var_name: name of variable to be read
+    :type var_name: str
+    :param return_xarray: return data as xarray.DataArray (True) or NumPy array
+        (False)
+    :type return_xarray: bool
+    :return: data as numpy array or xarray.DataArray
+    :rtype: numpy.ndarray or xarray.DataArray
     """
+    data = xr.open_dataset(file_name,
+                           decode_times=True,
+                           mask_and_scale=False)
+    if var_name:
+        data = data[var_name]
+        if not return_xarray:
+            data = data.to_numpy()
+    return data
+
+
+def read_coupled_input(coupler, sim_path, return_xarray=False):
+    """Read coupled input data from netcdf files """
+    # read coupled input data from netcdf files (as xarray.DataArray)
+    inputs = {key: read_netcdf(
+        f"{sim_path}/input/{key}.nc",
+        var_name=key
+    ) for key in coupler.config.get_input_sockets(id_only=True)}
 
     # define longitide and latitude DataArray (workaround to reduce dims to
     #   cells)
-    lons = xr.DataArray(grid[:, 0], dims="cells")
-    lats = xr.DataArray(grid[:, 1], dims="cells")
+    lons = xr.DataArray(coupler.grid[:, 0], dims="cell")
+    lats = xr.DataArray(coupler.grid[:, 1], dims="cell")
 
     # create same format as before but with selected numpy arrays instead of
     #   xarray.DataArray
     input_data = {key: inputs[key].sel(
-        longitude=lons, latitude=lats, time=time, method="nearest"
-    ).transpose("cells", ...).to_numpy() for key in inputs}
+        longitude=lons, latitude=lats,
+        time=coupler.config.start_coupling - 1, method="nearest"
+    ).transpose("cell", ...) for key in inputs}
+
+    # return input data as xarray.DataArray if requested
+    if not return_xarray:
+        input_data = {key: input_data[key].to_numpy() for key in input_data}
 
     return input_data
+
+
+def append_to_dict(data_dict, data):
+    """
+    Append data along the third dimension to the data_dict.
+
+    :param data_dict: Dictionary holding the data.
+    :type data_dict: dict
+
+    :param data: Dictionary with data.
+                 Keys are ids/names, values are two-dimensional NumPy
+                 arrays with dimensions (cells, bands).
+    :type data: dict
+
+    :return: Updated data_dict with the appended data.
+    :rtype: dict
+    """
+    for key, value in data.items():
+        if key in data_dict:
+            data_dict[key] = np.dstack((data_dict[key], value))
+        else:
+            data_dict[key] = value
+
+    return data_dict

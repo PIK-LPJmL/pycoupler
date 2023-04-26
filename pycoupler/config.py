@@ -4,9 +4,8 @@ import json
 
 
 class SubConfig:
-    """This serves as an LPJmL config class that can be easily accessed,
-    converted to a dictionary or written as a json file. It also provides
-    methods to get/set outputs, restarts and sockets for model coupling.
+    """This serves as an LPJmL sub config class that can be easily accessed,
+    converted to a dictionary or written as a json file.
 
     :param config_dict: takes a dictionary (ideally LPJmL config dictionary)
         and builds up a nested LpjmLConfig class with corresponding fields
@@ -60,22 +59,14 @@ class SubConfig:
 
 
 class LpjmlConfig(SubConfig):
+    """This serves as an LPJmL config class that can be easily accessed,
+    converted to a dictionary or written as a json file. It further provides
+    methods to get/set outputs, restarts and sockets for model coupling.
 
-    def get_input(self, id_only=True, input=None):
-        """
-        Get defined input as list
-        """
-        if id_only:
-            if input:
-                return [
-                    key for key in self.input.__dict__.keys() if key in input]
-            else:
-                return list(self.input.__dict__.keys())
-        else:
-            if input:
-                return {key: self.input.to_dict()[key] for key in input}
-            else:
-                return self.input.to_dict()
+    :param config_dict: takes a dictionary (ideally LPJmL config dictionary)
+        and builds up a nested LpjmLConfig class with corresponding fields
+    :type config_dict: dict
+    """
 
     def get_output_avail(self, id_only=True, with_description=True):
         """Get available output (outputvar) names (== output ids) as list
@@ -112,8 +103,6 @@ class LpjmlConfig(SubConfig):
         self._set_output_path_(output_path)
         # set restart directory to restart from in subsequent historic run
         self._set_restart_(path=f"{sim_path}/restart")
-
-        return output_path
 
     def set_transient(self,
                       sim_path,
@@ -162,13 +151,11 @@ class LpjmlConfig(SubConfig):
         # set restart directory to restart from in subsequent transient run
         self._set_restart_(path=f"{sim_path}/restart")
 
-        return output_path
-
     def set_coupled(self,
                     sim_path,
                     start_year, end_year,
                     coupled_input, coupled_output,
-                    coupled_start_year=None,
+                    coupled_year=None,
                     write_output=[],
                     write_start_year=None,
                     write_temporal_resolution=None,
@@ -187,8 +174,8 @@ class LpjmlConfig(SubConfig):
         :param coupled_output: list of outputs to be used as socket for
             coupling. Provide output id as identifier -> entry in list.
         :type coupled_output: list
-        :param coupled_start_year: start year of coupled simulation
-        :type coupled_start_year: int/None
+        :param coupled_year: start year of coupled simulation
+        :type coupled_year: int/None
         :param write_output: output ids of `outputs` to be written by
             LPJmL. Make sure to check if required output is available via
             `get_output_avail`
@@ -226,12 +213,10 @@ class LpjmlConfig(SubConfig):
         # set coupling parameters
         self._set_coupling_(inputs=coupled_input,
                             outputs=coupled_output,
-                            start_year=coupled_start_year,
+                            start_year=coupled_year,
                             model_name=model_name)
         # set start from directory to start from historic run
         self._set_startfrom_(path=f"{sim_path}/restart")
-
-        return output_path
 
     def _set_output_(self, output_path, outputs=[], file_format="raw",
                      temporal_resolution="annual", append_output=True):
@@ -473,14 +458,18 @@ class LpjmlConfig(SubConfig):
                 self.output[pos].file.socket = True
                 self.output[pos].file.timestep = "annual"
 
-    def get_input_sockets(self):
+    def get_input_sockets(self, id_only=False):
         """get defined socket inputs as dict
         """
         inputs = self.input.to_dict()
-        return {
-            inp: inputs[inp] for inp in inputs if (
-                "socket" in inputs[inp]) and inputs[inp]["socket"]
-        }
+        if id_only:
+            return [inp for inp in inputs if (
+                "socket" in inputs[inp]) and inputs[inp]["socket"]]
+        else:
+            return {
+                inp: inputs[inp] for inp in inputs if (
+                    "socket" in inputs[inp]) and inputs[inp]["socket"]
+            }
 
     def get_output_sockets(self):
         """get defined socket outputs as dict

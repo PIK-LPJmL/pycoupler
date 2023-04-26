@@ -3,20 +3,29 @@ from datetime import datetime
 from subprocess import run, Popen, PIPE, CalledProcessError
 
 
-def run_lpjml(config_file, model_path, output_path=None):
-    """Run LPJmL
+def run_lpjml(config_file,
+              model_path,
+              sim_path):
+    """Run LPJmL using a generated (class LpjmlConfig) config file.
+    Similar to R function `lpjmlKit::run_lpjml`.
+    :param config_file: file name including path if not current to config_file
+    :type config_file: str
+    :param model_path: path to `LPJmL_internal` (lpjml repository)
+    :type model_path: str
+    :param sim_path: simulation path to include the output folder where output
+        is written to
+    :type output_path: str
     """
     if not os.path.isdir(model_path):
         raise ValueError(
             f"Folder of model_path '{model_path}' does not exist!"
         )
 
-    if not output_path:
-        output_path = model_path
-    else:
-        if not os.path.isdir(output_path):
-            os.makedirs(output_path)
-            print(f"Created output_path '{output_path}'")
+    output_path = f"{sim_path}/output"
+
+    if not os.path.isdir(output_path):
+        os.makedirs(output_path)
+        print(f"Created output_path '{output_path}'")
 
     cmd = [f"{model_path}/bin/lpjml", config_file]
     # environment settings to be used for interartive LPJmL sessions
@@ -39,9 +48,16 @@ def run_lpjml(config_file, model_path, output_path=None):
         raise CalledProcessError(p.returncode, p.args)
 
 
-def submit_lpjml(config_file, model_path, output_path=None, group="copan",
-                 sclass="short", ntasks=256, wtime=None, dependency=None,
-                 blocking=None, couple_to=None):
+def submit_lpjml(config_file,
+                 model_path,
+                 sim_path=None,
+                 group="copan",
+                 sclass="short",
+                 ntasks=256,
+                 wtime=None,
+                 dependency=None,
+                 blocking=None,
+                 couple_to=None):
     """Submit LPJmL run to Slurm using `lpjsubmit` and a generated
     (class LpjmlConfig) config file. Provide arguments for Slurm sbatch
     depending on the run. Similar to R function `lpjmlKit::submit_lpjml`.
@@ -49,8 +65,8 @@ def submit_lpjml(config_file, model_path, output_path=None, group="copan",
     :type config_file: str
     :param model_path: path to `LPJmL_internal` (lpjml repository)
     :type model_path: str
-    :param output_path: path the output is written to, if None (default)
-        model_path is used.
+    :param sim_path: simulation path to include the output folder where output 
+        is written to
     :type output_path: str
     :param group: PIK group name to be used for Slurm. Defaults to "copan".
     :type output_path: str
