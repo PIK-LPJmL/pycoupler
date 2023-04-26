@@ -2,20 +2,13 @@ import os
 from datetime import datetime
 from subprocess import run, Popen, PIPE, CalledProcessError
 
+import multiprocessing as mp
 
-def run_lpjml(config_file,
-              model_path,
-              sim_path):
-    """Run LPJmL using a generated (class LpjmlConfig) config file.
-    Similar to R function `lpjmlKit::run_lpjml`.
-    :param config_file: file name including path if not current to config_file
-    :type config_file: str
-    :param model_path: path to `LPJmL_internal` (lpjml repository)
-    :type model_path: str
-    :param sim_path: simulation path to include the output folder where output
-        is written to
-    :type output_path: str
-    """
+
+def operate_lpjml(config_file,
+                  model_path,
+                  sim_path):
+
     if not os.path.isdir(model_path):
         raise ValueError(
             f"Folder of model_path '{model_path}' does not exist!"
@@ -46,6 +39,26 @@ def run_lpjml(config_file,
     # raise error if returncode does not reflect successfull call
     if p.returncode != 0:
         raise CalledProcessError(p.returncode, p.args)
+
+
+def run_lpjml(config_file,
+              model_path,
+              sim_path):
+    """Run LPJmL using a generated (class LpjmlConfig) config file.
+    Similar to R function `lpjmlKit::run_lpjml`.
+    :param config_file: file name including path if not current to config_file
+    :type config_file: str
+    :param model_path: path to `LPJmL_internal` (lpjml repository)
+    :type model_path: str
+    :param sim_path: simulation path to include the output folder where output
+        is written to
+    :type output_path: str
+    """
+    run = mp.Process(target=operate_lpjml,
+                     args=(config_file, model_path, sim_path))
+    run.start()
+
+    return run
 
 
 def submit_lpjml(config_file,

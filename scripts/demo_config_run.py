@@ -3,7 +3,8 @@ from pycoupler.utils import check_lpjml, compile_lpjml, clone_lpjml, \
     create_subdirs
 from pycoupler.config import read_config
 from pycoupler.run import run_lpjml
-
+from pycoupler.coupler import LPJmLCoupler
+from pycoupler.data import copy_coupled_input, read_coupled_input
 
 # paths
 sim_path = "/p/projects/open/Jannes/copan_core/lpjml"
@@ -73,47 +74,41 @@ config_coupled.river_routing = False
 # write config (Config object) as json file
 config_coupled_fn = config_coupled.to_json(path=sim_path)
 
-# submit coupled run -------------------------------------------------------- #
+# run coupled sim ----------------------------------------------------------- #
 
 # check if everything is set correct
 check_lpjml(config_coupled_fn, model_path)
-# run lpjml simulation for coupling
+
+# run lpjml simulation for coupling in the background
 run_lpjml(
     config_file=config_coupled_fn,
     model_path=model_path,
     sim_path=sim_path
 )
 
-# --------------------------------------------------------------------------- #
-# OPEN SECOND LOGIN NODE
-# --------------------------------------------------------------------------- #
-from pycoupler.coupler import LPJmLCoupler
-from pycoupler.data import convert_coupled_input, read_coupled_input
-
-
-sim_path = "/p/projects/open/Jannes/copan_core/lpjml"
-model_path = f"{sim_path}/LPJmL_internal"
-config_coupled_fn = f"{sim_path}/config_coupled.json"
+# set up coupler and simulation --------------------------------------------- #
 coupler = LPJmLCoupler(config_file=config_coupled_fn)
 
-# get and process initial inputs
-convert_coupled_input(coupler=coupler,
-                      sim_path=sim_path,
-                      model_path=model_path)
+# convert and copy coupled input data
+copy_coupled_input(coupler=coupler,
+                   sim_path=sim_path,
+                   model_path=model_path)
 
-input_dict = read_coupled_input(coupler=coupler,
-                                sim_path=sim_path)
+# read coupled input data for initialisation
+inputs = read_coupled_input(coupler=coupler,
+                            sim_path=sim_path)
 
 # get historic outputs
 historic_outputs = coupler.read_historic_output()
 
+# coupled run --------------------------------------------------------------- #
 #  The following could be your model/program/script
 for year in coupler.get_sim_years():
     # send input data to lpjml
-    coupler.send_input(input_dict, year)
+    coupler.send_input(inputs, year)
     # read output data
     outputs = coupler.read_output(year)
     # generate some results based on lpjml output
-    # ....
+    # ...
 
 coupler.close()

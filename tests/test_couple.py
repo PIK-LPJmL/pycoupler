@@ -5,7 +5,12 @@ import socket
 @pytest.fixture(scope="session", autouse=True)
 def setup_c_program(request):
     # Start the C program using subprocess.Popen
-    c_program_process = subprocess.Popen(["./c_program", "arg1", "arg2"], stdin=subprocess.PIPE, stdout=subprocess.PIPE, stderr=subprocess.PIPE)
+    c_program_process = subprocess.Popen(
+        ["./c_program", "arg1", "arg2"],
+        stdin=subprocess.PIPE,
+        stdout=subprocess.PIPE,
+        stderr=subprocess.PIPE
+    )
     
     # Wait for the C program to start up, if necessary
     # ... (add any necessary wait logic here)

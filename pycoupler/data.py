@@ -65,14 +65,14 @@ class LpjmlTypes(Enum):
             return int
 
 
-def convert_coupled_input(coupler,
-                          sim_path,
-                          model_path,
-                          start_year=None,
-                          end_year=None):
-    """Convert and save input files as NetCDF4 files to input directory for
-    selected years to make them easily readable as well as to avoid large
-    file sizes.
+def copy_coupled_input(coupler,
+                       sim_path,
+                       model_path,
+                       start_year=None,
+                       end_year=None):
+    """Copy and convert and save input files as NetCDF4 files to input
+    directory for selected years to make them easily readable as well as to
+    avoid large file sizes.
     :param coupler: LPJmLCoupler object
     :type coupler: LPJmLCoupler
     :param sim_path: path to simulation directory
