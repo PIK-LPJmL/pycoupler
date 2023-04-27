@@ -499,7 +499,7 @@ class LpjmlConfig(SubConfig):
         summary = f"<pycoupler.{self.__class__.__name__}>"
         summary = "\n".join([
             summary,
-            f"Simulation:    {self.sim_id} v.{self.version}",
+            f"Simulation:    {self.sim_id} v{self.version}",
             f"  * sim_name   {self.sim_name}",
             f"  * firstyear  {self.firstyear}",
             f"  * lastyear   {self.lastyear}",

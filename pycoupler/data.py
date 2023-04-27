@@ -23,7 +23,7 @@ class Inputs(Enum):
             return 64
         elif self.name in ["fertilizer_nr", "manure_nr", "residue_on_field"]:
             return 32
-        elif self.name == "with_tillage":
+        else:  # "with_tillage"
             return 1
 
     @property
