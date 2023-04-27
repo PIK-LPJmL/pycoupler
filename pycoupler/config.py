@@ -15,6 +15,7 @@ class SubConfig:
         """Constructor method
         """
         self.__dict__.update(config_dict)
+        self.changed = []
 
     def to_dict(self):
         """Convert class object to dictionary
@@ -53,9 +54,6 @@ class SubConfig:
             json.dump(config_dict, con, indent=2)
 
         return json_file
-
-    def __repr__(self):
-        return f"<{self.__class__.__name__} object>"
 
 
 class LpjmlConfig(SubConfig):
@@ -471,17 +469,70 @@ class LpjmlConfig(SubConfig):
                     "socket" in inputs[inp]) and inputs[inp]["socket"]
             }
 
-    def get_output_sockets(self):
+    def get_output_sockets(self, id_only=False):
         """get defined socket outputs as dict
         """
         outputs = self.to_dict()["output"]
         name_id = {out.name: out.id for out in self.outputvar}
-        return {
-            out["id"]: dict(
-                {'index': name_id[out["id"]]}, **out
-            ) for out in outputs if (
-                "socket" in out["file"]) and out["file"]["socket"]
-        }
+
+        if id_only:
+            return [out["id"] for out in outputs if (
+                "socket" in out["file"]) and out["file"]["socket"]]
+        else:
+            return {
+                out["id"]: dict(
+                    {'index': name_id[out["id"]]}, **out
+                ) for out in outputs if (
+                    "socket" in out["file"]) and out["file"]["socket"]
+            }
+
+    def __repr__(self):
+        """Representation of the config object
+        """
+
+        summary_attr = ["sim_id", "sim_name", "version",
+                        "firstyear", "lastyear", "startgrid", "endgrid",
+                        "landuse", "coupled_model", "start_coupling"]
+        changed_repr = [
+            to_repr for to_repr in self.changed if to_repr not in summary_attr
+        ]
+        summary = f"<pycoupler.{self.__class__.__name__}>"
+        summary = "\n".join([
+            summary,
+            f"Simulation:    {self.sim_id} v.{self.version}",
+            f"  * sim_name   {self.sim_name}",
+            f"  * firstyear  {self.firstyear}",
+            f"  * lastyear   {self.lastyear}",
+            f"  * startgrid  {self.startgrid}",
+            f"  * endgrid    {self.startgrid}",
+            f"  * landuse    {self.landuse}",
+        ])
+        if changed_repr:
+            summary_list = [summary]
+            summary_list.extend([
+                f"  * {to_repr}{(10-len(to_repr))*' '} {getattr(self, to_repr)}"
+                for to_repr in changed_repr
+            ])
+            summary = "\n".join(summary_list)
+
+        if self.coupled_model:
+            sc = self.start_coupling if self.start_coupling else self.firstyear
+            input_coupled = self.get_input_sockets(id_only=True)
+            output_coupled = self.get_output_sockets(id_only=True)
+
+            summary = "\n".join([
+                summary,
+                f"Coupled model:        {self.coupled_model}",
+                f"  * start_coupling    {sc}",
+                f"  * input (coupled)   {input_coupled}",
+                f"  * output (coupled)  {output_coupled}",
+            ])
+
+        return summary
+
+    def __setattr__(self, __name, __value):
+        super().__setattr__(__name, __value)
+        self.changed.append(__name)
 
 
 def parse_config(file_name="./lpjml.js", spin_up=False,

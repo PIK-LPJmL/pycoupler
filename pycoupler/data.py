@@ -95,8 +95,10 @@ def copy_coupled_input(coupler,
     # utility function to get general temp folder for every system
     temp_dir = tempfile.gettempdir()
 
-    if not start_year and not end_year:
-        start_year = end_year = coupler.config.start_coupling - 1
+    if not start_year:
+        start_year = coupler.config.start_coupling - 1
+    if not end_year:
+        end_year = coupler.config.start_coupling - 1
 
     # iterate over each inputs to be send via sockets (get initial values)
     for key in sock_inputs:
@@ -119,30 +121,15 @@ def copy_coupled_input(coupler,
                          str(start_year),
                          sock_inputs[key]['name'],
                          f"{temp_dir}/1_{file_name_tmp}"]
-        if start_year and not end_year:
-            # run cut clm file before start year
-            run(cut_clm_start, stdout=open(os.devnull, 'wb'))
-            use_tmp = '1'
-        elif not start_year and end_year:
-            # run cut clm file after end year
-            run([f"{model_path}/bin/cutclm",
-                 "-end",
-                 str(end_year),
-                 sock_inputs[key]['name'],
-                 f"{temp_dir}/2_{file_name_tmp}"],
-                stdout=open(os.devnull, 'wb'))
-            use_tmp = '2'
-        else:
-            # run cut clm file before start year and after end year in
-            #   sequence
-            run(cut_clm_start, stdout=open(os.devnull, 'wb'))
-            # cannot deal with overwriting a temp file with same name
-            cut_clm_end = [f"{model_path}/bin/cutclm",
-                           "-end", str(end_year),
-                           f"{temp_dir}/1_{file_name_tmp}",
-                           f"{temp_dir}/2_{file_name_tmp}"]
-            run(cut_clm_end, stdout=open(os.devnull, 'wb'))
-            use_tmp = '2'
+        # run cut clm file before start year and after end year in
+        #   sequence
+        run(cut_clm_start, stdout=open(os.devnull, 'wb'))
+        # cannot deal with overwriting a temp file with same name
+        cut_clm_end = [f"{model_path}/bin/cutclm",
+                       "-end", str(end_year),
+                       f"{temp_dir}/1_{file_name_tmp}",
+                       f"{temp_dir}/2_{file_name_tmp}"]
+        run(cut_clm_end, stdout=open(os.devnull, 'wb'))
         # a flag for multi (categorical) band input - if true, set
         #   "-landuse"
         if getattr(Inputs, key).bands:
@@ -164,7 +151,7 @@ def copy_coupled_input(coupler,
         # convert clm input to netcdf files
         conversion_cmd = [
             f"{model_path}/bin/clm2cdf", is_int, is_multiband, key,
-            grid_file, f"{temp_dir}/{use_tmp}_{file_name_tmp}",
+            grid_file, f"{temp_dir}/2_{file_name_tmp}",
             f"{input_path}/{key}.nc"
         ]
         if None in conversion_cmd:
@@ -200,9 +187,13 @@ def read_netcdf(file_name, var_name=None, return_xarray=True):
     return data
 
 
-def read_coupled_input(coupler, sim_path, return_xarray=False):
+def read_coupled_input(coupler, sim_path, years=None, return_xarray=False):
     """Read coupled input data from netcdf files """
     # read coupled input data from netcdf files (as xarray.DataArray)
+    if years:
+        kwargs = {"time": years}
+    else:
+        kwargs = {}
     inputs = {key: read_netcdf(
         f"{sim_path}/input/{key}.nc",
         var_name=key
@@ -216,8 +207,7 @@ def read_coupled_input(coupler, sim_path, return_xarray=False):
     # create same format as before but with selected numpy arrays instead of
     #   xarray.DataArray
     input_data = {key: inputs[key].sel(
-        longitude=lons, latitude=lats,
-        time=coupler.config.start_coupling - 1, method="nearest"
+        longitude=lons, latitude=lats, method="nearest", **kwargs
     ).transpose("cell", ...) for key in inputs}
 
     # return input data as xarray.DataArray if requested
