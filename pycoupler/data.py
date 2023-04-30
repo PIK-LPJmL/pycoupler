@@ -208,7 +208,7 @@ def read_coupled_input(coupler, sim_path, years=None, return_xarray=False):
     #   xarray.DataArray
     input_data = {key: inputs[key].sel(
         longitude=lons, latitude=lats, method="nearest", **kwargs
-    ).transpose("cell", ...) for key in inputs}
+    ).transpose("cell", ..., "time") for key in inputs}
 
     # return input data as xarray.DataArray if requested
     if not return_xarray:
@@ -234,8 +234,14 @@ def append_to_dict(data_dict, data):
     """
     for key, value in data.items():
         if key in data_dict:
+            # data_dict[key] = xr.concat([data_dict[key], value], dim="time")
             data_dict[key] = np.dstack((data_dict[key], value))
+
         else:
             data_dict[key] = value
 
     return data_dict
+
+
+class LPJmLData(xr.DataArray):
+    pass

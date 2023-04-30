@@ -15,7 +15,6 @@ class SubConfig:
         """Constructor method
         """
         self.__dict__.update(config_dict)
-        self.changed = []
 
     def to_dict(self):
         """Convert class object to dictionary
@@ -66,6 +65,14 @@ class LpjmlConfig(SubConfig):
     :type config_dict: dict
     """
 
+    def __init__(self, sub_config):
+        """Constructor method
+        """
+        # add changed attribute to sub config to track config changes
+        if "changed" not in sub_config.__dict__:
+            sub_config.__dict__["changed"] = []
+        self.__dict__.update(sub_config.__dict__)
+
     def get_output_avail(self, id_only=True, with_description=True):
         """Get available output (outputvar) names (== output ids) as list
         """
@@ -98,9 +105,9 @@ class LpjmlConfig(SubConfig):
         output_path = f"{sim_path}/output/{self.sim_name}"
 
         # set output writing
-        self._set_output_path_(output_path)
+        self._set_outputpath(output_path)
         # set restart directory to restart from in subsequent historic run
-        self._set_restart_(path=f"{sim_path}/restart")
+        self._set_restart(path=f"{sim_path}/restart")
 
     def set_transient(self,
                       sim_path,
@@ -135,19 +142,19 @@ class LpjmlConfig(SubConfig):
         self.sim_name = "historic"
         output_path = f"{sim_path}/output/{self.sim_name}"
         # set time range for historic run
-        self._set_timerange_(start_year=start_year,
-                             end_year=end_year,
-                             write_start_year=write_start_year)
+        self._set_timerange(start_year=start_year,
+                            end_year=end_year,
+                            write_start_year=write_start_year)
         # set output writing
-        self._set_output_(output_path,
-                          outputs=write_output,
-                          temporal_resolution=write_temporal_resolution,
-                          file_format="cdf",
-                          append_output=append_output)
+        self._set_output(output_path,
+                         outputs=write_output,
+                         temporal_resolution=write_temporal_resolution,
+                         file_format="cdf",
+                         append_output=append_output)
         # set start from directory to start from spinup run
-        self._set_startfrom_(path=f"{sim_path}/restart")
+        self._set_startfrom(path=f"{sim_path}/restart")
         # set restart directory to restart from in subsequent transient run
-        self._set_restart_(path=f"{sim_path}/restart")
+        self._set_restart(path=f"{sim_path}/restart")
 
     def set_coupled(self,
                     sim_path,
@@ -196,28 +203,28 @@ class LpjmlConfig(SubConfig):
         self.sim_name = "coupled"
         output_path = f"{sim_path}/output/{self.sim_name}"
         # set time range for coupled run
-        self._set_timerange_(start_year=start_year,
-                             end_year=end_year,
-                             write_start_year=write_start_year)
+        self._set_timerange(start_year=start_year,
+                            end_year=end_year,
+                            write_start_year=write_start_year)
         # set output directory, outputs (relevant ones for pbs and agriculture)
         write_output += [
             item for item in coupled_output if item not in write_output
         ]
-        self._set_output_(output_path,
-                          outputs=write_output,
-                          temporal_resolution=write_temporal_resolution,
-                          file_format="cdf",
-                          append_output=append_output)
+        self._set_output(output_path,
+                         outputs=write_output,
+                         temporal_resolution=write_temporal_resolution,
+                         file_format="raw",
+                         append_output=append_output)
         # set coupling parameters
-        self._set_coupling_(inputs=coupled_input,
-                            outputs=coupled_output,
-                            start_year=coupled_year,
-                            model_name=model_name)
+        self._set_coupling(inputs=coupled_input,
+                           outputs=coupled_output,
+                           start_year=coupled_year,
+                           model_name=model_name)
         # set start from directory to start from historic run
-        self._set_startfrom_(path=f"{sim_path}/restart")
+        self._set_startfrom(path=f"{sim_path}/restart")
 
-    def _set_output_(self, output_path, outputs=[], file_format="raw",
-                     temporal_resolution="annual", append_output=True):
+    def _set_output(self, output_path, outputs=[], file_format="raw",
+                    temporal_resolution="annual", append_output=True):
         """Set outputs to be written by LPJmL, define temporal resolution
         :param output_path: define output_path the output is written to. If
             `append_output == True` output_path is only altered for appended
@@ -329,7 +336,7 @@ class LpjmlConfig(SubConfig):
                     f"The following output is not defined in outputvar: {out}"
                 )
 
-    def _set_output_path_(self, output_path):
+    def _set_outputpath(self, output_path):
         """Set output path of specified outputs
         :param output_path: path for outputs to be written, could also b
             relative path
@@ -340,7 +347,7 @@ class LpjmlConfig(SubConfig):
             file_name.reverse()
             out.file.name = f"{output_path}/{file_name[0]}"
 
-    def _set_startfrom_(self, path):
+    def _set_startfrom(self, path):
         """Set restart file from which LPJmL starts the transient run
         """
         if os.path.isfile(f"{path}/restart_{self.firstyear-1}.lpj"):
@@ -354,17 +361,17 @@ class LpjmlConfig(SubConfig):
             file_name.reverse()
             self.restart_filename = f"{path}/{file_name[0]}"
 
-    def _set_restart_(self, path):
+    def _set_restart(self, path):
         """Set restart file from which LPJmL starts the transient run
         """
         self.write_restart_filename = (
             f"{path}/restart_{self.lastyear}.lpj")
         self.restart_year = self.lastyear
 
-    def _set_timerange_(self,
-                        start_year=1901,
-                        end_year=2017,
-                        write_start_year=None):
+    def _set_timerange(self,
+                       start_year=1901,
+                       end_year=2017,
+                       write_start_year=None):
         """Set simulation time range, outputyear to start as a default here.
         :param start_year: start year of simulation
         :type start_year: int
@@ -381,11 +388,11 @@ class LpjmlConfig(SubConfig):
 
         self.lastyear = end_year
 
-    def _set_coupling_(self,
-                       inputs,
-                       outputs,
-                       start_year=None,
-                       model_name="copan:CORE"):
+    def _set_coupling(self,
+                      inputs,
+                      outputs,
+                      start_year=None,
+                      model_name="copan:CORE"):
         """Coupled settings - no spinup, not write restart file and set sockets
         for inputs and outputs (via corresponding ids)
         :param inputs: list of inputs to be used as socket for coupling.
@@ -404,14 +411,14 @@ class LpjmlConfig(SubConfig):
         self.nspinup = 0
         self.float_grid = True
         self.coupled_model = model_name
-        self._set_input_sockets_(inputs)
-        self._set_output_sockets_(outputs)
+        self._set_input_sockets(inputs)
+        self._set_outputsockets(outputs)
         if start_year:
             self.start_coupling = start_year
         else:
             self.start_coupling = self.firstyear
 
-    def _set_input_sockets_(self, inputs=[]):
+    def _set_input_sockets(self, inputs=[]):
         """Set sockets for inputs and outputs (via corresponding ids)
         :param inputs: list of inputs to be used as socket for coupling.
             Provide dictionary/json key as identifier -> entry in list.
@@ -423,7 +430,7 @@ class LpjmlConfig(SubConfig):
                 raise ValueError('Please use a config with input ids.')
             sock_input.__dict__['socket'] = True
 
-    def _set_output_sockets_(self, outputs=[]):
+    def _set_outputsockets(self, outputs=[]):
         """Set sockets for inputs and outputs (via corresponding ids)
 
         :param outputs: list of outputs to be used as socket for coupling.
@@ -486,20 +493,25 @@ class LpjmlConfig(SubConfig):
                     "socket" in out["file"]) and out["file"]["socket"]
             }
 
-    def __repr__(self):
+    def __repr__(self, sub_repr=False):
         """Representation of the config object
         """
-
         summary_attr = ["sim_id", "sim_name", "version",
                         "firstyear", "lastyear", "startgrid", "endgrid",
                         "landuse", "coupled_model", "start_coupling"]
         changed_repr = [
             to_repr for to_repr in self.changed if to_repr not in summary_attr
         ]
-        summary = f"<pycoupler.{self.__class__.__name__}>"
-        summary = "\n".join([
+        if(sub_repr):
+            spacing = "\n  "
+            summary = "Configuration:"
+        else:
+            summary = f"<pycoupler.{self.__class__.__name__}>"
+            spacing = "\n"
+        summary = spacing.join([
             summary,
-            f"Simulation:    {self.sim_id} v{self.version}",
+            f"Settings:      {self.sim_id} v{self.version}",
+            "  (general)",
             f"  * sim_name   {self.sim_name}",
             f"  * firstyear  {self.firstyear}",
             f"  * lastyear   {self.lastyear}",
@@ -508,19 +520,19 @@ class LpjmlConfig(SubConfig):
             f"  * landuse    {self.landuse}",
         ])
         if changed_repr:
-            summary_list = [summary]
+            summary_list = [summary, "  (changed)"]
             summary_list.extend([
-                f"  * {to_repr}{(10-len(to_repr))*' '} {getattr(self, to_repr)}"
-                for to_repr in changed_repr
+                f"  * {torepr}{(20-len(torepr))*' '} {getattr(self, torepr)}"
+                for torepr in changed_repr
             ])
-            summary = "\n".join(summary_list)
+            summary = spacing.join(summary_list)
 
         if self.coupled_model:
             sc = self.start_coupling if self.start_coupling else self.firstyear
             input_coupled = self.get_input_sockets(id_only=True)
             output_coupled = self.get_output_sockets(id_only=True)
 
-            summary = "\n".join([
+            summary = spacing.join([
                 summary,
                 f"Coupled model:        {self.coupled_model}",
                 f"  * start_coupling    {sc}",
@@ -607,6 +619,6 @@ def read_config(file_name, spin_up=False, macros=None, return_dict=False):
 
     # Convert first level to LpjmlConfig object
     if not return_dict:
-        lpjml_config.__class__ = LpjmlConfig
+        lpjml_config = LpjmlConfig(lpjml_config)
 
     return lpjml_config
