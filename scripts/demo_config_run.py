@@ -26,6 +26,7 @@ compile_lpjml(model_path=model_path, make_fast=True)
 #   restart, output, input
 create_subdirs(sim_path)
 
+
 # define and submit spinup run ---------------------------------------------- #
 
 # create config for spinup run
@@ -51,6 +52,7 @@ run_lpjml(
     sim_path=sim_path
 )
 
+
 # define coupled run -------------------------------------------------------- #
 
 # create config for coupled run
@@ -60,19 +62,21 @@ config_coupled = read_config(file_name=f"{model_path}/lpjml.js")
 config_coupled.set_coupled(sim_path,
                            start_year=1901, end_year=2005,
                            coupled_year=1981,
-                           coupled_input=["landuse",
-                                          "fertilizer_nr"],
+                           coupled_input=["with_tillage",
+                                          "landuse"],
                            coupled_output=["cftfrac",
                                            "pft_harvestc",
-                                           "pft_harvestn"])
+                                           "leaching"])
 
 # only for single cell runs
 config_coupled.startgrid = startcell
 config_coupled.endgrid = endcell
 config_coupled.river_routing = False
+config_coupled.tillage_type = "read"
 
 # write config (Config object) as json file
 config_coupled_fn = config_coupled.to_json(path=sim_path)
+
 
 # run coupled sim ----------------------------------------------------------- #
 
@@ -86,7 +90,9 @@ run_lpjml(
     sim_path=sim_path
 )
 
+
 # set up coupler and simulation --------------------------------------------- #
+# create coupler object
 coupler = LPJmLCoupler(config_file=config_coupled_fn)
 
 # convert and copy coupled input data

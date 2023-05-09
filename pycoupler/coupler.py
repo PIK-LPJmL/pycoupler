@@ -6,7 +6,8 @@ import xarray as xr
 from enum import Enum
 
 from pycoupler.config import read_config
-from pycoupler.data import Inputs, LpjmlTypes, LPJmLData, append_to_dict
+from pycoupler.data import Inputs, LpjmlTypes, LPJmLData, LPJmLDataSet,\
+    append_to_dict, read_meta
 
 
 def recvall(channel, size):
@@ -211,16 +212,21 @@ class LPJmLCoupler:
         self.__grid = np.zeros(shape=(self.__ncell, 2),
                                dtype=self.__output_types[self.__grid_id])
         self.__grid[:] = np.nan
+
+        meta_data = self.__read_meta_output(output_id=self.__grid_id)
+
         self.__grid = LPJmLData(
             data=self.__grid,
             dims=('cell', 'coord'),
             coords=dict(
                 cell=np.arange(self.__config.startgrid,
                                self.__config.endgrid+1),
-                coord=['lon', 'lat']
+                coord=['longitude', 'latitude']
             ),
             name="grid"
         )
+        self.__grid.add_meta(meta_data)
+
         # Read static outputs
         self.__iterate_operation(
             length=self.__noutput_static, fun=self.__read_static_data,
@@ -239,6 +245,11 @@ class LPJmLCoupler:
         output_sockets = self.__config.get_output_sockets()
         self.__output_ids = {
             output_sockets[inp]["index"]: inp for inp in output_sockets
+        }
+        self.__output_templates = {
+            output_sockets[inp]["index"]: self._create_xarray_template(
+                output_sockets[inp]["index"]
+            ) for inp in output_sockets
         }
 
     @property
@@ -261,7 +272,7 @@ class LPJmLCoupler:
     def grid(self):
         """Get longitude and latitude for every (amount ncell) gridcell as a
         numpy array.
-        :getter: Get grid information lon, lat for ncell
+        :getter: Get grid information longitude, lattitude for ncell
         :type: numpy.array
         """
         return self.__grid
@@ -351,7 +362,7 @@ class LPJmLCoupler:
             yield current_year
             current_year += 1
 
-    def read_historic_output(self):
+    def read_historic_output(self, to_xarray=True):
         """Read historic output from LPJmL
         :return: Dictionary with output keys and corresponding output as numpy
             arrays with dimensions (ncell, nband)
@@ -362,32 +373,49 @@ class LPJmLCoupler:
         for year in self.get_historic_years():
             hist_years.append(year)
             if year == self.__config.outputyear:
-                output_dict = self.read_output(year=year, as_xarray=False)
+                output_dict = self.read_output(year=year, to_xarray=False)
             elif(year > self.__config.outputyear):
                 output_dict = append_to_dict(output_dict,
                                              self.read_output(year=year,
-                                                              as_xarray=False))
+                                                              to_xarray=False))
 
         for key in output_dict:
             if key in output_dict:
-                output_dict[key] = LPJmLData(
-                    data=output_dict[key],
-                    dims=('cell', 'band', 'time'),
-                    coords=dict(
-                        cell=np.arange(self.__config.startgrid,
-                                       self.__config.endgrid+1),
-                        lon=(['cell'], self.__grid.coords["lon"].values),
-                        lat=(['cell'], self.__grid.coords["lat"].values),
-                        time=np.array(hist_years)
-                    )
+                index = [
+                    item[0] for item in self.__output_ids.items()
+                    if item[1] == key
+                ][0]
+                lpjml_output = self._create_xarray_template(
+                    index,
+                    time_length=len(hist_years)
                 )
-                output_dict[key].coords['time'] = pd.date_range(
+                # read output values
+                if self.__config.output_metafile:
+                    meta_output = self.__read_meta_output(index=index)
+                else:
+                    meta_output = None
+
+                if meta_output:
+                    # add band names to output
+                    lpjml_output.coords['band'] = meta_output.band_names
+                    lpjml_output = lpjml_output.rename(
+                        band=f"band ({self.__output_ids[index]})"
+                    )
+                    # add meta data to output
+                    lpjml_output.add_meta(meta_output)
+
+                lpjml_output.coords['time'] = pd.date_range(
                     start=str(hist_years[0]),
                     end=str(hist_years[-1]+1),
                     freq='A'
                 )
+                lpjml_output.data = output_dict[key]
+                output_dict[key] = lpjml_output
 
-        return output_dict
+        if to_xarray:
+            return LPJmLDataSet(output_dict)
+        else:
+            return output_dict
 
     def close(self):
         """Close socket channel
@@ -442,7 +470,7 @@ class LPJmLCoupler:
         if not self.operations_left:
             self.__sim_year += 1
 
-    def read_output(self, year, as_xarray=True):
+    def read_output(self, year, to_xarray=True):
         """Read LPJmL output data of iterated year. Returned output comes in
         the same format as input is supplied to send_input, with output id/name
         as dict keys:
@@ -453,6 +481,8 @@ class LPJmLCoupler:
 
         :param year: supply year for validation
         :type year: int
+        :param to_xarray: if True, output is returned as xarray.DataArray
+        :type to_xarray: bool
         :return: Dictionary with output id/name as keys and outputs in the form
             of numpy.array
         :rtype: dict
@@ -473,19 +503,22 @@ class LPJmLCoupler:
             raise IndexError(f"Invalid operation order. Expected send_input")
 
         # iterate over outputs for private read_output_data
-        output_dict = self.__iterate_operation(length=self.__noutput_sim,
-                                               fun=self.__read_output_data,
-                                               token=Token.READ_OUTPUT,
-                                               args={"validate_year": year,
-                                                     "as_xarray": as_xarray},
-                                               appendix=True)
+        lpjml_output = self.__iterate_operation(length=self.__noutput_sim,
+                                                fun=self.__read_output_data,
+                                                token=Token.READ_OUTPUT,
+                                                args={"validate_year": year,
+                                                      "to_xarray": to_xarray},
+                                                appendix=True)
+        if to_xarray:
+            lpjml_output = LPJmLDataSet(lpjml_output)
+
         self.__year_read_output = year
 
         # check if all operations have been performed and increase sim_year
         if not self.operations_left:
             self.__sim_year += 1
 
-        return output_dict
+        return lpjml_output
 
     def __iterate_operation(self, length, fun, token, args=None,
                             appendix=False):
@@ -628,8 +661,43 @@ class LPJmLCoupler:
                 self.__grid[ii, 1] = (
                     read_grid_val(self.__channel) * type_fact
                 )
-            self.__grid.coords['lon'] = (('cell',), self.__grid.data[:, 0])
-            self.__grid.coords['lat'] = (('cell',), self.__grid.data[:, 1])
+            self.__grid.coords['longitude'] = (
+                ('cell',), self.__grid.data[:, 0]
+            )
+            self.__grid.coords['latitude'] = (
+                ('cell',), self.__grid.data[:, 1]
+            )
+
+    def _create_xarray_template(self, index, time_length=1):
+        """Create xarray template for output data
+        """
+        bands = self.__output_bands[index]
+
+        # create output numpy array template to be filled with output
+        output_tmpl = np.zeros(
+            shape=(self.__ncell, bands, time_length),  # time = 1
+            dtype=self.__output_types[index])
+        output_tmpl[:] = np.nan
+
+        # create xarray data array with correct dimensions and coord
+        output_tmpl = LPJmLData(
+            data=output_tmpl,
+            dims=('cell', 'band', 'time'),
+            coords=dict(
+                cell=np.arange(self.__config.startgrid,
+                               self.__config.endgrid+1),
+                longitude=(
+                    ['cell'], self.__grid.coords['longitude'].values
+                ),
+                latitude=(
+                    ['cell'], self.__grid.coords['latitude'].values
+                ),
+                band=np.arange(bands),  # [str(i) for i in range(bands)],
+                time=np.arange(time_length)
+            ),
+            name=self.__output_ids[index],
+        )
+        return output_tmpl
 
     def __send_input_data(self, data, validate_year):
         """Send input data checks supplied object type, object dimensions data
@@ -637,10 +705,13 @@ class LPJmLCoupler:
         send_input_values method that does the sending.
         """
         index = read_int(self.__channel)
-        if not isinstance(data[self.__input_ids[index]], np.ndarray):
+        if isinstance(data, LPJmLDataSet):
+            data = data.to_numpy()
+        elif not isinstance(data[self.__input_ids[index]], np.ndarray):
             self.close()
             raise TypeError("Unsupported object type. Please supply a numpy " +
                             "array with the dimension of (ncells, nband).")
+
         # type check conversion
         if self.__input_types[index] == float:
             type_check = np.floating
@@ -720,7 +791,7 @@ class LPJmLCoupler:
                 cells -= 1
                 bands = dims[1]
 
-    def __read_output_data(self, validate_year, as_xarray):
+    def __read_output_data(self, validate_year, to_xarray=True):
         """Read output data checks supplied year and sets numpy array template
         for corresponding output (index). If set correct executes
         private read_output_values method to read the corresponding output.
@@ -732,26 +803,32 @@ class LPJmLCoupler:
             raise ValueError(f"The expected year: {validate_year} does not " +
                              f"match the received year: {year}")
         if index in self.__output_ids.keys():
-            # get corresponding number of bands
-            bands = self.__output_bands[index]
-            # create output numpy array template to be filled with output
-            output_tmpl = np.zeros(
-                shape=(self.__ncell, bands, 1),  # time = 1
-                dtype=self.__output_types[index])
-            output_tmpl[:] = np.nan
-            if as_xarray:
-                # create xarray data array with correct dimensions and coord
-                output_tmpl = LPJmLData(
-                    data=output_tmpl,
-                    dims=('cell', 'band', 'time'),
-                    coords=dict(
-                        cell=np.arange(self.__config.startgrid,
-                                       self.__config.endgrid+1),
-                        lon=(['cell'], self.__grid.coords["lon"].values),
-                        lat=(['cell'], self.__grid.coords["lat"].values),
-                        time=np.arange(1)
+            if not to_xarray:
+                # get corresponding number of bands
+                bands = self.__output_bands[index]
+                # create output numpy array template to be filled with output
+                output_tmpl = np.zeros(
+                    shape=(self.__ncell, bands, 1),  # time = 1
+                    dtype=self.__output_types[index])
+                output_tmpl[:] = np.nan
+            else:
+                # get corresponding number of bands
+                output_tmpl = self.__output_templates[index]
+                # read output values
+                if self.__config.output_metafile:
+                    meta_output = self.__read_meta_output(index=index)
+                else:
+                    meta_output = None
+
+                if meta_output:
+                    # add band names to output
+                    output_tmpl.coords['band'] = meta_output.band_names
+                    output_tmpl = output_tmpl.rename(
+                        band=f"band ({self.__output_ids[index]})"
                     )
-                )
+                    # add meta data to output
+                    output_tmpl.add_meta(meta_output)
+
                 output_tmpl.coords['time'] = pd.date_range(
                     str(year), periods=1, freq='A'
                 )
@@ -795,6 +872,34 @@ class LPJmLCoupler:
                 cells = dims[0]
         return output
 
+    def __read_meta_output(self, index=None, output_id=None):
+        """Read meta output data from socket. Returns dictionary with
+        corresponding meta output id and value.
+        """
+        if output_id is not None:
+            output = self.__config.output[output_id]
+        elif index is not None:
+            output = [
+                out for out in self.__config.output
+                if out.id == self.__output_ids[index]
+            ][0]
+        else:
+            raise ValueError("Either index or output_id must be supplied")
+
+        # Read meta data from of corresponding output id using config info
+        lpjml_meta = read_meta(f"{output.file.name}.json")
+
+        # Set meta data correct for coupling format
+        lpjml_meta.nstep = 1
+        lpjml_meta.timestep = 1
+        lpjml_meta.format = "sock"
+
+        # Remove unnecessary attributes
+        delattr(lpjml_meta, "bigendian")
+        delattr(lpjml_meta, "filename")
+
+        return lpjml_meta
+
     def __repr__(self):
         """Representation of the Coupler object
         """
@@ -810,30 +915,3 @@ class LPJmLCoupler:
         summary = "\n".join([summary, self.__config.__repr__(sub_repr=True)])
 
         return summary
-
-import numpy as np
-import pandas as pd
-import xarray as xr
-
-output_tmpl = np.zeros(
-    shape=(67420, 1, 1))
-output_tmpl[:] = np.nan
-# create xarray data array with correct dimensions and coordinates
-output_tmpl = LPJmLData(
-    data=output_tmpl,
-    dims=('cell', 'band', 'time'),
-    coords=dict(
-        cell=np.arange(67420),
-        lon=(['cell'], np.arange(67420)),
-        lat=(['cell'], np.arange(67420)),
-        time=np.arange(1)
-    )
-)
-time_coord = pd.date_range(str(2000), periods=1, freq='A')
-output_tmpl.coords['time'] = time_coord
-
-output_tmpl2 = output_tmpl.copy()
-time_coord = pd.date_range(str(2001), periods=1, freq='A')
-output_tmpl2.coords['time'] = time_coord
-
-lol = xr.concat([output_tmpl, output_tmpl2], dim='time')

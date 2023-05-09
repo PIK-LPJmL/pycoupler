@@ -251,6 +251,9 @@ class LpjmlConfig(SubConfig):
         available_formats = {'raw': 'bin', 'clm': 'clm', 'cdf': 'nc4'}
         nonvariable_outputs = ('globalflux')
 
+        # provide additional meta data
+        self.output_metafile = True
+
         # add grid output if not already defined
         if "grid" not in outputs:
             outputs.append("grid")
@@ -502,7 +505,7 @@ class LpjmlConfig(SubConfig):
         changed_repr = [
             to_repr for to_repr in self.changed if to_repr not in summary_attr
         ]
-        if(sub_repr):
+        if sub_repr:
             spacing = "\n  "
             summary = "Configuration:"
         else:
@@ -563,8 +566,7 @@ def parse_config(file_name="./lpjml.js", spin_up=False,
     :param config_class: class of config object to be returned or None
         (return dict)
     :type config_class: class
-    :return: if `return_dict == True` -> LpjmlConfig object, else a
-        a dictionary
+    :return: A LpjmlConfig object
     :rtype: LpjmlConfig, dict
     """
     # precompile command
@@ -588,20 +590,20 @@ def parse_config(file_name="./lpjml.js", spin_up=False,
     return lpjml_config
 
 
-def read_config(file_name, spin_up=False, macros=None, return_dict=False):
+def read_config(file_name, spin_up=False, macros=None, to_dict=False):
     """Read function for config files to be returned as LpjmlConfig object or
     alternatively dict.
     :param file_name: file name (including relative/absolute path) of the
         corresponding LPJmL configuration.
     :type file_name: str
-    :param return_dict: if `True` an LpjmlConfig object is returned,
+    :param to_dict: if `True` an LpjmlConfig object is returned,
         else (`False`) a dictionary is returned
-    :type return_dict: bool
-    :return: if `return_dict == True` -> LpjmlConfig object, else a
+    :type to_dict: bool
+    :return: if `to_dict == True` -> LpjmlConfig object, else a
         a dictionary
     :rtype: LpjmlConfig, dict
     """
-    if not return_dict:
+    if not to_dict:
         config = SubConfig
     else:
         config = None
@@ -618,7 +620,7 @@ def read_config(file_name, spin_up=False, macros=None, return_dict=False):
         )
 
     # Convert first level to LpjmlConfig object
-    if not return_dict:
+    if not to_dict:
         lpjml_config = LpjmlConfig(lpjml_config)
 
     return lpjml_config
