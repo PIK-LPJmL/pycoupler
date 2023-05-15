@@ -1,13 +1,17 @@
+import os
 import socket
 import struct
+import tempfile
 import numpy as np
 import pandas as pd
 import xarray as xr
+
+from subprocess import run, CalledProcessError
 from enum import Enum
 
 from pycoupler.config import read_config
 from pycoupler.data import Inputs, LpjmlTypes, LPJmLData, LPJmLDataSet,\
-    append_to_dict, read_meta
+    append_to_dict, read_meta, read_data
 
 
 def recvall(channel, size):
@@ -519,6 +523,174 @@ class LPJmLCoupler:
             self.__sim_year += 1
 
         return lpjml_output
+
+    def read_input(self,
+                   start_year=None,
+                   end_year=None,
+                   copy=True):
+        """Read coupled input data from netcdf files and copy them to the
+        simulation directory if copy=True. If no start_year and
+        end_year are provided, the default start_year and end_year from the
+        config are used.
+        :param start_year: start year of input data
+        :type start_year: int
+        :param end_year: end year of input data
+        :type end_year: int
+        :param copy: if True, input data is copied to simulation directory
+        :type copy: bool
+        :return: LPJmLDataSet with input data with input names as keys
+        :rtype: LPJmLDataSet
+        """
+        if copy:
+            self._copy_input(start_year=start_year,
+                             end_year=end_year)
+        # read coupled input data from netcdf files (as xarray.DataArray)
+        inputs = {key: read_data(
+            f"{self.__config.sim_path}/input/{key}.nc",
+            var_name=key
+        ) for key in self.config.get_input_sockets(id_only=True)}
+
+        inputs = LPJmLDataSet(inputs)
+        # define longitide and latitude DataArray (workaround to reduce dims to
+        #   cells)
+        lons = xr.DataArray(self.grid[:, 0], dims="cell")
+        lats = xr.DataArray(self.grid[:, 1], dims="cell")
+
+        other_dim = [
+            dim for dim in inputs.dims
+            if dim not in ["time", "longitude", "latitude"]
+        ]
+        if other_dim:
+            inputs = inputs.rename_dims({other_dim[0]: 'band'})
+
+        if start_year and end_year:
+            kwargs = {"time": [
+                year for year in range(start_year, end_year + 1)
+            ]}
+        elif start_year and not end_year:
+            kwargs = {"time": [
+                year for year in range(start_year,
+                                       max(inputs.time.values)+1)
+            ]}
+        elif not start_year and end_year:
+            kwargs = {"time": [year for year in range(min(inputs.time.values),
+                                                      end_year + 1)]}
+        else:
+            kwargs = {}
+
+        inputs.coords['time'] = pd.date_range(
+            start=str(min(inputs.coords["time"].values)),
+            end=str(max(inputs.coords["time"].values)+1),
+            freq='A'
+        )
+        # create same format as before but with selected numpy arrays instead
+        # of xarray.DataArray
+        inputs = inputs.sel(
+            longitude=lons, latitude=lats, method="nearest", **kwargs
+        ).transpose("cell", ..., "time")
+
+        return inputs
+
+    def _copy_input(self,
+                    start_year,
+                    end_year):
+        """Copy and convert and save input files as NetCDF4 files to input
+        directory for selected years to make them easily readable as well as to
+        avoid large file sizes.
+        """
+        input_path = f"{self.__config.sim_path}/input"
+        # get defined input sockets
+        if not os.path.isdir(input_path):
+            os.makedirs(input_path)
+            print(f"Created input path '{input_path}'")
+        sock_inputs = self.config.get_input_sockets()
+
+        # utility function to get general temp folder for every system
+        temp_dir = tempfile.gettempdir()
+
+        if start_year is None:
+            start_year = self.config.start_coupling - 1
+        if end_year is None:
+            end_year = self.config.start_coupling - 1
+
+        # iterate over each inputs to be send via sockets (get initial values)
+        for key in sock_inputs:
+            # check if working on the cluster (workaround by Ciaron)
+            #   (might be adjusted to the new cluster coming soon ...)
+            if self.config.inpath and (
+                not sock_inputs[key]['name'].startswith("/")
+            ):
+                sock_inputs[key]['name'] = (
+                    f"{self.config.inpath}/{sock_inputs[key]['name']}"
+                )
+            # get input file name
+            file_name_clm = sock_inputs[key]['name'].split("/")[-1]
+            # name tmp file after original name (even though could be random)
+            file_name_tmp = (
+                f"{file_name_clm.split('.')[0]}_tmp.clm"
+            )
+            # predefine cut clm command for reusage
+            cut_clm_start = [f"{self.__config.model_path}/bin/cutclm",
+                             str(start_year),
+                             sock_inputs[key]['name'],
+                             f"{temp_dir}/1_{file_name_tmp}"]
+
+            start_year_check = start_year
+            # run cut clm file before start year and after end year in sequence
+            while True:
+                try:
+                    run(cut_clm_start, stdout=open(os.devnull, 'wb'),
+                        check=True)
+                    break
+                except CalledProcessError:
+                    start_year_check += 1
+                    if start_year_check > end_year:
+                        raise ValueError(
+                            f"Could not find input file for '{key}' "
+                            f"between {start_year} and {end_year}!"
+                        )
+                    cut_clm_start[1] = str(start_year_check)
+
+            # cannot deal with overwriting a temp file with same name
+            cut_clm_end = [f"{self.__config.model_path}/bin/cutclm",
+                           "-end", str(end_year),
+                           f"{temp_dir}/1_{file_name_tmp}",
+                           f"{temp_dir}/2_{file_name_tmp}"]
+            run(cut_clm_end, stdout=open(os.devnull, 'wb'))
+            # a flag for multi (categorical) band input - if true, set
+            #   "-landuse"
+            if getattr(Inputs, key).bands:
+                is_multiband = "-landuse"
+            else:
+                is_multiband = None
+            # a flag for integer input - if true, set "-int"
+            if getattr(Inputs, key).type == int:
+                is_int = "-intnetcdf"
+            else:
+                is_int = None
+            # default grid file (only valid for 0.5 degree inputs)
+            if self.config.input.coord.name.startswith("/"):
+                grid_file = self.config.input.coord.name
+            else:
+                grid_file = (
+                    f"{self.config.inpath}/{self.config.input.coord.name}"
+                )
+            # convert clm input to netcdf files
+            conversion_cmd = [
+                f"{self.__config.model_path}/bin/clm2cdf", is_int,
+                is_multiband, key,
+                grid_file, f"{temp_dir}/2_{file_name_tmp}",
+                f"{input_path}/{key}.nc"
+            ]
+            if None in conversion_cmd:
+                conversion_cmd.remove(None)
+            run(conversion_cmd)
+            # remove the temporary clm (binary) files, 1_* is not created in
+            #   every case
+            if os.path.isfile(f"{temp_dir}/1_{file_name_tmp}"):
+                os.remove(f"{temp_dir}/1_{file_name_tmp}")
+            if os.path.isfile(f"{temp_dir}/2_{file_name_tmp}"):
+                os.remove(f"{temp_dir}/2_{file_name_tmp}")
 
     def __iterate_operation(self, length, fun, token, args=None,
                             appendix=False):

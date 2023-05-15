@@ -118,3 +118,5 @@ def create_subdirs(base_path):
     if not os.path.exists(f"{base_path}/restart"):
         os.makedirs(f"{base_path}/restart")
         print(f"Restart path '{base_path}/restart' was created.")
+
+    return base_path

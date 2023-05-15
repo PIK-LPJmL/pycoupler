@@ -2,6 +2,8 @@ import os
 import subprocess
 import json
 
+from pycoupler.utils import create_subdirs
+
 
 class SubConfig:
     """This serves as an LPJmL sub config class that can be easily accessed,
@@ -36,7 +38,7 @@ class SubConfig:
             return result
         return obj_to_dict(self)
 
-    def to_json(self, path):
+    def to_json(self, path=None):
         """Write json file
         :param file: file name (including relative/absolute path) to write json
             to
@@ -44,6 +46,9 @@ class SubConfig:
         """
         # convert class to dict
         config_dict = self.to_dict()
+
+        if path is None:
+            path = self.sim_path
 
         # configuration file name
         json_file = f"{path}/config_{self.sim_name}.json"
@@ -102,6 +107,7 @@ class LpjmlConfig(SubConfig):
         :type restart_path: str
         """
         self.sim_name = "spinup"
+        self.sim_path = create_subdirs(sim_path)
         output_path = f"{sim_path}/output/{self.sim_name}"
 
         # set output writing
@@ -140,6 +146,7 @@ class LpjmlConfig(SubConfig):
         :param append_output: bool
         """
         self.sim_name = "historic"
+        self.sim_path = create_subdirs(sim_path)
         output_path = f"{sim_path}/output/{self.sim_name}"
         # set time range for historic run
         self._set_timerange(start_year=start_year,
@@ -201,6 +208,7 @@ class LpjmlConfig(SubConfig):
         :type model_name: str
         """
         self.sim_name = "coupled"
+        self.sim_path = create_subdirs(sim_path)
         output_path = f"{sim_path}/output/{self.sim_name}"
         # set time range for coupled run
         self._set_timerange(start_year=start_year,
@@ -590,7 +598,11 @@ def parse_config(file_name="./lpjml.js", spin_up=False,
     return lpjml_config
 
 
-def read_config(file_name, spin_up=False, macros=None, to_dict=False):
+def read_config(file_name,
+                model_path=None,
+                spin_up=False,
+                macros=None,
+                to_dict=False):
     """Read function for config files to be returned as LpjmlConfig object or
     alternatively dict.
     :param file_name: file name (including relative/absolute path) of the
@@ -603,6 +615,9 @@ def read_config(file_name, spin_up=False, macros=None, to_dict=False):
         a dictionary
     :rtype: LpjmlConfig, dict
     """
+    if model_path is not None:
+        file_name = os.path.join(model_path, file_name)
+
     if not to_dict:
         config = SubConfig
     else:
@@ -622,5 +637,8 @@ def read_config(file_name, spin_up=False, macros=None, to_dict=False):
     # Convert first level to LpjmlConfig object
     if not to_dict:
         lpjml_config = LpjmlConfig(lpjml_config)
+
+    if model_path is not None:
+        lpjml_config.model_path = model_path
 
     return lpjml_config

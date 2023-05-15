@@ -1,10 +1,7 @@
-import os
-from pycoupler.utils import check_lpjml, compile_lpjml, clone_lpjml, \
-    create_subdirs
+from pycoupler.utils import check_lpjml, compile_lpjml, clone_lpjml
 from pycoupler.config import read_config
 from pycoupler.run import run_lpjml
 from pycoupler.coupler import LPJmLCoupler
-from pycoupler.data import copy_coupled_input, read_coupled_input
 
 # paths
 sim_path = "/p/projects/open/Jannes/copan_core/lpjml"
@@ -22,15 +19,14 @@ clone_lpjml(model_location=sim_path, branch="master")
 # if patched and existing compiled version use make_fast=True or if error is
 #   thrown, use arg make_clean=True without make_fast=True
 compile_lpjml(model_path=model_path, make_fast=True)
-# create required subdirectories to store model related data:
-#   restart, output, input
-create_subdirs(sim_path)
 
 
 # define and submit spinup run ---------------------------------------------- #
 
 # create config for spinup run
-config_spinup = read_config(file_name=f"{model_path}/lpjml.js", spin_up=True)
+config_spinup = read_config(file_name="lpjml.js",
+                            model_path=model_path,
+                            spin_up=True)
 
 # set spinup run configuration
 config_spinup.set_spinup(sim_path)
@@ -41,7 +37,7 @@ config_spinup.endgrid = endcell
 config_spinup.river_routing = False
 
 # write config (Config object) as json file
-config_spinup_fn = config_spinup.to_json(path=sim_path)
+config_spinup_fn = config_spinup.to_json()
 
 # check if everything is set correct
 check_lpjml(config_file=config_spinup_fn, model_path=model_path)
@@ -56,7 +52,7 @@ run_lpjml(
 # define coupled run -------------------------------------------------------- #
 
 # create config for coupled run
-config_coupled = read_config(file_name=f"{model_path}/lpjml.js")
+config_coupled = read_config(file_name="lpjml.js", model_path=model_path)
 
 # set coupled run configuration
 config_coupled.set_coupled(sim_path,
@@ -75,7 +71,7 @@ config_coupled.river_routing = False
 config_coupled.tillage_type = "read"
 
 # write config (Config object) as json file
-config_coupled_fn = config_coupled.to_json(path=sim_path)
+config_coupled_fn = config_coupled.to_json()
 
 
 # run coupled sim ----------------------------------------------------------- #
@@ -95,14 +91,9 @@ run_lpjml(
 # create coupler object
 coupler = LPJmLCoupler(config_file=config_coupled_fn)
 
-# convert and copy coupled input data
-copy_coupled_input(coupler=coupler,
-                   sim_path=sim_path,
-                   model_path=model_path)
-
 # read coupled input data for initialisation
-inputs = read_coupled_input(coupler=coupler,
-                            sim_path=sim_path)
+#   copy=False to skip netcdf copying (only if data is already in sim_path)
+inputs = coupler.read_input()
 
 # get historic outputs
 historic_outputs = coupler.read_historic_output()
