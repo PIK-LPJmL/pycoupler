@@ -366,6 +366,24 @@ class LPJmLCoupler:
             yield current_year
             current_year += 1
 
+    def get_cells(self, id=True):
+        """Get a generator for all cells
+        :param id: If True, return cell ids, else return cell indices
+        :type id: bool
+        :return: Generator for all cells
+        :rtype: generator
+        """
+        start_cell = self.__config.startgrid
+        end_cell = self.__config.endgrid
+        if id:
+            current_cell = start_cell
+        else:
+            current_cell = 0
+            end_cell -= start_cell
+        while current_cell <= end_cell:
+            yield current_cell
+            current_cell += 1
+
     def read_historic_output(self, to_xarray=True):
         """Read historic output from LPJmL
         :return: Dictionary with output keys and corresponding output as numpy

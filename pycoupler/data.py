@@ -125,12 +125,14 @@ class LPJmLData(xr.DataArray):
                 "meta_data must be of type LPJmLMetaData!"
             )
 
-    def get_neighbours(self, cellsize=0.5):
+    def get_neighbourhood(self, id=True, cellsize=0.5):
         """
-        Get the IDs of all neighboring cells within a given size of cells.
+        Get the IDs of all neighbouring cells within a given size of cells.
+        :param id: If True, return cell ids, else return cell indices
+        :type id: bool
         :param cellsize: Size of cells in degrees.
         :type cellsize: float
-        :return: Array with the IDs of all neighboring cells.
+        :return: Array with the IDs of all neighbouring cells.
         :rtype: numpy.ndarray
         """
 
@@ -138,44 +140,60 @@ class LPJmLData(xr.DataArray):
         coords_np = np.array([self.cell.latitude.values,
                               self.cell.longitude.values]).T
 
-        # Build a KDTree for fast nearest-neighbor lookup
+        # Build a KDTree for fast nearest-neighbour lookup
         tree = KDTree(coords_np)
 
         if "cellsize" in self.attrs:
             cellsize = self.cellsize  # in degrees
 
-        # Find all neighbors within the given size of cells
-        neighbor_indices = tree.query_ball_point(coords_np, r=cellsize)
+        # Find all neighbours within the given size of cells
+        neighbour_indices = tree.query_ball_point(coords_np, r=cellsize)
 
-        # Initialize the array to hold the neighbor cell IDs
-        max_neighbors = 8
+        # Initialize the array to hold the neighbour cell IDs
+        max_neighbours = 8
         n_cells = len(self.cell)
-        neighbor_ids = np.full((n_cells, max_neighbors), np.nan, dtype=int)
+        neighbour_ids = np.full((n_cells, max_neighbours), -9999, dtype=int)
 
-        # Loop over all cells and find their neighbors
+        # Loop over all cells and find their neighbours
         cell_indices = self.cell.values
         for i in range(n_cells):
-            # Get the indices of all neighbors for this cell
-            current_neighbors = neighbor_indices[i]
+            # Get the indices of all neighbours for this cell
+            current_neighbours = neighbour_indices[i]
 
-            # Remove the current cell from the list of neighbors
-            current_neighbors = [n for n in current_neighbors if n != i]
+            # Remove the current cell from the list of neighbours
+            current_neighbours = [n for n in current_neighbours if n != i]
 
-            # Truncate the list to at most max_neighbors
-            current_neighbors = current_neighbors[:max_neighbors]
+            # Truncate the list to at most max_neighbours
+            current_neighbours = current_neighbours[:max_neighbours]
 
-            # Store the neighbor cell IDs in the output array
-            if len(current_neighbors) > 0:
-                neighbor_ids[i, :len(current_neighbors)] = cell_indices[
-                    current_neighbors
+            # Store the neighbour cell IDs in the output array
+            if len(current_neighbours) > 0 and id:
+                neighbour_ids[i, :len(current_neighbours)] = cell_indices[
+                    current_neighbours
                 ]
+            elif len(current_neighbours) > 0 and not id:
+                neighbour_ids[i, :len(current_neighbours)] = current_neighbours
 
-        # Replace all NaNs with -9999
-        neighbor_ids[neighbor_ids < 0] = -9999
+        neighbours = LPJmLData(
+            data=neighbour_ids,
+            dims=('cell', 'neighbour'),
+            coords=dict(
+                cell=self.cell.values,
+                longitude=(
+                    ['cell'], self.longitude.values
+                ),
+                latitude=(
+                    ['cell'], self.latitude.values
+                ),
+                neighbour=np.arange(8),
+            ),
+            name="neighbourhood"
+        )
 
-        return neighbor_ids
+        return neighbours
 
     def transform(self):
+        # TODO: implement function to convert cell into lon/lat format
         pass
 
 
@@ -284,20 +302,17 @@ def read_data(file_name, var_name=None):
     :type file_name: str
     :param var_name: name of variable to be read
     :type var_name: str
-    :param to_numpy: return data as numpy.ndarray (False)
-    :type to_xarray: bool
-    :return: data as numpy array or xarray.DataArray
-    :rtype: numpy.ndarray or xarray.DataArray
+    :return: data as LPJmLData (xarray.DataArray)
+    :rtype: LPJmLData
     """
-    data = xr.open_dataset(file_name,
-                           decode_times=True,
-                           mask_and_scale=False)
+    with xr.open_dataset(file_name,
+                         decode_times=True,
+                         mask_and_scale=False) as data:
+        if var_name:
+            data = data[var_name]
+            data = LPJmLData(data)
 
-    if var_name:
-        data = data[var_name]
-        data = LPJmLData(data)
-
-    return data
+        return data
 
 
 class LPJmLMetaData:
