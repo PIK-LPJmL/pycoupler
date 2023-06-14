@@ -120,7 +120,7 @@ class LpjmlConfig(SubConfig):
                       start_year, end_year,
                       write_start_year=None,
                       write_output=[],
-                      write_temporal_resolution=None,
+                      write_temporal_resolution="annual",
                       append_output=True):
         """Set configuration required for historic model runs
         :param sim_path: define sim_path data is written to
@@ -138,8 +138,8 @@ class LpjmlConfig(SubConfig):
         :param write_temporal_resolution: list of temporal resolutions
             corresponding to `outputs` or str to set the same resolution for
             all `outputs`. Choose between "annual", "monthly", "daily".
-            Defaults to None (use default output/outputvar resolution).
-        :type write_temporal_resolution: list/str/None
+            Defaults to "annual" (use default output/outputvar resolution).
+        :type write_temporal_resolution: list/str
         :param append_output: if True defined output entries are appended by
             defined `outputs`. Please mind that the existing ones are not
             altered.
@@ -170,7 +170,7 @@ class LpjmlConfig(SubConfig):
                     coupled_year=None,
                     write_output=[],
                     write_start_year=None,
-                    write_temporal_resolution=None,
+                    write_temporal_resolution="annual",
                     append_output=True,
                     model_name="copan:CORE"):
         """Set configuration required for coupled model runs
@@ -197,8 +197,8 @@ class LpjmlConfig(SubConfig):
         :param write_temporal_resolution: list of temporal resolutions
             corresponding to `outputs` or str to set the same resolution for
             all `outputs`. Choose between "annual", "monthly", "daily".
-            Defaults to None (use default output/outputvar resolution).
-        :type write_temporal_resolution: list/str/None
+            Defaults to "annual" (use default output/outputvar resolution).
+        :type write_temporal_resolution: list/str
         :param append_output: if True defined output entries are appended by
             defined `outputs`. Please mind that the existing ones are not
             altered.
@@ -329,9 +329,9 @@ class LpjmlConfig(SubConfig):
                     timestep = temporal_resolution
 
                 # create new output entry
-                new_out = self.__class__({
+                new_out = SubConfig({
                     'id': outputvars[outputvar_names[out]]['name'],
-                    'file': self.__class__({
+                    'file': SubConfig({
                         'fmt': file_format,
                         # 'socket': False,
                         'timestep': timestep,

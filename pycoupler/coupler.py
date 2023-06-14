@@ -867,7 +867,12 @@ class LPJmLCoupler:
         output_tmpl = np.zeros(
             shape=(self.__ncell, bands, time_length),  # time = 1
             dtype=self.__output_types[index])
-        output_tmpl[:] = np.nan
+
+        # Check if data array is of type integer, use -9999 for nan
+        if self.__output_types[index] == int:
+            output_tmpl[:] = -9999
+        else:
+            output_tmpl[:] = np.nan
 
         # create xarray data array with correct dimensions and coord
         output_tmpl = LPJmLData(
@@ -1000,7 +1005,11 @@ class LPJmLCoupler:
                 output_tmpl = np.zeros(
                     shape=(self.__ncell, bands, 1),  # time = 1
                     dtype=self.__output_types[index])
-                output_tmpl[:] = np.nan
+                # Check if data array is of type integer, use -9999 for nan
+                if self.__output_types[index] == int:
+                    output_tmpl[:] = -9999
+                else:
+                    output_tmpl[:] = np.nan
             else:
                 # get corresponding number of bands
                 output_tmpl = self.__output_templates[index]
@@ -1024,13 +1033,16 @@ class LPJmLCoupler:
                 )
 
             # read and assign corresponding values from socket to numpy array
-            output = self.__read_output_values(output=output_tmpl,
-                                               dims=list(
-                                                    np.shape(output_tmpl)))
+            output = self.__read_output_values(
+                output=output_tmpl,
+                dims=list(
+                    np.shape(output_tmpl)),
+                int_value=self.__output_types[index] == int
+            )
             # as list for appending/extending as list
             return {self.__output_ids[index]: output}
 
-    def __read_output_values(self, output, dims=None):
+    def __read_output_values(self, output, dims=None, int_value=False):
         """Iterate over all values to be read from socket. Recursive iteration
         with correct order of cells and bands for outputs
         """
@@ -1044,14 +1056,19 @@ class LPJmLCoupler:
         else:
             one_band = False
 
+        if int_value:
+            read_function = read_short
+        else:
+            read_function = read_float
+
         # iterate over cells (first) and bands (second)
         while cells >= 0 and bands >= 0:
             # read float value for output (are all outputs floats?) - indices
             #   via decremented cells, bands and orignal dims
             if one_band:
-                output[dims[0]-cells] = read_float(self.__channel)
+                output[dims[0]-cells] = read_function(self.__channel)
             else:
-                output[dims[0]-cells, dims[0]-bands] = read_float(
+                output[dims[0]-cells, dims[0]-bands] = read_function(
                     self.__channel
                 )
 
