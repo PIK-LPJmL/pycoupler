@@ -759,7 +759,7 @@ class LPJmLCoupler:
         if not token_check:
             self.close()
             raise ValueError(
-                f"LPJmLToken {received_token.name} is not {token.name}"
+                f"Received LPJmLToken {received_token.name} is not {token.name}"
             )
         # execute method on channel and if supplied further method arguments
         if not args:
