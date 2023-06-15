@@ -1,15 +1,14 @@
 import json
+import numpy as np
+import xarray as xr
+
 from collections.abc import Hashable
 from enum import Enum
-
-import numpy as np
-
-import xarray as xr
 from scipy.spatial import KDTree
 
 
-class Inputs(Enum):
-    """Available Inputs"""
+class LPJmLInputType(Enum):
+    """Available Input types"""
     landuse: int = 6  # number of bands in landuse data
     fertilizer_nr: int = 18  # number of bands in fertilizer data
     manure_nr: int = 19  # number of bands in manure data
@@ -45,25 +44,6 @@ class Inputs(Enum):
             return True
         else:
             return False
-
-
-class LpjmlTypes(Enum):
-    """Available datatypes
-    """
-    LPJ_BYTE: int = 0
-    LPJ_SHORT: int = 1
-    LPJ_INT: int = 2
-    LPJ_FLOAT: int = 3
-    LPJ_DOUBLE: int = 4
-
-    @property
-    def type(self):
-        """Convert LPJmL data type to Python data types
-        """
-        if self.value > 2:
-            return float
-        else:
-            return int
 
 
 def append_to_dict(data_dict, data):

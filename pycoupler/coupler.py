@@ -10,7 +10,7 @@ from subprocess import run, CalledProcessError
 from enum import Enum
 
 from pycoupler.config import read_config
-from pycoupler.data import Inputs, LpjmlTypes, LPJmLData, LPJmLDataSet,\
+from pycoupler.data import LPJmLInputType, LPJmLData, LPJmLDataSet,\
     append_to_dict, read_meta, read_data
 
 
@@ -61,6 +61,67 @@ def read_float(channel):
     return floattup[0]
 
 
+class LPJmlValueType(Enum):
+    """Available datatypes
+    """
+    LPJML_BYTE: int = 0
+    LPJML_SHORT: int = 1
+    LPJML_INT: int = 2
+    LPJML_FLOAT: int = 3
+    LPJML_DOUBLE: int = 4
+
+    @property
+    def type(self):
+        """Convert LPJmL data type to Python data types
+        """
+        if self.value > 2:
+            return float
+        else:
+            return int
+
+    @property
+    def read_fun(self):
+        """Return type correct reading function
+        """
+        if self.name == "LPJML_SHORT":
+            read_fun = read_short
+        elif self.name == "LPJML_INT":
+            read_fun = read_int
+        elif self.name == "LPJML_FLOAT":
+            read_fun = read_float
+        elif self.name == "LPJML_DOUBLE":
+            read_fun = read_float
+        else:
+            raise ValueError(
+                f"lpjml_type {self.name} does not have a read function."
+            )
+
+        return read_fun
+
+
+class LPJmLToken(Enum):
+    """Available tokens"""
+    SEND_INPUT: int = 0       # Receiving data from COPAN
+    READ_OUTPUT: int = 1       # Sending data to COPAN
+    SEND_INPUT_SIZE: int = 2  # Receiving data size from COPAN
+    READ_OUTPUT_SIZE: int = 3  # Sending data size to COPAN
+    END_COUPLING: int = 4       # Ending communication
+    GET_STATUS: int = 5     # Check status of COPAN
+
+
+def read_token(channel):
+    """read integer as LPJmLToken (Enum class)
+    """
+    # create LPJmLToken object
+    return LPJmLToken(read_int(channel))
+
+
+class CopanStatus(Enum):
+    """Status of copan:CORE"""
+    COPAN_OK: int = 0
+    COPAN_ERR: int = -1
+
+
 def opentdt(host, port):
     """open channel and validate connection to LPJmL
     """
@@ -79,29 +140,6 @@ def opentdt(host, port):
     num = 1
     send_int(channel, num)
     return channel
-
-
-def read_token(channel):
-    """read integer as Token (Enum class)
-    """
-    # create Token object
-    return Token(read_int(channel))
-
-
-class Token(Enum):
-    """Available tokens"""
-    SEND_INPUT: int = 0       # Receiving data from COPAN
-    READ_OUTPUT: int = 1       # Sending data to COPAN
-    SEND_INPUT_SIZE: int = 2  # Receiving data size from COPAN
-    READ_OUTPUT_SIZE: int = 3  # Sending data size to COPAN
-    END_COUPLING: int = 4       # Ending communication
-    GET_STATUS: int = 5     # Check status of COPAN
-
-
-class CopanStatus(Enum):
-    """Available Inputs"""
-    COPAN_OK: int = 0
-    COPAN_ERR: int = -1
 
 
 class LPJmLCoupler:
@@ -182,7 +220,7 @@ class LPJmLCoupler:
         # Send number of bands for each output data stream
         self.__iterate_operation(
             length=self.__ninput, fun=self.__send_band_size,
-            token=Token.SEND_INPUT_SIZE,
+            token=LPJmLToken.SEND_INPUT_SIZE,
         )
 
         # init list to be filled with nbands, nsteps per output
@@ -207,14 +245,14 @@ class LPJmLCoupler:
         # Get number of bands per cell for each output data stream
         self.__iterate_operation(length=self.__noutput,
                                  fun=self.__read_output_details,
-                                 token=Token.READ_OUTPUT_SIZE)
+                                 token=LPJmLToken.READ_OUTPUT_SIZE)
 
         # read and check LPJmL GET_STATUS, send COPAN_OK or COPAN_ERR
         self.__communicate_status()
 
         # Read all static non time dependent outputs
         self.__grid = np.zeros(shape=(self.__ncell, 2),
-                               dtype=self.__output_types[self.__grid_id])
+                               dtype=self.__output_types[self.__grid_id].type)
         self.__grid[:] = np.nan
 
         meta_data = self.__read_meta_output(output_id=self.__grid_id)
@@ -234,7 +272,7 @@ class LPJmLCoupler:
         # Read static outputs
         self.__iterate_operation(
             length=self.__noutput_static, fun=self.__read_static_data,
-            token=Token.READ_OUTPUT
+            token=LPJmLToken.READ_OUTPUT
         )
         # Subtract static inputs from the ones that are read within simulation
         self.__noutput_sim -= self.__noutput_static
@@ -243,7 +281,8 @@ class LPJmLCoupler:
         self.__input_ids = {
             input_sockets[inp][
                 "id"
-            ]: inp for inp in input_sockets if inp in Inputs.__members__
+            ]: inp
+            for inp in input_sockets if inp in LPJmLInputType.__members__
         }
         # Get output indices
         output_sockets = self.__config.get_output_sockets()
@@ -286,10 +325,10 @@ class LPJmLCoupler:
         operations = []
         if self.__sim_year >= self.__config.start_coupling:
             if self.__sim_year != self.__year_send_input:
-                operations.append(Token.SEND_INPUT)
+                operations.append(LPJmLToken.SEND_INPUT)
         if self.__sim_year >= self.__config.outputyear:
             if self.__sim_year != self.__year_read_output:
-                operations.append(Token.READ_OUTPUT)
+                operations.append(LPJmLToken.READ_OUTPUT)
         return operations
 
     @property
@@ -472,17 +511,17 @@ class LPJmLCoupler:
         operations = self.operations_left
 
         # Check if read_output operation valid
-        if not operations or Token.SEND_INPUT not in operations:
+        if not operations or LPJmLToken.SEND_INPUT not in operations:
             raise IndexError(
                 f"No send_input operation left for year {year}"
             )
-        elif operations.pop(0) != Token.SEND_INPUT:
+        elif operations.pop(0) != LPJmLToken.SEND_INPUT:
             raise IndexError(f"Invalid operation order. Expected read_output")
 
         # iterate over outputs for private send_input_data
         self.__iterate_operation(length=self.__ninput,
                                  fun=self.__send_input_data,
-                                 token=Token.SEND_INPUT,
+                                 token=LPJmLToken.SEND_INPUT,
                                  args={"data": input_dict,
                                        "validate_year": year})
 
@@ -517,17 +556,17 @@ class LPJmLCoupler:
         operations = self.operations_left
 
         # Check if read_output operation valid
-        if not operations or Token.READ_OUTPUT not in operations:
+        if not operations or LPJmLToken.READ_OUTPUT not in operations:
             raise IndexError(
                 f"No read_output operation left for year {year}"
             )
-        elif operations.pop(0) != Token.READ_OUTPUT:
+        elif operations.pop(0) != LPJmLToken.READ_OUTPUT:
             raise IndexError(f"Invalid operation order. Expected send_input")
 
         # iterate over outputs for private read_output_data
         lpjml_output = self.__iterate_operation(length=self.__noutput_sim,
                                                 fun=self.__read_output_data,
-                                                token=Token.READ_OUTPUT,
+                                                token=LPJmLToken.READ_OUTPUT,
                                                 args={"validate_year": year,
                                                       "to_xarray": to_xarray},
                                                 appendix=True)
@@ -677,12 +716,12 @@ class LPJmLCoupler:
             run(cut_clm_end, stdout=open(os.devnull, 'wb'))
             # a flag for multi (categorical) band input - if true, set
             #   "-landuse"
-            if getattr(Inputs, key).bands:
+            if getattr(LPJmLInputType, key).bands:
                 is_multiband = "-landuse"
             else:
                 is_multiband = None
             # a flag for integer input - if true, set "-int"
-            if getattr(Inputs, key).type == int:
+            if getattr(LPJmLInputType, key).type == int:
                 is_int = "-intnetcdf"
             else:
                 is_int = None
@@ -720,7 +759,7 @@ class LPJmLCoupler:
         if not token_check:
             self.close()
             raise ValueError(
-                f"Token {received_token.name} is not {token.name}"
+                f"LPJmLToken {received_token.name} is not {token.name}"
             )
         # execute method on channel and if supplied further method arguments
         if not args:
@@ -766,20 +805,23 @@ class LPJmLCoupler:
     def __set_input_types(self, index):
         """Convert received LPJmL data types into Python compatible types
         """
-        self.__input_types[index] = LpjmlTypes(
-            read_int(self.__channel)).type
+        self.__input_types[index] = LPJmlValueType(
+            read_int(self.__channel))
 
     def __get_config_input_sockets(self):
-        """Get and validate input sockets, check if defined in Inputs Class. If
-        not add to Inputs.
+        """Get and validate input sockets, check if defined in LPJmLInputType
+        class. If not add to LPJmLInputType.
         """
         # get defined input sockets
         sockets = self.__config.get_input_sockets()
         # filter input names
-        input_names = [inp.name for inp in Inputs]
-        # check if input is defined in Inputs (band size required)
-        valid_inputs = {getattr(Inputs, sock).value: getattr(
-            Inputs, sock).nband for sock in sockets if sock in input_names}
+        input_names = [inp.name for inp in LPJmLInputType]
+        # check if input is defined in LPJmLInputType (band size required)
+        valid_inputs = {
+            getattr(LPJmLInputType, sock).value: getattr(
+                LPJmLInputType, sock
+            ).nband for sock in sockets if sock in input_names
+        }
         if len(sockets) != len(valid_inputs):
             self.close()
             raise ValueError(
@@ -798,8 +840,8 @@ class LPJmLCoupler:
         # Get number of bands for output
         self.__output_bands[index] = read_int(self.__channel)
         # Get datatype for output
-        self.__output_types[index] = LpjmlTypes(
-            read_int(self.__channel)).type
+        self.__output_types[index] = LPJmlValueType(
+            read_int(self.__channel))
         # Check for static output if so increment static output counter
         if index == self.__globalflux_id:
             pass
@@ -817,8 +859,8 @@ class LPJmLCoupler:
     def __communicate_status(self):
         """Check if LPJmL token equals GET_STATUS, send OK or ERROR
         """
-        check_token = Token(read_int(self.__channel))
-        if check_token == Token.GET_STATUS:
+        check_token = LPJmLToken(read_int(self.__channel))
+        if check_token == LPJmLToken.GET_STATUS:
             if self.__ninput != 0 and self.__noutput != 0:
                 send_int(self.__channel, CopanStatus.COPAN_OK.value)
             else:
@@ -826,8 +868,8 @@ class LPJmLCoupler:
                 send_int(self.__channel, CopanStatus.COPAN_ERR.value)
                 raise ValueError("No inputs OR outputs defined.")
         else:
-            raise ValueError(f"Got Token {check_token.name}, though " +
-                             f"Token {Token.GET_STATUS} was expected.")
+            raise ValueError(f"Got LPJmLToken {check_token.name}, though " +
+                             f"LPJmLToken {LPJmLToken.GET_STATUS} expected.")
 
     def __read_static_data(self):
         """Read static data to be called within initialization of coupler.
@@ -837,7 +879,7 @@ class LPJmLCoupler:
         if index == self.__grid_id:
             # Check for datatype grid data and assign right read function and
             #   define scale factor
-            if self.__output_types[self.__grid_id] == int:
+            if self.__output_types[self.__grid_id].type == int:
                 read_grid_val = read_short
                 type_fact = 0.01
             else:
@@ -866,10 +908,10 @@ class LPJmLCoupler:
         # create output numpy array template to be filled with output
         output_tmpl = np.zeros(
             shape=(self.__ncell, bands, time_length),  # time = 1
-            dtype=self.__output_types[index])
+            dtype=self.__output_types[index].type)
 
         # Check if data array is of type integer, use -9999 for nan
-        if self.__output_types[index] == int:
+        if self.__output_types[index].type == int:
             output_tmpl[:] = -9999
         else:
             output_tmpl[:] = np.nan
@@ -908,12 +950,10 @@ class LPJmLCoupler:
                             "array with the dimension of (ncells, nband).")
 
         # type check conversion
-        if self.__input_types[index] == float:
+        if self.__input_types[index].type == float:
             type_check = np.floating
-        elif self.__input_types[index] == int:
+        elif self.__input_types[index].type == int:
             type_check = np.integer
-        else:
-            raise TypeError(f"{self.__input_types[index]} is not supported.")
 
         if not np.issubdtype(
             data[self.__input_ids[index]].dtype, type_check
@@ -922,7 +962,7 @@ class LPJmLCoupler:
             raise TypeError(
                 f"Unsupported type: {data[self.__input_ids[index]].dtype} " +
                 "Please supply a numpy array with data type: " +
-                f"{np.dtype(self.__input_types[index])}."
+                f"{np.dtype(self.__input_types[index].type)}."
             )
         year = read_int(self.__channel)
         if not validate_year == year:
@@ -930,8 +970,8 @@ class LPJmLCoupler:
             raise ValueError(f"The expected year: {validate_year} does not " +
                              f"match the received year: {year}")
         if index in self.__input_ids.keys():
-            # get corresponding number of bands from Inputs class
-            bands = Inputs(index).nband
+            # get corresponding number of bands from LPJmLInputType class
+            bands = LPJmLInputType(index).nband
             if not np.shape(
                 data[self.__input_ids[index]]
             ) == (self.__ncell, bands):
@@ -1004,9 +1044,9 @@ class LPJmLCoupler:
                 # create output numpy array template to be filled with output
                 output_tmpl = np.zeros(
                     shape=(self.__ncell, bands, 1),  # time = 1
-                    dtype=self.__output_types[index])
+                    dtype=self.__output_types[index].type)
                 # Check if data array is of type integer, use -9999 for nan
-                if self.__output_types[index] == int:
+                if self.__output_types[index].type == int:
                     output_tmpl[:] = -9999
                 else:
                     output_tmpl[:] = np.nan
@@ -1037,12 +1077,15 @@ class LPJmLCoupler:
                 output=output_tmpl,
                 dims=list(
                     np.shape(output_tmpl)),
-                int_value=self.__output_types[index] == int
+                lpjml_type=self.__output_types[index]
             )
             # as list for appending/extending as list
             return {self.__output_ids[index]: output}
 
-    def __read_output_values(self, output, dims=None, int_value=False):
+    def __read_output_values(self,
+                             output,
+                             dims=None,
+                             lpjml_type=LPJmlValueType(3)):
         """Iterate over all values to be read from socket. Recursive iteration
         with correct order of cells and bands for outputs
         """
@@ -1056,19 +1099,14 @@ class LPJmLCoupler:
         else:
             one_band = False
 
-        if int_value:
-            read_function = read_short
-        else:
-            read_function = read_float
-
         # iterate over cells (first) and bands (second)
         while cells >= 0 and bands >= 0:
             # read float value for output (are all outputs floats?) - indices
             #   via decremented cells, bands and orignal dims
             if one_band:
-                output[dims[0]-cells] = read_function(self.__channel)
+                output[dims[0]-cells] = lpjml_type.read_fun(self.__channel)
             else:
-                output[dims[0]-cells, dims[0]-bands] = read_function(
+                output[dims[0]-cells, dims[0]-bands] = lpjml_type.read_fun(
                     self.__channel
                 )
 
