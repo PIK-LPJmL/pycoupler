@@ -7,14 +7,22 @@ import multiprocessing as mp
 
 def operate_lpjml(config_file,
                   model_path,
-                  sim_path):
+                  sim_path,
+                  std_to_file=False):
 
     if not os.path.isdir(model_path):
         raise ValueError(
             f"Folder of model_path '{model_path}' does not exist!"
         )
 
-    output_path = f"{sim_path}/output"
+    filename = os.path.splitext(os.path.basename(config_file))[0]
+    if filename.startswith("config_"):
+        sim_name = filename[7:]
+    output_path = f"{sim_path}/output/{sim_name}"
+
+    timestamp = datetime.now().strftime("%Y-%m-%d_%H-%M")
+    stdout_file = os.path.join(output_path, f"stdout_{timestamp}.log")
+    stderr_file = os.path.join(output_path, f"stderr_{timestamp}.log")
 
     if not os.path.isdir(output_path):
         os.makedirs(output_path)
@@ -26,12 +34,26 @@ def operate_lpjml(config_file,
     os.environ['I_MPI_DAPL_UD'] = 'disable'
     os.environ['I_MPI_FABRICS'] = 'shm:shm'
     os.environ['I_MPI_DAPL_FABRIC'] = 'shm:sh'
-    with Popen(
-        cmd, stdout=PIPE, bufsize=1, universal_newlines=True,
-        cwd=model_path
-    ) as p:
-        for line in p.stdout:
-            print(line, end='')
+    if std_to_file:
+        with open(stdout_file, 'w') as f_out, open(
+            stderr_file, 'w'
+        ) as f_err:
+            with Popen(
+                cmd, stdout=f_out, stderr=f_err,
+                bufsize=1, universal_newlines=True,
+                cwd=model_path
+            ) as p:
+                p.wait()
+    else:
+        with Popen(
+            cmd, stdout=PIPE, stderr=PIPE, bufsize=1, universal_newlines=True,
+            cwd=model_path
+        ) as p:
+            for line in p.stdout:
+                print(line, end='')
+            for line in p.stderr:
+                print(line, end='')
+
     # reset default MPI settings to be able to submit jobs in parallel again
     os.environ['I_MPI_DAPL_UD'] = 'enable'
     os.environ['I_MPI_FABRICS'] = 'shm:dapl'
@@ -43,7 +65,8 @@ def operate_lpjml(config_file,
 
 def run_lpjml(config_file,
               model_path,
-              sim_path):
+              sim_path,
+              std_to_file=False):
     """Run LPJmL using a generated (class LpjmlConfig) config file.
     Similar to R function `lpjmlKit::run_lpjml`.
     :param config_file: file name including path if not current to config_file
@@ -53,9 +76,12 @@ def run_lpjml(config_file,
     :param sim_path: simulation path to include the output folder where output
         is written to
     :type output_path: str
+    :param std_to_file: if True, stdout and stderr are written to files
+        in the output folder. Defaults to False.
+    :type std_to_file: bool
     """
     run = mp.Process(target=operate_lpjml,
-                     args=(config_file, model_path, sim_path))
+                     args=(config_file, model_path, sim_path, std_to_file))
     run.start()
 
     return run

@@ -5,6 +5,9 @@ import xarray as xr
 from collections.abc import Hashable
 from enum import Enum
 from scipy.spatial import KDTree
+from xarray.core.utils import either_dict_or_kwargs
+from xarray.core.indexing import is_fancy_indexer
+from xarray.core.indexes import isel_indexes
 
 
 class LPJmLInputType(Enum):
@@ -77,6 +80,102 @@ class LPJmLData(xr.DataArray):
 
     def __init__(self, *args, **kwargs):
         super(LPJmLData, self).__init__(*args, **kwargs)
+
+    def isel(
+        self,
+        indexers=None,
+        drop=False,
+        missing_dims="raise",
+        **indexers_kwargs,
+    ):
+        """Return a new DataArray whose data is given by selecting indexes
+        along the specified dimension(s).
+
+        Parameters
+        ----------
+        indexers : dict, optional
+            A dict with keys matching dimensions and values given
+            by integers, slice objects or arrays.
+            indexer can be a integer, slice, array-like or DataArray.
+            If DataArrays are passed as indexers, xarray-style indexing will be
+            carried out. See :ref:`indexing` for the details.
+            One of indexers or indexers_kwargs must be provided.
+        drop : bool, default: False
+            If ``drop=True``, drop coordinates variables indexed by integers
+            instead of making them scalar.
+        missing_dims : {"raise", "warn", "ignore"}, default: "raise"
+            What to do if dimensions that should be selected from are not
+            present in the DataArray:
+            - "raise": raise an exception
+            - "warn": raise a warning, and ignore the missing dimensions
+            - "ignore": ignore the missing dimensions
+        **indexers_kwargs : {dim: indexer, ...}, optional
+            The keyword arguments form of ``indexers``.
+
+        Returns
+        -------
+        indexed : xarray.DataArray
+
+        See Also
+        --------
+        Dataset.isel
+        DataArray.sel
+
+        Examples
+        --------
+        >>> da = xr.DataArray(np.arange(25).reshape(5, 5), dims=("x", "y"))
+        >>> da
+        <xarray.DataArray (x: 5, y: 5)>
+        array([[ 0,  1,  2,  3,  4],
+               [ 5,  6,  7,  8,  9],
+               [10, 11, 12, 13, 14],
+               [15, 16, 17, 18, 19],
+               [20, 21, 22, 23, 24]])
+        Dimensions without coordinates: x, y
+
+        >>> tgt_x = xr.DataArray(np.arange(0, 5), dims="points")
+        >>> tgt_y = xr.DataArray(np.arange(0, 5), dims="points")
+        >>> da = da.isel(x=tgt_x, y=tgt_y)
+        >>> da
+        <xarray.DataArray (points: 5)>
+        array([ 0,  6, 12, 18, 24])
+        Dimensions without coordinates: points
+        """
+        indexers = either_dict_or_kwargs(indexers, indexers_kwargs, "isel")
+
+        if any(is_fancy_indexer(idx) for idx in indexers.values()):
+            ds = self._to_temp_dataset()._isel_fancy(
+                indexers, drop=drop, missing_dims=missing_dims
+            )
+            return self._from_temp_dataset(ds)
+
+        # Much faster algorithm for when all indexers are ints, slices,
+        # one-dimensional lists, or zero or one-dimensional np.ndarray's
+
+        variable = self._variable.isel(indexers, missing_dims=missing_dims)
+        indexes, index_variables = isel_indexes(
+            self.xindexes,
+            {
+                f"{k} ({self.name})": v
+                for k, v in indexers.items() if k == "band"
+            }
+        )
+
+        coords = {}
+        for coord_name, coord_value in self._coords.items():
+            if coord_name in index_variables:
+                coord_value = index_variables[coord_name]
+            else:
+                coord_indexers = {
+                    k: v for k, v in indexers.items() if k in coord_value.dims
+                }
+                if coord_indexers:
+                    coord_value = coord_value.isel(coord_indexers)
+                    if drop and coord_value.ndim == 0:
+                        continue
+            coords[coord_name] = coord_value
+
+        return self._replace(variable=variable, coords=coords, indexes=indexes)
 
     def add_meta(self, meta_data):
 

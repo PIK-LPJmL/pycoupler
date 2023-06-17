@@ -1157,6 +1157,6 @@ class LPJmLCoupler:
             f"  * ncell      {self.__ncell}",
             f"  * ninput     {self.__ninput}",
         ])
-        summary = "\n".join([summary, self.__config.__repr__(sub_repr=True)])
+        summary = "\n".join([summary, self.__config.__repr__(sub_repr=1)])
 
         return summary

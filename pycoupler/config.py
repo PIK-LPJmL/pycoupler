@@ -1,6 +1,7 @@
 import os
 import subprocess
 import json
+import ruamel.yaml
 
 from pycoupler.utils import create_subdirs
 
@@ -118,9 +119,11 @@ class LpjmlConfig(SubConfig):
     def set_transient(self,
                       sim_path,
                       start_year, end_year,
+                      sim_name="transient",
                       write_start_year=None,
                       write_output=[],
                       write_temporal_resolution="annual",
+                      write_file_format="cdf",
                       append_output=True):
         """Set configuration required for historic model runs
         :param sim_path: define sim_path data is written to
@@ -129,6 +132,8 @@ class LpjmlConfig(SubConfig):
         :type start_year: int
         :param end_year: end year of simulation
         :type end_year: int
+        :param sim_name: name of simulation
+        :type sim_name: str
         :param write_start_year: first year of output being written
         :type write_start_year: int/None
         :param write_output: output ids of `outputs` to be written by
@@ -140,12 +145,15 @@ class LpjmlConfig(SubConfig):
             all `outputs`. Choose between "annual", "monthly", "daily".
             Defaults to "annual" (use default output/outputvar resolution).
         :type write_temporal_resolution: list/str
+        :param write_file_format: file format of output files. Choose between
+            "raw", "clm" and "cdf". Defaults to "cdf".
+        :type write_file_format: str
         :param append_output: if True defined output entries are appended by
             defined `outputs`. Please mind that the existing ones are not
             altered.
         :param append_output: bool
         """
-        self.sim_name = "historic"
+        self.sim_name = sim_name
         self.sim_path = create_subdirs(sim_path)
         output_path = f"{sim_path}/output/{self.sim_name}"
         # set time range for historic run
@@ -156,7 +164,7 @@ class LpjmlConfig(SubConfig):
         self._set_output(output_path,
                          outputs=write_output,
                          temporal_resolution=write_temporal_resolution,
-                         file_format="cdf",
+                         file_format=write_file_format,
                          append_output=append_output)
         # set start from directory to start from spinup run
         self._set_startfrom(path=f"{sim_path}/restart")
@@ -167,10 +175,12 @@ class LpjmlConfig(SubConfig):
                     sim_path,
                     start_year, end_year,
                     coupled_input, coupled_output,
+                    sim_name="coupled",
                     coupled_year=None,
                     write_output=[],
                     write_start_year=None,
                     write_temporal_resolution="annual",
+                    write_file_format="cdf",
                     append_output=True,
                     model_name="copan:CORE"):
         """Set configuration required for coupled model runs
@@ -186,6 +196,8 @@ class LpjmlConfig(SubConfig):
         :param coupled_output: list of outputs to be used as socket for
             coupling. Provide output id as identifier -> entry in list.
         :type coupled_output: list
+        :param sim_name: name of simulation
+        :type sim_name: str
         :param coupled_year: start year of coupled simulation
         :type coupled_year: int/None
         :param write_output: output ids of `outputs` to be written by
@@ -199,6 +211,9 @@ class LpjmlConfig(SubConfig):
             all `outputs`. Choose between "annual", "monthly", "daily".
             Defaults to "annual" (use default output/outputvar resolution).
         :type write_temporal_resolution: list/str
+        :param write_file_format: file format of output files. Choose between
+            "raw", "clm" and "cdf". Defaults to "cdf".
+        :type write_file_format: str
         :param append_output: if True defined output entries are appended by
             defined `outputs`. Please mind that the existing ones are not
             altered.
@@ -207,7 +222,7 @@ class LpjmlConfig(SubConfig):
             the model to coupled mode (without coupling coupled_model = None)
         :type model_name: str
         """
-        self.sim_name = "coupled"
+        self.sim_name = sim_name
         self.sim_path = create_subdirs(sim_path)
         output_path = f"{sim_path}/output/{self.sim_name}"
         # set time range for coupled run
@@ -221,7 +236,7 @@ class LpjmlConfig(SubConfig):
         self._set_output(output_path,
                          outputs=write_output,
                          temporal_resolution=write_temporal_resolution,
-                         file_format="raw",
+                         file_format=write_file_format,
                          append_output=append_output)
         # set coupling parameters
         self._set_coupling(inputs=coupled_input,
@@ -261,6 +276,10 @@ class LpjmlConfig(SubConfig):
 
         # provide additional meta data
         self.output_metafile = True
+
+        # check if output_path exists
+        if not os.path.exists(output_path):
+            os.makedirs(output_path)
 
         # add grid output if not already defined
         if "grid" not in outputs:
@@ -504,17 +523,25 @@ class LpjmlConfig(SubConfig):
                     "socket" in out["file"]) and out["file"]["socket"]
             }
 
-    def __repr__(self, sub_repr=False):
+    def add_config(self, file_name):
+        """Add config file of coupled model to LPJmL config
+        :param file_name: path to coupled config file
+        :type file_name: str
+        """
+        self.coupled_config = read_yaml(file_name, CoupledConfig)
+
+    def __repr__(self, sub_repr=0):
         """Representation of the config object
         """
         summary_attr = ["sim_id", "sim_name", "version",
                         "firstyear", "lastyear", "startgrid", "endgrid",
-                        "landuse", "coupled_model", "start_coupling"]
+                        "landuse", "coupled_model", "start_coupling",
+                        "coupled_config"]
         changed_repr = [
             to_repr for to_repr in self.changed if to_repr not in summary_attr
         ]
-        if sub_repr:
-            spacing = "\n  "
+        if sub_repr > 0:
+            spacing = "\n" + "  " * sub_repr
             summary = "Configuration:"
         else:
             summary = f"<pycoupler.{self.__class__.__name__}>"
@@ -543,12 +570,21 @@ class LpjmlConfig(SubConfig):
             input_coupled = self.get_input_sockets(id_only=True)
             output_coupled = self.get_output_sockets(id_only=True)
 
+            if hasattr(self, "coupled_config") and isinstance(
+                self.coupled_config, CoupledConfig
+            ):
+                coupled_config_repr = f"""  * coupled_config:  {
+                    self.coupled_config.__repr__(sub_repr + 2)
+                }"""
+            else:
+                coupled_config_repr = ""
             summary = spacing.join([
                 summary,
                 f"Coupled model:        {self.coupled_model}",
                 f"  * start_coupling    {sc}",
                 f"  * input (coupled)   {input_coupled}",
                 f"  * output (coupled)  {output_coupled}",
+                coupled_config_repr
             ])
 
         return summary
@@ -636,9 +672,68 @@ def read_config(file_name,
 
     # Convert first level to LpjmlConfig object
     if not to_dict:
+        if hasattr(lpjml_config, "coupled_config") and isinstance(
+            lpjml_config.coupled_config, SubConfig
+        ):
+            lpjml_config.coupled_config = CoupledConfig(
+                lpjml_config.coupled_config.to_dict()
+            )
+
+            def convert_to_coupled_config(config):
+                """Recursively converts nested dictionaries to CoupledConfig
+                objects."""
+                for key, value in config.items():
+                    if isinstance(value, dict):
+                        config[key] = CoupledConfig(value)
+                        convert_to_coupled_config(config[key].__dict__)
+                return config
+
+            convert_to_coupled_config(lpjml_config.coupled_config.__dict__)
+
         lpjml_config = LpjmlConfig(lpjml_config)
 
     if model_path is not None:
         lpjml_config.model_path = model_path
 
     return lpjml_config
+
+
+class CoupledConfig(SubConfig):
+    """Class to handle coupled model configurations.
+    """
+    def __repr__(self, sub_repr=1, order=1):
+        """Representation of the config object
+        """
+        spacing = "\n" + "  " * sub_repr
+        if order == 1 and sub_repr == 1:
+            summary = f"Coupled configuration:{spacing}"
+        else:
+            summary = spacing
+
+        for key, value in self.__dict__.items():
+            if isinstance(value, SubConfig):
+                summary += f"""{'  ' * sub_repr}* {key}: {value.__repr__(
+                    sub_repr + 1, order + 1
+                )}""".strip() + spacing
+            else:
+                summary += f"{'  ' * sub_repr}* {key:<20} {value}".strip() +\
+                    spacing
+
+        return summary
+
+
+def read_yaml(file_name, config_class):
+    with open(file_name, 'r') as f:
+        yaml_data = ruamel.yaml.safe_load(f)
+
+    return from_yaml(yaml_data, config_class)
+
+
+def from_yaml(yaml_data, config_class):
+    if isinstance(yaml_data, dict):
+        return config_class({k: from_yaml(v, config_class)
+                             for k, v in yaml_data.items()})
+    elif isinstance(yaml_data, list):
+        return [from_yaml(v, config_class) for v in yaml_data]
+    else:
+        return yaml_data
