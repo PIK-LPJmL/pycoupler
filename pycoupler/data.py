@@ -226,7 +226,7 @@ class LPJmLData(xr.DataArray):
             cellsize = self.cellsize  # in degrees
 
         # Find all neighbours within the given size of cells
-        neighbour_indices = tree.query_ball_point(coords_np, r=cellsize)
+        neighbour_indices = tree.query_ball_point(coords_np, r=cellsize*1.5)
 
         # Initialize the array to hold the neighbour cell IDs
         max_neighbours = 8

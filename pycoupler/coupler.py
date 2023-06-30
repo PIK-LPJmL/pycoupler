@@ -2,6 +2,8 @@ import os
 import socket
 import struct
 import tempfile
+import warnings
+
 import numpy as np
 import pandas as pd
 import xarray as xr
@@ -693,19 +695,37 @@ class LPJmLCoupler:
                              f"{temp_dir}/1_{file_name_tmp}"]
 
             start_year_check = start_year
+            reverse = False
             # run cut clm file before start year and after end year in sequence
+            # workaround for not having header information (missing function)
             while True:
                 try:
                     run(cut_clm_start, stdout=open(os.devnull, 'wb'),
                         check=True)
                     break
+                # if cut clm fails, try to change start year
                 except CalledProcessError:
-                    start_year_check += 1
-                    if start_year_check > end_year:
-                        raise ValueError(
-                            f"Could not find input file for '{key}' "
-                            f"between {start_year} and {end_year}!"
-                        )
+                    # first increase year until end_year is reached
+                    if not reverse:
+                        start_year_check += 1
+                        # if year is larger than end_year, start decreasing
+                        #   from start_year
+                        if start_year_check > end_year:
+                            warnings.warn(
+                                f"Input file for '{key}' does not include data"
+                                f" between {start_year} and {end_year}!"
+                            )
+                            reverse = True
+                            start_year_check = start_year - 1
+                    elif reverse:
+                        start_year_check -= 1
+                        end_year = start_year_check
+                        # assuming 30 years backwards tolerance (climate)
+                        if start_year_check < start_year - 30:
+                            raise ValueError(
+                                f"Input file for '{key}' does not include data"
+                                f"anywhere near {start_year}."
+                            )
                     cut_clm_start[1] = str(start_year_check)
 
             # cannot deal with overwriting a temp file with same name
@@ -759,7 +779,7 @@ class LPJmLCoupler:
         if not token_check:
             self.close()
             raise ValueError(
-                f"Received LPJmLToken {received_token.name} is not {token.name}"
+                f"Received LPJmLToken {received_token.name} is not {token.name}"  # noqa
             )
         # execute method on channel and if supplied further method arguments
         if not args:
@@ -893,6 +913,7 @@ class LPJmLCoupler:
                 self.__grid[ii, 1] = (
                     read_grid_val(self.__channel) * type_fact
                 )
+
             self.__grid.coords['longitude'] = (
                 ('cell',), self.__grid.data[:, 0]
             )
