@@ -190,111 +190,34 @@ class LPJmLCoupler:
     def __init__(self, config_file, version=3, host='', port=2224):
         """Constructor method
         """
+
+        # initiate socket connection to LPJmL
+        self.__init_channel(version, host, port)
+
+        # read configuration file
         self.__config = read_config(config_file)
-        self.__sim_year = min(self.__config.outputyear,
-                              self.__config.start_coupling)
-        self.__year_read_output = None
-        self.__year_send_input = None
 
-        # open/initialize socket channel
-        self.__channel = opentdt(host, port)
-        # Check coupler protocol version
-        self.version = read_int(self.__channel)
-        if self.version != version:
-            self.close()
-            raise ValueError(
-                f"Invalid coupler version {version}, must be {self.version}"
-            )
-        # read amount of LPJml cells
-        self.__ncell = read_int(self.__channel)
+        # initiate coupling, get number of cells, inputs and outputs and verify
+        self.__init_coupling()
 
-        # read amount of input streams
-        self.__ninput = read_int(self.__channel)
-
-        # read amount of output streams
-        self.__noutput = self.__noutput_sim = read_int(self.__channel)
-
-        # init list to be filled with types per output
-        self.__input_types = [-1] * len(self.config.input.__dict__)
-        # Send number of bands per cell for each input data stream
-        self.__input_bands = self.__get_config_input_sockets()
-
-        # Send number of bands for each output data stream
-        self.__iterate_operation(
-            length=self.__ninput, fun=self.__send_band_size,
-            token=LPJmLToken.SEND_INPUT_SIZE,
-        )
-
-        # init list to be filled with nbands, nsteps per output
-        self.__output_bands = [-1] * len(self.config.outputvar)
-        self.__output_steps = [-1] * len(self.config.outputvar)
-        self.__output_types = [-1] * len(self.config.outputvar)
-
-        # init counter to be filled with number of static outputs
-        self.__noutput_static = 0
-
-        # Check for static output
-        outputs_avail = self.__config.get_output_avail(id_only=False)
-
-        # Get output ids
-        self.__globalflux_id = [out["id"] for out in outputs_avail if out[
-            "name"] == "globalflux"][0]
-        self.__grid_id = [out["id"] for out in outputs_avail if out[
-            "name"] == "grid"][0]
-        self.__static_id = [out["id"] for out in outputs_avail if out[
-            "name"] in ["grid", "country", "region"]]
-
-        # Get number of bands per cell for each output data stream
-        self.__iterate_operation(length=self.__noutput,
-                                 fun=self.__read_output_details,
-                                 token=LPJmLToken.READ_OUTPUT_SIZE)
-
-        # read and check LPJmL GET_STATUS, send COPAN_OK or COPAN_ERR
+        # communicate status, if valid start LPJmL simulation
         self.__communicate_status()
 
-        # Read all static non time dependent outputs
-        self.__grid = np.zeros(shape=(self.__ncell, 2),
-                               dtype=self.__output_types[self.__grid_id].type)
-        self.__grid[:] = np.nan
-
-        meta_data = self.__read_meta_output(output_id=self.__grid_id)
-
-        self.__grid = LPJmLData(
-            data=self.__grid,
-            dims=('cell', 'coord'),
-            coords=dict(
-                cell=np.arange(self.__config.startgrid,
-                               self.__config.endgrid+1),
-                coord=['longitude', 'latitude']
-            ),
-            name="grid"
-        )
-        self.__grid.add_meta(meta_data)
+        # create templates for static output data
+        self.__init_static_data()
 
         # Read static outputs
         self.__iterate_operation(
-            length=self.__noutput_static, fun=self.__read_static_data,
+            length=len(self.__static_ids), fun=self.__read_static_data,
             token=LPJmLToken.READ_OUTPUT
         )
         # Subtract static inputs from the ones that are read within simulation
-        self.__noutput_sim -= self.__noutput_static
-        # Get input indices
-        input_sockets = self.__config.get_input_sockets()
-        self.__input_ids = {
-            input_sockets[inp][
-                "id"
-            ]: inp
-            for inp in input_sockets if inp in LPJmLInputType.__members__
-        }
-        # Get output indices
-        output_sockets = self.__config.get_output_sockets()
-        self.__output_ids = {
-            output_sockets[inp]["index"]: inp for inp in output_sockets
-        }
+        self.__noutput_sim -= len(self.__static_ids)
+
+        # Create output templates
         self.__output_templates = {
-            output_sockets[inp]["index"]: self._create_xarray_template(
-                output_sockets[inp]["index"]
-            ) for inp in output_sockets
+            output_key: self._create_xarray_template(int(output_key))
+            for output_key in self.__output_ids.keys()
         }
 
     @property
@@ -312,15 +235,6 @@ class LPJmLCoupler:
         :type: int
         """
         return self.__ncell
-
-    @property
-    def grid(self):
-        """Get longitude and latitude for every (amount ncell) gridcell as a
-        numpy array.
-        :getter: Get grid information longitude, lattitude for ncell
-        :type: numpy.array
-        """
-        return self.__grid
 
     @property
     def operations_left(self):
@@ -769,6 +683,110 @@ class LPJmLCoupler:
             if os.path.isfile(f"{temp_dir}/2_{file_name_tmp}"):
                 os.remove(f"{temp_dir}/2_{file_name_tmp}")
 
+    def __init_channel(self, version, host, port):
+        # open/initialize socket channel
+        self.__channel = opentdt(host, port)
+        # Check coupler protocol version
+        self.version = read_int(self.__channel)
+        if self.version != version:
+            self.close()
+            raise ValueError(
+                f"Invalid coupler version {version}, must be {self.version}"
+            )
+
+    def __init_coupling(self):
+        # initiate simulation time
+        self.__sim_year = min(self.__config.outputyear,
+                              self.__config.start_coupling)
+        self.__year_read_output = None
+        self.__year_send_input = None
+
+        # read amount of LPJml cells
+        self.__ncell = read_int(self.__channel)
+        if self.__ncell != len(
+            range(self.__config.startgrid, self.__config.endgrid + 1)
+        ):
+            self.close()
+            raise ValueError(
+                f"Invalid number of cells received ({self.__ncell}), must be"
+                f" {self.__config.ncell} according to configuration."
+            )
+
+        # read amount of input streams
+        self.__ninput = read_int(self.__channel)
+
+        # read amount of output streams
+        self.__noutput = self.__noutput_sim = read_int(self.__channel)
+
+        # verify and initialize input attributes and send input information
+        self.__init_input()
+
+        # verify and initialize output attributes and read output information
+        self.__init_output()
+
+    def __init_input(self):
+
+        input_sockets = self.__config.get_input_sockets()
+
+        if self.__ninput != len(input_sockets):
+            self.close()
+            raise ValueError(
+                f"Invalid number of input streams received ({self.__ninput}),"
+                f" must be {len(input_sockets)} according to"
+                f" configuration."
+            )
+        else:
+            # init lists to be filled with nbands, types per output
+            self.__input_types = [-1] * len(self.config.input.__dict__)
+
+            # get input indices
+            self.__input_ids = {
+                input_sockets[inp][
+                    "id"
+                ]: inp
+                for inp in input_sockets if inp in LPJmLInputType.__members__
+            }
+
+            # send number of bands for each output data stream
+            self.__iterate_operation(
+                length=self.__ninput, fun=self.__send_band_size,
+                token=LPJmLToken.SEND_INPUT_SIZE,
+                args={"input_bands": self.__get_config_input_sockets()}
+            )
+
+    def __init_output(self):
+
+        output_sockets = self.__config.get_output_sockets()
+
+        if self.__noutput != len(output_sockets):
+            self.close()
+            raise ValueError(
+                f"Invalid number of output streams received ({self.__noutput})"
+                f", must be {len(output_sockets)} according to"
+                f" configuration."
+            )
+
+        else:
+            # init lists to be filled with nbands, nsteps per output
+            self.__output_bands = [-1] * len(self.config.outputvar)
+            self.__output_steps = [-1] * len(self.config.outputvar)
+            self.__output_types = [-1] * len(self.config.outputvar)
+
+            # Get output indices
+            self.__output_ids = {
+                output_sockets[out]["index"]: out for out in output_sockets
+            }
+
+            self.__static_ids = {
+                output_sockets[out]["index"]: out for out in output_sockets
+                if output_sockets[out]["id"] in ["grid", "country", "region"]
+            }
+
+            # Get number of bands per cell for each output data stream
+            self.__iterate_operation(length=self.__noutput,
+                                     fun=self.__read_output_details,
+                                     token=LPJmLToken.READ_OUTPUT_SIZE)
+
     def __iterate_operation(self, length, fun, token, args=None,
                             appendix=False):
         """Iterate reading/sending operation for sequence of inputs and/or
@@ -809,15 +827,15 @@ class LPJmLCoupler:
         else:
             return False, received_token
 
-    def __send_band_size(self):
+    def __send_band_size(self, input_bands):
         """Send input band size for read index to socket
         """
         index = read_int(self.__channel)
         # convert received LPJmL data types into Python compatible types
         self.__set_input_types(index)
-        if index in self.__input_bands.keys():
+        if index in input_bands.keys():
             # Send number of bands
-            send_int(self.__channel, val=self.__input_bands[index])
+            send_int(self.__channel, val=input_bands[index])
         else:
             self.close()
             raise ValueError(f"Input of input ID {index} not supported.")
@@ -862,11 +880,7 @@ class LPJmLCoupler:
         # Get datatype for output
         self.__output_types[index] = LPJmlValueType(
             read_int(self.__channel))
-        # Check for static output if so increment static output counter
-        if index == self.__globalflux_id:
-            pass
-        elif index in self.__static_id:
-            self.__noutput_static += 1
+
         # check if only annual timesteps were set
         if self.__output_steps[index] > 1:
             send_int(self.__channel, CopanStatus.COPAN_ERR.value)
@@ -891,35 +905,68 @@ class LPJmLCoupler:
             raise ValueError(f"Got LPJmLToken {check_token.name}, though " +
                              f"LPJmLToken {LPJmLToken.GET_STATUS} expected.")
 
+    def __init_static_data(self):
+
+        for static_id in self.__static_ids:
+
+            tmp_static = np.zeros(
+                shape=(self.__ncell, self.__output_bands[static_id]),
+                dtype=self.__output_types[static_id].type
+            )
+
+            if self.__output_types[static_id].type == int:
+                tmp_static[:] = -9999
+            else:
+                tmp_static[:] = np.nan
+
+            if self.__static_ids[static_id] == "grid":
+                tmp_static = LPJmLData(
+                    data=tmp_static,
+                    dims=('cell', 'coord'),
+                    coords=dict(
+                        cell=np.arange(self.__config.startgrid,
+                                       self.__config.endgrid+1),
+                        coord=['longitude', 'latitude']
+                    ),
+                    name="grid"
+                )
+
+            else:
+                tmp_static = LPJmLData(
+                    data=tmp_static,
+                    dims=('cell', 'band'),
+                    coords=dict(
+                        cell=np.arange(self.__config.startgrid,
+                                       self.__config.endgrid+1),
+                        band=np.arange(self.__output_bands[static_id])
+                    ),
+                    name=self.__static_ids[static_id]
+                )
+
+            setattr(self, f"{self.__static_ids[static_id]}", tmp_static)
+
     def __read_static_data(self):
         """Read static data to be called within initialization of coupler.
         Currently only grid data supported
         """
         index = read_int(self.__channel)
-        if index == self.__grid_id:
-            # Check for datatype grid data and assign right read function and
-            #   define scale factor
-            if self.__output_types[self.__grid_id].type == int:
-                read_grid_val = read_short
-                type_fact = 0.01
-            else:
-                read_grid_val = read_float
-                type_fact = 1
-            # iterate over ncell and read + assign lon and lat values
-            for ii in range(0, self.__ncell):
-                self.__grid[ii, 0] = (
-                    read_grid_val(self.__channel) * type_fact
-                )
-                self.__grid[ii, 1] = (
-                    read_grid_val(self.__channel) * type_fact
+
+        read_fun = self.__output_types[index].read_fun
+        meta_data = self.__read_meta_output(index)
+
+        # iterate over ncell and read + assign lon and lat values
+        for cell in range(0, self.__ncell):
+            for band in range(0, self.__output_bands[index]):
+                getattr(self, f"{self.__static_ids[index]}")[cell, band] = (
+                    read_fun(self.__channel) * meta_data.scalar
                 )
 
-            self.__grid.coords['longitude'] = (
-                ('cell',), self.__grid.data[:, 0]
-            )
-            self.__grid.coords['latitude'] = (
-                ('cell',), self.__grid.data[:, 1]
-            )
+        getattr(self, f"{self.__static_ids[index]}").coords['longitude'] = (
+            ('cell',), self.grid.data[:, 0]
+        )
+        getattr(self, f"{self.__static_ids[index]}").coords['latitude'] = (
+            ('cell',), self.grid.data[:, 1]
+        )
 
     def _create_xarray_template(self, index, time_length=1):
         """Create xarray template for output data
@@ -945,15 +992,15 @@ class LPJmLCoupler:
                 cell=np.arange(self.__config.startgrid,
                                self.__config.endgrid+1),
                 longitude=(
-                    ['cell'], self.__grid.coords['longitude'].values
+                    ['cell'], self.grid.coords['longitude'].values
                 ),
                 latitude=(
-                    ['cell'], self.__grid.coords['latitude'].values
+                    ['cell'], self.grid.coords['latitude'].values
                 ),
                 band=np.arange(bands),  # [str(i) for i in range(bands)],
                 time=np.arange(time_length)
             ),
-            name=self.__output_ids[index],
+            name=self.__output_ids[index]
         )
         return output_tmpl
 
@@ -1169,12 +1216,16 @@ class LPJmLCoupler:
     def __repr__(self):
         """Representation of the Coupler object
         """
-        port = self.__channel.getsockname()[1]
+        try:
+            port = self.__channel.getsockname()[1]
+        except OSError:
+            port = "<closed>"
+
         summary = f"<pycoupler.{self.__class__.__name__}>"
         summary = "\n".join([
             summary,
             f"Simulation:  (version: {self.version}, localhost:{port})",
-            f"  * sim_year   {self.__sim_year}",
+            f"  * sim_year   {min(self.__sim_year, self.__config.lastyear)}",
             f"  * ncell      {self.__ncell}",
             f"  * ninput     {self.__ninput}",
         ])
