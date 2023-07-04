@@ -14,6 +14,7 @@ from enum import Enum
 from pycoupler.config import read_config
 from pycoupler.data import LPJmLInputType, LPJmLData, LPJmLDataSet,\
     append_to_dict, read_meta, read_data
+from pycoupler.utils import get_countries
 
 
 def recvall(channel, size):
@@ -338,6 +339,44 @@ class LPJmLCoupler:
         while current_cell <= end_cell:
             yield current_cell
             current_cell += 1
+
+    def code_to_name(self, to_iso_alpha_3=False):
+        """Convert the cell indices to cell names
+        """
+        for static_output in self.__static_ids.values():
+
+            if static_output not in ["country", "region"]:
+                continue
+
+            getattr(self, static_output).values = (
+                getattr(self, static_output).values.astype(str)
+            )
+            name_dict = {
+                str(reg["id"]): reg["name"]
+                for reg in self.__config.to_dict()[f"{static_output}par"]
+            }
+            if static_output == "country" and to_iso_alpha_3:
+                country_dict = get_countries()
+                name_dict = {
+                    idx: country_dict[reg]["code"]
+                    for idx, reg in name_dict.items()
+                }
+                getattr(self, f"{static_output}").attrs["long_name"] = (
+                    f"{static_output} iso alpha-3 code"
+                )
+            else:
+                getattr(self, f"{static_output}").attrs["long_name"] = (
+                    f"{static_output} name"
+                )
+
+            def replace_values(x):
+                return name_dict[x] if x in name_dict else x
+
+            getattr(self, f"{static_output}").values = (
+                np.vectorize(replace_values)(  # noqa
+                    getattr(self, f"{static_output}").values
+                )
+            )
 
     def read_historic_output(self, to_xarray=True):
         """Read historic output from LPJmL
@@ -909,16 +948,19 @@ class LPJmLCoupler:
 
         for static_id in self.__static_ids:
 
+            # Create empty array for of corresponding type
             tmp_static = np.zeros(
                 shape=(self.__ncell, self.__output_bands[static_id]),
                 dtype=self.__output_types[static_id].type
             )
 
+            # Fill array with missing values
             if self.__output_types[static_id].type == int:
                 tmp_static[:] = -9999
             else:
                 tmp_static[:] = np.nan
 
+            # grid data is handled differently with coords being assigned
             if self.__static_ids[static_id] == "grid":
                 tmp_static = LPJmLData(
                     data=tmp_static,
@@ -931,6 +973,7 @@ class LPJmLCoupler:
                     name="grid"
                 )
 
+            # other static data is handled like common output data without time
             else:
                 tmp_static = LPJmLData(
                     data=tmp_static,
@@ -961,6 +1004,10 @@ class LPJmLCoupler:
                     read_fun(self.__channel) * meta_data.scalar
                 )
 
+        # add meta data to xarray
+        getattr(self, f"{self.__static_ids[index]}").add_meta(meta_data)
+
+        # add longitude and latitude coodinates to xarray
         getattr(self, f"{self.__static_ids[index]}").coords['longitude'] = (
             ('cell',), self.grid.data[:, 0]
         )

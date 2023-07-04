@@ -105,18 +105,18 @@ def get_countries():
     """
     return {
         "Afghanistan": {"name": "Afghanistan", "code": "AFG"},
-        "Aland_Islands": {"name": "Aland Islands", "code": "ALA"},
+        "Aland Islands": {"name": "Aland Islands", "code": "ALA"},
         "Albania": {"name": "Albania", "code": "ALB"},
         "Algeria": {"name": "Algeria", "code": "DZA"},
-        "American_Samoa": {"name": "American Samoa", "code": "ASM"},
+        "American Samoa": {"name": "American Samoa", "code": "ASM"},
         "Angola": {"name": "Angola", "code": "AGO"},
         "Anguilla": {"name": "Anguilla", "code": "AIA"},
-        "Antigua_and_Barbuda": {"name": "Antigua and Barbuda", "code": "ATG"},
+        "Antigua and Barbuda": {"name": "Antigua and Barbuda", "code": "ATG"},
         "Argentina": {"name": "Argentina", "code": "ARG"},
         "Armenia": {"name": "Armenia", "code": "ARM"},
         "Austria": {"name": "Austria", "code": "AUT"},
         "Azerbaijan": {"name": "Azerbaijan", "code": "AZE"},
-        "Bahamas_The": {"name": "Bahamas,The", "code": "BHS"},
+        "Bahamas The": {"name": "Bahamas, The", "code": "BHS"},
         "Bahrain": {"name": "Bahrain", "code": "BHR"},
         "Bangladesh": {"name": "Bangladesh", "code": "BGD"},
         "Barbados": {"name": "Barbados", "code": "BRB"},
@@ -126,69 +126,69 @@ def get_countries():
         "Bermuda": {"name": "Bermuda", "code": "BMU"},
         "Bhutan": {"name": "Bhutan", "code": "BTN"},
         "Bolivia": {"name": "Bolivia", "code": "BOL"},
-        "Bosnia_and_Herzegovina": {
+        "Bosnia and Herzegovina": {
             "name": "Bosnia and Herzegovina", "code": "BIH"
         },
         "Botswana": {"name": "Botswana", "code": "BWA"},
-        "British_Indian_Ocean_Territory": {
+        "British Indian Ocean Territory": {
             "name": "British Indian Ocean Territory", "code": "IOT"
         },
         "Brunei": {"name": "Brunei", "code": "BRN"},
         "Bulgaria": {"name": "Bulgaria", "code": "BGR"},
-        "Burkina_Faso": {"name": "Burkina Faso", "code": "BFA"},
+        "Burkina Faso": {"name": "Burkina Faso", "code": "BFA"},
         "Burundi": {"name": "Burundi", "code": "BDI"},
         "Byelarus": {"name": "Byelarus", "code": "BLR"},
         "Cambodia": {"name": "Cambodia", "code": "KHM"},
         "Cameroon": {"name": "Cameroon", "code": "CMR"},
-        "Cape_Verde": {"name": "Cape Verde", "code": "CPV"},
-        "Cayman_Islands": {"name": "Cayman Islands", "code": "CYM"},
-        "Central_African_Republic": {
+        "Cape Verde": {"name": "Cape Verde", "code": "CPV"},
+        "Cayman Islands": {"name": "Cayman Islands", "code": "CYM"},
+        "Central African Republic": {
             "name": "Central African Republic", "code": "CAF"
         },
         "Chad": {"name": "Chad", "code": "TCD"},
         "Chile": {"name": "Chile", "code": "CHL"},
-        "Christmas_Island": {"name": "Christmas Island", "code": "CXR"},
-        "Cocos_Keeling_Islands": {
+        "Christmas Island": {"name": "Christmas Island", "code": "CXR"},
+        "Cocos Keeling Islands": {
             "name": "Cocos Keeling Islands", "code": "CCK"
         },
         "Colombia": {"name": "Colombia", "code": "COL"},
         "Comoros": {"name": "Comoros", "code": "COM"},
-        "Congo_Brazzaville": {"name": "Congo-Brazzaville", "code": "COG"},
-        "Cook_Islands": {"name": "Cook Islands", "code": "COK"},
-        "Costa_Rica": {"name": "Costa Rica", "code": "CRI"},
+        "Congo Brazzaville": {"name": "Congo-Brazzaville", "code": "COG"},
+        "Cook Islands": {"name": "Cook Islands", "code": "COK"},
+        "Costa Rica": {"name": "Costa Rica", "code": "CRI"},
         "Croatia": {"name": "Croatia", "code": "HRV"},
         "Cuba": {"name": "Cuba", "code": "CUB"},
         "Curacao": {"name": "Curacao", "code": "CUW"},
         "Cyprus": {"name": "Cyprus", "code": "CYP"},
-        "Czech_Republic": {"name": "Czech Republic", "code": "CZE"},
+        "Czech Republic": {"name": "Czech Republic", "code": "CZE"},
         "Denmark": {"name": "Denmark", "code": "DNK"},
         "Djibouti": {"name": "Djibouti", "code": "DJI"},
         "Dominica": {"name": "Dominica", "code": "DMA"},
-        "Dominican_Republic": {"name": "Dominican Republic", "code": "DOM"},
+        "Dominican Republic": {"name": "Dominican Republic", "code": "DOM"},
         "Ecuador": {"name": "Ecuador", "code": "ECU"},
         "Egypt": {"name": "Egypt", "code": "EGY"},
-        "El_Salvador": {"name": "El Salvador", "code": "SLV"},
-        "Equatorial_Guinea": {"name": "Equatorial Guinea", "code": "GNQ"},
+        "El Salvador": {"name": "El Salvador", "code": "SLV"},
+        "Equatorial Guinea": {"name": "Equatorial Guinea", "code": "GNQ"},
         "Eritrea": {"name": "Eritrea", "code": "ERI"},
         "Estonia": {"name": "Estonia", "code": "EST"},
         "Ethiopia": {"name": "Ethiopia", "code": "ETH"},
-        "Falkland_Islands_or_Islas_Malvinas": {
+        "Falkland Islands or Islas Malvinas": {
             "name": "Falkland Islands or Islas Malvinas", "code": "FLK"
         },
-        "Faroe_Islands": {"name": "Faroe Islands", "code": "FRO"},
-        "Federated_States_of_Micronesia": {
+        "Faroe Islands": {"name": "Faroe Islands", "code": "FRO"},
+        "Federated States of Micronesia": {
             "name": "Federated States of Micronesia", "code": "FSM"
         },
         "Fiji": {"name": "Fiji", "code": "FJI"},
         "Finland": {"name": "Finland", "code": "FIN"},
         "France": {"name": "France", "code": "FRA"},
-        "French_Guiana": {"name": "French Guiana", "code": "GUF"},
-        "French_Polynesia": {"name": "French Polynesia", "code": "PYF"},
-        "French_Southern_and_Antarctica_Lands": {
+        "French Guiana": {"name": "French Guiana", "code": "GUF"},
+        "French Polynesia": {"name": "French Polynesia", "code": "PYF"},
+        "French Southern and Antarctica Lands": {
             "name": "French Southern and Antarctica Lands", "code": "NOC"
             },
         "Gabon": {"name": "Gabon", "code": "GAB"},
-        "Gambia_The": {"name": "Gambia,The", "code": "GMB"},
+        "Gambia The": {"name": "Gambia,The", "code": "GMB"},
         "Georgia": {"name": "Georgia", "code": "GEO"},
         "Germany": {"name": "Germany", "code": "DEU"},
         "Ghana": {"name": "Ghana", "code": "GHA"},
@@ -199,25 +199,25 @@ def get_countries():
         "Guam": {"name": "Guam", "code": "GUM"},
         "Guatemala": {"name": "Guatemala", "code": "GTM"},
         "Guernsey": {"name": "Guernsey", "code": "GGY"},
-        "Guinea_Bissau": {"name": "Guinea-Bissau", "code": "GNB"},
+        "Guinea Bissau": {"name": "Guinea-Bissau", "code": "GNB"},
         "Guinea": {"name": "Guinea", "code": "GIN"},
         "Guyana": {"name": "Guyana", "code": "GUY"},
         "Haiti": {"name": "Haiti", "code": "HTI"},
-        "Heard_Island_and_McDonald_Islands": {
+        "Heard Island and McDonald Islands": {
             "name": "Heard Island and McDonald Islands", "code": "HMD"
         },
         "Honduras": {"name": "Honduras", "code": "HND"},
-        "Hong_Kong": {"name": "Hong Kong", "code": "HKG"},
+        "Hong Kong": {"name": "Hong Kong", "code": "HKG"},
         "Hungary": {"name": "Hungary", "code": "HUN"},
         "Iceland": {"name": "Iceland", "code": "ISL"},
         "Indonesia": {"name": "Indonesia", "code": "IDN"},
         "Iran": {"name": "Iran", "code": "IRN"},
         "Iraq": {"name": "Iraq", "code": "IRQ"},
         "Ireland": {"name": "Ireland", "code": "IRL"},
-        "Isle_of_Man": {"name": "Isle of Man", "code": "IMN"},
+        "Isle of Man": {"name": "Isle of Man", "code": "IMN"},
         "Israel": {"name": "Israel", "code": "ISR"},
         "Italy": {"name": "Italy", "code": "ITA"},
-        "Ivory_Coast": {"name": "Ivory Coast", "code": "CIV"},
+        "Ivory Coast": {"name": "Ivory Coast", "code": "CIV"},
         "Jamaica": {"name": "Jamaica", "code": "JAM"},
         "Japan": {"name": "Japan", "code": "JPN"},
         "Jersey": {"name": "Jersey", "code": "JEY"},
@@ -322,7 +322,7 @@ def get_countries():
         "South Sudan": {"name": "South Sudan", "code": "SSD"},
         "Spain": {"name": "Spain", "code": "ESP"},
         "Sri Lanka": {"name": "Sri Lanka", "code": "LKA"},
-        "St. Vincent and the Grenadines": {
+        "St Vincent and the Grenadines": {
             "name": "St. Vincent and the Grenadines", "code": "VCT"
         },
         "Sudan": {"name": "Sudan", "code": "SDN"},
@@ -334,11 +334,11 @@ def get_countries():
         "Syria": {"name": "Syria", "code": "SYR"},
         "Taiwan": {"name": "Taiwan", "code": "TWN"},
         "Tajikistan": {"name": "Tajikistan", "code": "TJK"},
-        "Tanzania, United Republic of": {
+        "Tanzania United Republic of": {
             "name": "Tanzania, United Republic of", "code": "TZA"
         },
         "Thailand": {"name": "Thailand", "code": "THA"},
-        "Timor-Leste": {"name": "Timor-Leste", "code": "TLS"},
+        "Timor Leste": {"name": "Timor Leste", "code": "TLS"},
         "Togo": {"name": "Togo", "code": "TGO"},
         "Tokelau": {"name": "Tokelau", "code": "TKL"},
         "Tonga": {"name": "Tonga", "code": "TON"},
@@ -370,7 +370,7 @@ def get_countries():
         "Western Sahara": {"name": "Western Sahara", "code": "ESH"},
         "Western Samoa": {"name": "Western Samoa", "code": "WSM"},
         "Yemen": {"name": "Yemen", "code": "YEM"},
-        "Zaire, DR Congo": {"name": "Zaire, DR Congo", "code": "COD"},
+        "Zaire DR Congo": {"name": "DR Congo, former Zaire", "code": "COD"},
         "Zambia": {"name": "Zambia", "code": "ZMB"},
         "Zimbabwe": {"name": "Zimbabwe", "code": "ZWE"},
         "Australia": {"name": "Australia", "code": "AUS"},
