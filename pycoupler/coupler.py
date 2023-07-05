@@ -249,6 +249,14 @@ class LPJmLCoupler:
         return operations
 
     @property
+    def sim_year(self):
+        """Get the current simulation year
+        :getter: Current simulation year
+        :type: int
+        """
+        return self.__sim_year
+
+    @property
     def sim_years(self):
         """Get a list of all simulation years
         :getter: List of all simulation years
@@ -436,7 +444,6 @@ class LPJmLCoupler:
     def close(self):
         """Close socket channel
         """
-        print("Socket channel has been closed.")
         self.__channel.close()
 
     def send_input(self, input_dict, year):
