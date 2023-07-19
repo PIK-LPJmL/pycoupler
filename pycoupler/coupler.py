@@ -569,6 +569,14 @@ class LPJmLCoupler:
             var_name=key
         ) for key in self.config.get_input_sockets(id_only=True)}
 
+        # if no start_year and end_year provided and only one year is supplied
+        #   ensure years are the same (although they are not - but to avoid 
+        #   errors in LPJmLDataSet handling)
+        if not start_year and not end_year and len(inputs) > 1:
+            year = max(inputs.values(), key=lambda inp: inp.time.item()).time.item()  # noqa
+            for inp in inputs.values():
+                inp.time.values[0] = year
+
         inputs = LPJmLDataSet(inputs)
         # define longitide and latitude DataArray (workaround to reduce dims to
         #   cells)
@@ -1228,7 +1236,7 @@ class LPJmLCoupler:
             if one_band:
                 output[dims[0]-cells] = lpjml_type.read_fun(self.__channel)
             else:
-                output[dims[0]-cells, dims[0]-bands] = lpjml_type.read_fun(
+                output[dims[0]-cells, dims[1]-bands] = lpjml_type.read_fun(
                     self.__channel
                 )
 

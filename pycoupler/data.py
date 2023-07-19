@@ -12,11 +12,12 @@ from xarray.core.indexes import isel_indexes
 
 class LPJmLInputType(Enum):
     """Available Input types"""
-    landuse: int = 6  # number of bands in landuse data
-    fertilizer_nr: int = 18  # number of bands in fertilizer data
-    manure_nr: int = 19  # number of bands in manure data
-    residue_on_field: int = 8  # number of bands in residue data
-    with_tillage: int = 7  # number of bands in tillage data
+    # input ids
+    landuse: int = 6
+    fertilizer_nr: int = 18
+    manure_nr: int = 19
+    residue_on_field: int = 8
+    with_tillage: int = 7
 
     @property
     def nband(self):
@@ -24,8 +25,10 @@ class LPJmLInputType(Enum):
         """
         if self.name == "landuse":
             return 64
-        elif self.name in ["fertilizer_nr", "manure_nr", "residue_on_field"]:
+        elif self.name in ["fertilizer_nr", "manure_nr"]:
             return 32
+        elif self.name == "residue_on_field":
+            return 16
         else:  # "with_tillage"
             return 1
 
