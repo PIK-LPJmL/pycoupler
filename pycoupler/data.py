@@ -1,5 +1,6 @@
 import json
 import numpy as np
+import pandas as pd
 import xarray as xr
 
 from collections.abc import Hashable
@@ -488,3 +489,34 @@ def read_meta(file_name, ):
     """
     with open(file_name, 'r') as f:
         return json.load(f, object_hook=LPJmLMetaData)
+
+
+def project_data(output_path, file_name):
+    """Project tabular data to grid.
+    """
+    grid = read_data(f"{output_path}/grid.nc4").astype("float32")
+
+    all_output = pd.read_csv(f"{output_path}/{file_name}")
+    ts = pd.pivot_table(all_output,
+                        values='value',
+                        index=['year', 'cell'],
+                        columns=['variable'])
+
+    # create xarray dataset
+    ds = xr.Dataset()
+
+    # create time dimension
+    ds['time'] = ts.index.levels[0]
+
+    # create cell dimension
+    ds['cell'] = grid.cellid
+
+    # create data arrays for each variable
+    for var in ts.columns:
+        da = xr.DataArray(ts[var].values.reshape((len(ds['time']), len(ds['cell']))),
+                          dims=('time', 'cell'),
+                          coords={'time': ds['time'], 'cell': ds['cell']},
+                          name=var)
+        ds[var] = da
+
+    return ds

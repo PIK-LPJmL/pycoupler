@@ -120,7 +120,7 @@ class LpjmlConfig(SubConfig):
         output_path = f"{sim_path}/output/{self.sim_name}"
 
         # set output writing
-        self._set_outputpath(output_path)
+        self.set_outputpath(output_path)
         # set restart directory to restart from in subsequent historic run
         self._set_restart(path=f"{sim_path}/restart")
 
@@ -378,7 +378,7 @@ class LpjmlConfig(SubConfig):
                     f"The following output is not defined in outputvar: {out}"
                 )
 
-    def _set_outputpath(self, output_path):
+    def set_outputpath(self, output_path):
         """Set output path of specified outputs
         :param output_path: path for outputs to be written, could also b
             relative path
@@ -667,8 +667,9 @@ class LpjmlConfig(SubConfig):
             #   grid
             for config_key, config_input in self.input:
 
-                if config_input.fmt != 'clm' or config_key == 'coord':
-                    continue
+                if config_input.fmt != 'clm' or config_key == 'coord' or (
+                    config_input.name == 'DUMMYLOCATION'
+                ):                    continue
 
                 if os.path.isfile(config_input.name):
                     input_file = config_input.name
