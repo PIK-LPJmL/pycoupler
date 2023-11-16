@@ -128,6 +128,7 @@ class LpjmlConfig(SubConfig):
                       sim_path,
                       start_year, end_year,
                       sim_name="transient",
+                      dependency=None,
                       write_start_year=None,
                       write_output=[],
                       write_temporal_resolution="annual",
@@ -142,6 +143,8 @@ class LpjmlConfig(SubConfig):
         :type end_year: int
         :param sim_name: name of simulation
         :type sim_name: str
+        :param dependency: sim_name of simulation to depend on
+        :type dependency: str
         :param write_start_year: first year of output being written
         :type write_start_year: int/None
         :param write_output: output ids of `outputs` to be written by
@@ -175,7 +178,8 @@ class LpjmlConfig(SubConfig):
                          file_format=write_file_format,
                          append_output=append_output)
         # set start from directory to start from spinup run
-        self._set_startfrom(path=f"{sim_path}/restart")
+        self._set_startfrom(path=f"{sim_path}/restart",
+                            dependency=dependency)
         # set restart directory to restart from in subsequent transient run
         self._set_restart(path=f"{sim_path}/restart")
 
@@ -184,6 +188,7 @@ class LpjmlConfig(SubConfig):
                     start_year, end_year,
                     coupled_input, coupled_output,
                     sim_name="coupled",
+                    dependency = None,
                     coupled_year=None,
                     write_output=[],
                     write_start_year=None,
@@ -206,6 +211,8 @@ class LpjmlConfig(SubConfig):
         :type coupled_output: list
         :param sim_name: name of simulation
         :type sim_name: str
+        :param dependency: sim_name of simulation to depend on
+        :type dependency: str
         :param coupled_year: start year of coupled simulation
         :type coupled_year: int/None
         :param write_output: output ids of `outputs` to be written by
@@ -256,7 +263,8 @@ class LpjmlConfig(SubConfig):
                            start_year=coupled_year,
                            model_name=model_name)
         # set start from directory to start from historic run
-        self._set_startfrom(path=f"{sim_path}/restart")
+        self._set_startfrom(path=f"{sim_path}/restart",
+                            dependency=dependency)
 
     def _set_output(self, output_path, outputs=[], file_format="raw",
                     temporal_resolution="annual", append_output=True):
@@ -389,15 +397,17 @@ class LpjmlConfig(SubConfig):
             file_name.reverse()
             out.file.name = f"{output_path}/{file_name[0]}"
 
-    def _set_startfrom(self, path):
+        # check if output_path exists
+        if not os.path.exists(output_path):
+            os.makedirs(output_path)
+
+    def _set_startfrom(self, path, dependency=None):
         """Set restart file from which LPJmL starts the transient run
         """
-        if os.path.isfile(f"{path}/restart_{self.firstyear-1}.lpj"):
+        if dependency:
             self.restart_filename = (
-                f"{path}/restart_{self.firstyear-1}.lpj")
-        elif os.path.isfile(f"{path}/restart_{self.firstyear}.lpj"):
-            self.restart_filename = (
-                f"{path}/restart_{self.firstyear}.lpj")
+                f"{path}/restart_{dependency}.lpj")
+
         else:
             file_name = self.restart_filename.split("/")
             file_name.reverse()
@@ -407,7 +417,7 @@ class LpjmlConfig(SubConfig):
         """Set restart file from which LPJmL starts the transient run
         """
         self.write_restart_filename = (
-            f"{path}/restart_{self.lastyear}.lpj")
+            f"{path}/restart_{self.sim_name}.lpj")
         self.restart_year = self.lastyear
 
     def _set_timerange(self,

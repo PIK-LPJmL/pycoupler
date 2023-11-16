@@ -1,24 +1,22 @@
 import os
 from datetime import datetime
 from subprocess import run, Popen, PIPE, CalledProcessError
+from pycoupler.config import read_config
 
 import multiprocessing as mp
 
 
 def operate_lpjml(config_file,
-                  model_path,
-                  sim_path,
                   std_to_file=False):
 
-    if not os.path.isdir(model_path):
+    config = read_config(config_file)
+
+    if not os.path.isdir(config.model_path):
         raise ValueError(
-            f"Folder of model_path '{model_path}' does not exist!"
+            f"Folder of model_path '{config.model_path}' does not exist!"
         )
 
-    filename = os.path.splitext(os.path.basename(config_file))[0]
-    if filename.startswith("config_"):
-        sim_name = filename[7:]
-    output_path = f"{sim_path}/output/{sim_name}"
+    output_path = f"{config.sim_path}/output/{config.sim_name}"
 
     timestamp = datetime.now().strftime("%Y-%m-%d_%H-%M")
     stdout_file = os.path.join(output_path, f"stdout_{timestamp}.log")
@@ -28,7 +26,7 @@ def operate_lpjml(config_file,
         os.makedirs(output_path)
         print(f"Created output_path '{output_path}'")
 
-    cmd = [f"{model_path}/bin/lpjml", config_file]
+    cmd = [f"{config.model_path}/bin/lpjml", config_file]
     # environment settings to be used for interartive LPJmL sessions
     #   MPI settings conflict with (e.g. on login node)
     os.environ['I_MPI_DAPL_UD'] = 'disable'
@@ -41,13 +39,13 @@ def operate_lpjml(config_file,
             with Popen(
                 cmd, stdout=f_out, stderr=f_err,
                 bufsize=1, universal_newlines=True,
-                cwd=model_path
+                cwd=config.model_path
             ) as p:
                 p.wait()
     else:
         with Popen(
             cmd, stdout=PIPE, stderr=PIPE, bufsize=1, universal_newlines=True,
-            cwd=model_path
+            cwd=config.model_path
         ) as p:
             for line in p.stdout:
                 print(line, end='')
@@ -64,32 +62,23 @@ def operate_lpjml(config_file,
 
 
 def run_lpjml(config_file,
-              model_path,
-              sim_path,
               std_to_file=False):
     """Run LPJmL using a generated (class LpjmlConfig) config file.
     Similar to R function `lpjmlKit::run_lpjml`.
     :param config_file: file name including path if not current to config_file
     :type config_file: str
-    :param model_path: path to `LPJmL_internal` (lpjml repository)
-    :type model_path: str
-    :param sim_path: simulation path to include the output folder where output
-        is written to
-    :type output_path: str
     :param std_to_file: if True, stdout and stderr are written to files
         in the output folder. Defaults to False.
     :type std_to_file: bool
     """
     run = mp.Process(target=operate_lpjml,
-                     args=(config_file, model_path, sim_path, std_to_file))
+                     args=(config_file, std_to_file))
     run.start()
 
     return run
 
 
 def submit_lpjml(config_file,
-                 model_path,
-                 sim_path=None,
                  group="copan",
                  sclass="short",
                  ntasks=256,
@@ -102,13 +91,8 @@ def submit_lpjml(config_file,
     depending on the run. Similar to R function `lpjmlKit::submit_lpjml`.
     :param config_file: file name including path if not current to config_file
     :type config_file: str
-    :param model_path: path to `LPJmL_internal` (lpjml repository)
-    :type model_path: str
-    :param sim_path: simulation path to include the output folder where output 
-        is written to
-    :type output_path: str
     :param group: PIK group name to be used for Slurm. Defaults to "copan".
-    :type output_path: str
+    :type group: str
     :param sclass: define the job classification,
         for more information have a look
         [here](https://www.pik-potsdam.de/en/institute/about/it-services/hpc/user-guides/slurm#section-5).
@@ -134,28 +118,30 @@ def submit_lpjml(config_file,
     :return: return the submitted jobs id if submitted successfully.
     :rtype: str
     """
-    if not os.path.isdir(model_path):
+
+    config = read_config(config_file)
+    if not os.path.isdir(config.model_path):
         raise ValueError(
-            f"Folder of model_path '{model_path}' does not exist!"
+            f"Folder of model_path '{config.model_path}' does not exist!"
         )
-    if not output_path:
-        output_path = model_path
-    else:
-        if not os.path.isdir(output_path):
-            raise ValueError(
-                f"Folder of output_path '{output_path}' does not exist!"
-            )
-    # set timestamp with stdout and stderr files to write by batch process
-    timestamp = datetime.now().strftime("%Y%m%d_%H%M")
-    stdout = f"{output_path}/outfile_{timestamp}.out"
-    stderr = f"{output_path}/errfile_{timestamp}.err"
+
+    output_path = f"{config.sim_path}/output/{config.sim_name}"
+
+    timestamp = datetime.now().strftime("%Y-%m-%d_%H-%M")
+    stdout_file = os.path.join(output_path, f"stdout_{timestamp}.log")
+    stderr_file = os.path.join(output_path, f"stderr_{timestamp}.log")
+
+    if not os.path.isdir(output_path):
+        os.makedirs(output_path)
+        print(f"Created output_path '{output_path}'")
+
 
     lpjroot = os.environ['LPJROOT']
     # prepare lpjsubmit command to be called via subprocess
-    cmd = [f"{model_path}/bin/lpjsubmit"]
+    cmd = [f"{config.model_path}/bin/lpjsubmit"]
     # specify sbatch arguments required by lpjsubmit internally
     cmd.extend([
-        "-group", group, "-class", sclass, "-o", stdout, "-e", stderr
+        "-group", group, "-class", sclass, "-o", stdout_file, "-e", stderr_file
     ])
     # if dependency (jobid) defined, submit is queued by slurm with nocheck
     if dependency:
@@ -166,13 +152,32 @@ def submit_lpjml(config_file,
     # if cores to be blocked
     if blocking:
         cmd.extend(["-blocking", blocking])
+
     # run in coupled mode and pass coupling program/model
     if couple_to:
-        cmd.extend(["-copan", couple_to])
+        bash_script = f"""#!/bin/bash
+
+# Define the path to the config file
+config_file="{config_file}"
+
+# Call the Python script with the config file as an argument
+python3 {couple_to} $config_file
+"""
+
+        couple_file = f"{output_path}/inseeds.sh"
+
+        with open(couple_file, "w") as file:
+            file.write(bash_script)
+
+        # Change the permissions of the file to make it executable
+        run(["chmod", "+x", couple_file])
+
+        cmd.extend(["-couple", couple_file])
+
     cmd.extend([str(ntasks), config_file])
     # set LPJROOT to model_path to be able to call lpjsubmit
     try:
-        os.environ['LPJROOT'] = model_path
+        os.environ['LPJROOT'] = config.model_path
         # call lpjsubmit via subprocess and return status if successfull
         submit_status = run(cmd, capture_output=True)
     except Exception as e:
@@ -193,7 +198,27 @@ def submit_lpjml(config_file,
     )[1].split("\n")[0]
 
 
-def submit_couple():
-    """Start coupled runs of copan:core and LPJmL
+def check_lpjml(config_file):
+    """Check if config file is set correctly.
+    :param config_file: file_name (including path) to generated config json
+        file.
+    :type model_path: str
+    :param model_path: path to `LPJmL_internal` (lpjml repository)
+    :type model_path: str
     """
-    pass
+    config = read_config(config_file)
+    if not os.path.isdir(config.model_path):
+        raise ValueError(
+            f"Folder of model_path '{config.model_path}' does not exist!"
+        )
+    if os.path.isfile(f"{config.model_path}/bin/lpjcheck"):
+        proc_status = run(
+            ["./bin/lpjcheck", config_file], capture_output=True,  # "-param",
+            cwd=config.model_path
+        )
+    if proc_status.returncode == 0:
+        print(proc_status.stdout.decode('utf-8'))
+    else:
+        print(proc_status.stdout.decode('utf-8'))
+        print(proc_status.stderr.decode('utf-8'))
+

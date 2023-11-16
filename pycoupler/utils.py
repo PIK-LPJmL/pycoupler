@@ -75,31 +75,6 @@ def compile_lpjml(model_path=".", make_fast=False, make_clean=False):
     if p.returncode != 0:
         raise CalledProcessError(p.returncode, p.args)
 
-
-def check_lpjml(config_file, model_path):
-    """Check if config file is set correctly.
-    :param config_file: file_name (including path) to generated config json
-        file.
-    :type model_path: str
-    :param model_path: path to `LPJmL_internal` (lpjml repository)
-    :type model_path: str
-    """
-    if not os.path.isdir(model_path):
-        raise ValueError(
-            f"Folder of model_path '{model_path}' does not exist!"
-        )
-    if os.path.isfile(f"{model_path}/bin/lpjcheck"):
-        proc_status = run(
-            ["./bin/lpjcheck", config_file], capture_output=True,  # "-param",
-            cwd=model_path
-        )
-    if proc_status.returncode == 0:
-        print(proc_status.stdout.decode('utf-8'))
-    else:
-        print(proc_status.stdout.decode('utf-8'))
-        print(proc_status.stderr.decode('utf-8'))
-
-
 def get_countries():
     """Current workaround to get countries defined in LPJmL.
     """
