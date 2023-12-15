@@ -808,69 +808,55 @@ class LPJmLCoupler:
                 args={"input_bands": self.__get_config_input_sockets()}
             )
 
-    def __init_output(self):
+def __init_output(self):
+    output_sockets = self.__config.get_output_sockets()
 
-        output_sockets = self.__config.get_output_sockets()
+    if self.__noutput != len(output_sockets):
+        self.close()
+        raise ValueError(
+            f"Invalid number of output streams received ({self.__noutput})"
+            f", must be {len(output_sockets)} according to"
+            f" configuration."
+        )
 
-        if self.__noutput != len(output_sockets):
-            self.close()
-            raise ValueError(
-                f"Invalid number of output streams received ({self.__noutput})"
-                f", must be {len(output_sockets)} according to"
-                f" configuration."
-            )
+    else:
+        # init lists to be filled with nbands, nsteps per output
+        len_outputvar = len(self.config.outputvar)
+        self.__output_bands = [-1] * len_outputvar
+        self.__output_steps = [-1] * len_outputvar
+        self.__output_types = [-1] * len_outputvar
 
-        else:
-            # init lists to be filled with nbands, nsteps per output
-            self.__output_bands = [-1] * len(self.config.outputvar)
-            self.__output_steps = [-1] * len(self.config.outputvar)
-            self.__output_types = [-1] * len(self.config.outputvar)
+        # Get output indices
+        self.__output_ids = {}
+        self.__static_ids = {}
+        for out in output_sockets:
+            self.__output_ids[output_sockets[out]["index"]] = out
+            if output_sockets[out]["id"] in ["grid", "country", "region"]:
+                self.__static_ids[output_sockets[out]["index"]] = out
 
-            # Get output indices
-            self.__output_ids = {
-                output_sockets[out]["index"]: out for out in output_sockets
-            }
+        # Get number of bands per cell for each output data stream
+        self.__iterate_operation(length=self.__noutput,
+                                 fun=self.__read_output_details,
+                                 token=LPJmLToken.READ_OUTPUT_SIZE)
 
-            self.__static_ids = {
-                output_sockets[out]["index"]: out for out in output_sockets
-                if output_sockets[out]["id"] in ["grid", "country", "region"]
-            }
-
-            # Get number of bands per cell for each output data stream
-            self.__iterate_operation(length=self.__noutput,
-                                     fun=self.__read_output_details,
-                                     token=LPJmLToken.READ_OUTPUT_SIZE)
-
-    def __iterate_operation(self, length, fun, token, args=None,
-                            appendix=False):
-        """Iterate reading/sending operation for sequence of inputs and/or
-        outputs
-        """
+def __iterate_operation(self, length, fun, token, args=None, appendix=False):
+    """Iterate reading/sending operation for sequence of inputs and/or outputs"""
+    results = {}
+    for _ in range(length):
         # check if read token matches expected token and return read token
         token_check, received_token = self.__check_token(token)
         if not token_check:
             self.close()
-            raise ValueError(
-                f"Received LPJmLToken {received_token.name} is not {token.name}"  # noqa
-            )
+            raise ValueError(f"Received LPJmLToken {received_token.name} is not {token.name}")  # noqa
+
         # execute method on channel and if supplied further method arguments
-        if not args:
-            result = fun()
-        else:
-            result = fun(**args)
-        # recursive iteration
-        if length > 1:
-            # if appendix results are appended/extended and returned as list
-            if appendix:
-                result = {**result, **self.__iterate_operation(
-                    length-1, fun, token, args, appendix)
-                }
-                return result
-            else:
-                self.__iterate_operation(length-1, fun, token, args)
-        else:
-            if appendix:
-                return result
+        result = fun(**args) if args else fun()
+
+        # if appendix results are appended/extended and returned as list
+        if appendix:
+            results.update(result)
+
+    return results if appendix else None
 
     def __check_token(self, token):
         """ check if read token matches the expected token
