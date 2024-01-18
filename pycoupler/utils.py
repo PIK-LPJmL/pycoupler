@@ -75,6 +75,7 @@ def compile_lpjml(model_path=".", make_fast=False, make_clean=False):
     if p.returncode != 0:
         raise CalledProcessError(p.returncode, p.args)
 
+
 def get_countries():
     """Current workaround to get countries defined in LPJmL.
     """

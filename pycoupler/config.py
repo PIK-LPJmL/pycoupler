@@ -87,24 +87,58 @@ class LpjmlConfig(SubConfig):
             sub_config.__dict__["changed"] = []
         self.__dict__.update(sub_config.__dict__)
 
-    def get_output_avail(self, id_only=True, with_description=True):
+    def get_output_avail(self, id_only=True, to_dict=False):
         """Get available output (outputvar) names (== output ids) as list
+
+        :param id_only: if True only output ids are returned, else the whole
+            outputvar object
+        :type id_only: bool
+        :param to_dict: if True a dictionary is returned, else a list with the
+            config objects of the outputvar
+        :type to_dict: bool
         """
         if id_only:
-            if with_description:
-                return {out.name: out.descr for out in self.outputvar}
-            else:
                 return [out.name for out in self.outputvar]
         else:
-            return self.to_dict()["outputvar"]
+            if to_dict:
+                return {out.name: out.to_dict() for out in self.outputvar}
+            else:    
+                return self.outputvar
 
-    def get_output(self, id_only=True):
+    def get_output(self, id_only=True, to_dict=False, fmt=None):
         """Get defined output ids as list
+
+        :param id_only: if True only output ids are returned, else the whole
+            output object
+        :type id_only: bool
+        :param to_dict: if True a dictionary is returned, else a list with the
+            config objects of the output
+        :type to_dict: bool
+        :param fmt: if defined only outputs with defined file format are
+            returned
+        :type fmt: str
         """
-        if id_only:
-            return [out.id for out in self.output]
+        if fmt:
+            if id_only:
+                return [out.id for out in self.output if (
+                    out.file.fmt == fmt
+                )]
+            else:
+                outs = [
+                    out for pos, out in enumerate(
+                        self.output
+                    ) if out.file.fmt == fmt
+                ]
         else:
-            return self.to_dict()['output']
+            if id_only:
+                return [out.id for out in self.output]
+            else:
+                outs = self.output
+        
+        if to_dict:
+            return {out.id: out.to_dict() for out in outs}
+        else:    
+            return outs
 
     def set_spinup(self, sim_path):
         """Set configuration required for spinup model runs
