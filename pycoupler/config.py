@@ -163,7 +163,6 @@ class LpjmlConfig(SubConfig):
                       start_year, end_year,
                       sim_name="transient",
                       dependency=None,
-                      write_start_year=None,
                       write_output=[],
                       write_temporal_resolution="annual",
                       write_file_format="cdf",
@@ -179,8 +178,6 @@ class LpjmlConfig(SubConfig):
         :type sim_name: str
         :param dependency: sim_name of simulation to depend on
         :type dependency: str
-        :param write_start_year: first year of output being written
-        :type write_start_year: int/None
         :param write_output: output ids of `outputs` to be written by
             LPJmL. Make sure to check if required output is available via
             `get_output_avail`
@@ -204,7 +201,7 @@ class LpjmlConfig(SubConfig):
         # set time range for historic run
         self._set_timerange(start_year=start_year,
                             end_year=end_year,
-                            write_start_year=write_start_year)
+                            write_start_year=start_year)
         # set output writing
         self._set_output(output_path,
                          outputs=write_output,
@@ -225,7 +222,6 @@ class LpjmlConfig(SubConfig):
                     dependency = None,
                     coupled_year=None,
                     write_output=[],
-                    write_start_year=None,
                     write_temporal_resolution="annual",
                     write_file_format="cdf",
                     append_output=True,
@@ -253,8 +249,6 @@ class LpjmlConfig(SubConfig):
             LPJmL. Make sure to check if required output is available via
             `get_output_avail`
         :type write_output: list
-        :param write_start_year: first year of output being written
-        :type write_start_year: int/None
         :param write_temporal_resolution: list of temporal resolutions
             corresponding to `outputs` or str to set the same resolution for
             all `outputs`. Choose between "annual", "monthly", "daily".
@@ -278,7 +272,7 @@ class LpjmlConfig(SubConfig):
         # set time range for coupled run
         self._set_timerange(start_year=start_year,
                             end_year=end_year,
-                            write_start_year=write_start_year)
+                            write_start_year=start_year)
         # set grid explicitly to be able to use start and endgrid
         self._set_grid_explicitly()
 
