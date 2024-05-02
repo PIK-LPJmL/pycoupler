@@ -47,20 +47,25 @@ class SubConfig:
             if not key.startswith("_"):
                 yield key, value
 
-    def to_json(self, path=None):
+    def to_json(self, file_name=None):
         """Write json file
         :param file: file name (including relative/absolute path) to write json
             to
         :type: str
+        :param file_name: file name (including relative/absolute path) to write
+            json to
+        :type file_name: str
+        :return: file name of written json file
+        :rtype: str
         """
         # convert class to dict
         config_dict = self.to_dict()
 
-        if path is None:
-            path = self.sim_path
-
         # configuration file name
-        json_file = f"{path}/config_{self.sim_name}.json"
+        if file_name is None:
+            json_file = f"{self.sim_path}/config_{self.sim_name}.json"
+        else:
+            json_file = file_name
 
         # write json and prettify via indent
         with open(json_file, 'w') as con:
@@ -325,10 +330,6 @@ class LpjmlConfig(SubConfig):
         # provide additional meta data
         self.output_metafile = True
 
-        # check if output_path exists
-        if not os.path.exists(output_path):
-            os.makedirs(output_path)
-
         # add grid output if not already defined
         if "grid" not in outputs:
             outputs.append("grid")
@@ -424,10 +425,6 @@ class LpjmlConfig(SubConfig):
             file_name = out.file.name.split("/")
             file_name.reverse()
             out.file.name = f"{output_path}/{file_name[0]}"
-
-        # check if output_path exists
-        if not os.path.exists(output_path):
-            os.makedirs(output_path)
 
     def _set_startfrom(self, path, dependency=None):
         """Set restart file from which LPJmL starts the transient run
@@ -924,7 +921,10 @@ def read_config(file_name,
         lpjml_config = LpjmlConfig(lpjml_config)
 
     if model_path is not None:
-        lpjml_config.model_path = model_path
+        if to_dict:
+            lpjml_config["model_path"] = model_path
+        else:
+            lpjml_config.model_path = model_path
 
     return lpjml_config
 
