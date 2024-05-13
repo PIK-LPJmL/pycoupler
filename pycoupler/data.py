@@ -3,6 +3,7 @@ import numpy as np
 import pandas as pd
 import xarray as xr
 
+from subprocess import run
 from collections.abc import Hashable
 from enum import Enum
 from scipy.spatial import KDTree
@@ -10,6 +11,10 @@ from xarray.core.utils import either_dict_or_kwargs
 from xarray.core.indexing import is_fancy_indexer
 from xarray.core.indexes import isel_indexes
 
+from pycoupler.config import read_config
+from pycoupler.utils import read_json
+import os
+import json
 
 class LPJmLInputType(Enum):
     """Available Input types"""
@@ -410,7 +415,7 @@ class LPJmLMetaData:
         """Constructor method
         """
         self.__dict__.update(meta_dict)
-        if "band_names" not in self.__dict__:
+        if "band_names" not in self.__dict__ and hasattr(self, "nbands"):
             self.band_names = [str(ii) for ii in range(self.nbands)]
 
     def to_dict(self):
@@ -450,6 +455,7 @@ class LPJmLMetaData:
         else:
             summary = f"<pycoupler.{self.__class__.__name__}>"
             spacing = "\n"
+        # TODO: add solution for sub dicts else error in repr
         summary = spacing.join([
             summary,
             f"  * sim_name      {self.sim_name}",
@@ -481,14 +487,13 @@ class LPJmLMetaData:
         return summary
 
 
-def read_meta(file_name, ):
+def read_meta(file_name):
     """Read meta data from json file and return as dictionary.
     :param file_name: path to json file
     :type file_name: str
     :return: meta data as dictionary
     """
-    with open(file_name, 'r') as f:
-        return json.load(f, object_hook=LPJmLMetaData)
+    return read_json(file_name, object_hook=LPJmLMetaData)
 
 
 def project_data(output_path, file_name):
@@ -520,3 +525,76 @@ def project_data(output_path, file_name):
         ds[var] = da
 
     return ds
+
+
+def convert_netcdf_to_bin(config_file, output_id=None):
+    """Convert netcdf files to binary files.
+    :param output_file: name of the netcdf file(s) to convert
+    :type output_file: str or list
+    """
+    config = read_config(config_file)
+
+    output_dir = f"{config.sim_path}/output/{config.sim_name}"
+
+    if config.input.coord.name.startswith("/"):
+        grid_file = config.input.coord.name
+    else:
+        grid_file = (
+            f"{config.inpath}/{config.input.coord.name}"
+        )
+
+    grid_name = os.path.basename(grid_file)
+
+    if not os.path.isfile(f"{output_dir}/{grid_name}"):
+        run(f"tail -c +44 {grid_file} > {output_dir}/{grid_name}", shell=True)
+
+    grid_file = f"{output_dir}/{grid_name}"
+
+    outputs = [
+        out for out in config.get_output(
+            fmt="cdf", id_only=True
+        ) if out != "grid"
+    ]
+
+    if output_id:
+        if isinstance(output_id, str):
+            output_id = [output_id]  # Convert to list for consistency
+        outputs = [out for out in outputs if out in output_id]
+
+    output_details = [
+        out for out in config.get_output_avail(
+            id_only=False
+        ) if out.name in outputs
+    ]
+
+    for output in output_details:
+        # convert netcdf output to netcdf files
+        conversion_cmd = [
+            f"{config.model_path}/bin/cdf2bin",
+            # "-units", output.unit,
+            "-var", output.var,
+            "-o", f"{output_dir}/{output.name}.bin",
+            "-json",
+            grid_file,
+            f"{output_dir}/{output.name}.nc4"
+        ]
+        if None in conversion_cmd:
+            conversion_cmd.remove(None)
+        run(conversion_cmd)
+
+        nc4_meta_dict = read_json(
+            f"{output_dir}/{output.name}.nc4.json"
+        )
+
+        bin_meta_dict = read_json(
+            f"{output_dir}/{output.name}.bin.json"
+        )
+
+        for key, value in nc4_meta_dict.items():
+            if key not in bin_meta_dict or key == "band_names":
+                bin_meta_dict[key] = value
+            if key == "ref_area":
+                bin_meta_dict[key]["filename"] = nc4_meta_dict['ref_area']['filename'].split('.')[0] + ".bin.json" # noqa
+
+        with open(f"{output_dir}/{output.name}.bin.json", 'w') as f:
+            json.dump(bin_meta_dict, f, indent=2)

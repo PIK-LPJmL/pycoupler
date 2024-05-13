@@ -47,20 +47,25 @@ class SubConfig:
             if not key.startswith("_"):
                 yield key, value
 
-    def to_json(self, path=None):
+    def to_json(self, file_name=None):
         """Write json file
         :param file: file name (including relative/absolute path) to write json
             to
         :type: str
+        :param file_name: file name (including relative/absolute path) to write
+            json to
+        :type file_name: str
+        :return: file name of written json file
+        :rtype: str
         """
         # convert class to dict
         config_dict = self.to_dict()
 
-        if path is None:
-            path = self.sim_path
-
         # configuration file name
-        json_file = f"{path}/config_{self.sim_name}.json"
+        if file_name is None:
+            json_file = f"{self.sim_path}/config_{self.sim_name}.json"
+        else:
+            json_file = file_name
 
         # write json and prettify via indent
         with open(json_file, 'w') as con:
@@ -87,24 +92,58 @@ class LpjmlConfig(SubConfig):
             sub_config.__dict__["changed"] = []
         self.__dict__.update(sub_config.__dict__)
 
-    def get_output_avail(self, id_only=True, with_description=True):
+    def get_output_avail(self, id_only=True, to_dict=False):
         """Get available output (outputvar) names (== output ids) as list
+
+        :param id_only: if True only output ids are returned, else the whole
+            outputvar object
+        :type id_only: bool
+        :param to_dict: if True a dictionary is returned, else a list with the
+            config objects of the outputvar
+        :type to_dict: bool
         """
         if id_only:
-            if with_description:
-                return {out.name: out.descr for out in self.outputvar}
-            else:
                 return [out.name for out in self.outputvar]
         else:
-            return self.to_dict()["outputvar"]
+            if to_dict:
+                return {out.name: out.to_dict() for out in self.outputvar}
+            else:    
+                return self.outputvar
 
-    def get_output(self, id_only=True):
+    def get_output(self, id_only=True, to_dict=False, fmt=None):
         """Get defined output ids as list
+
+        :param id_only: if True only output ids are returned, else the whole
+            output object
+        :type id_only: bool
+        :param to_dict: if True a dictionary is returned, else a list with the
+            config objects of the output
+        :type to_dict: bool
+        :param fmt: if defined only outputs with defined file format are
+            returned
+        :type fmt: str
         """
-        if id_only:
-            return [out.id for out in self.output]
+        if fmt:
+            if id_only:
+                return [out.id for out in self.output if (
+                    out.file.fmt == fmt
+                )]
+            else:
+                outs = [
+                    out for pos, out in enumerate(
+                        self.output
+                    ) if out.file.fmt == fmt
+                ]
         else:
-            return self.to_dict()['output']
+            if id_only:
+                return [out.id for out in self.output]
+            else:
+                outs = self.output
+        
+        if to_dict:
+            return {out.id: out.to_dict() for out in outs}
+        else:    
+            return outs
 
     def set_spinup(self, sim_path):
         """Set configuration required for spinup model runs
@@ -129,7 +168,6 @@ class LpjmlConfig(SubConfig):
                       start_year, end_year,
                       sim_name="transient",
                       dependency=None,
-                      write_start_year=None,
                       write_output=[],
                       write_temporal_resolution="annual",
                       write_file_format="cdf",
@@ -145,8 +183,6 @@ class LpjmlConfig(SubConfig):
         :type sim_name: str
         :param dependency: sim_name of simulation to depend on
         :type dependency: str
-        :param write_start_year: first year of output being written
-        :type write_start_year: int/None
         :param write_output: output ids of `outputs` to be written by
             LPJmL. Make sure to check if required output is available via
             `get_output_avail`
@@ -170,7 +206,7 @@ class LpjmlConfig(SubConfig):
         # set time range for historic run
         self._set_timerange(start_year=start_year,
                             end_year=end_year,
-                            write_start_year=write_start_year)
+                            write_start_year=start_year)
         # set output writing
         self._set_output(output_path,
                          outputs=write_output,
@@ -191,7 +227,6 @@ class LpjmlConfig(SubConfig):
                     dependency = None,
                     coupled_year=None,
                     write_output=[],
-                    write_start_year=None,
                     write_temporal_resolution="annual",
                     write_file_format="cdf",
                     append_output=True,
@@ -219,8 +254,6 @@ class LpjmlConfig(SubConfig):
             LPJmL. Make sure to check if required output is available via
             `get_output_avail`
         :type write_output: list
-        :param write_start_year: first year of output being written
-        :type write_start_year: int/None
         :param write_temporal_resolution: list of temporal resolutions
             corresponding to `outputs` or str to set the same resolution for
             all `outputs`. Choose between "annual", "monthly", "daily".
@@ -244,7 +277,7 @@ class LpjmlConfig(SubConfig):
         # set time range for coupled run
         self._set_timerange(start_year=start_year,
                             end_year=end_year,
-                            write_start_year=write_start_year)
+                            write_start_year=start_year)
         # set grid explicitly to be able to use start and endgrid
         self._set_grid_explicitly()
 
@@ -296,10 +329,6 @@ class LpjmlConfig(SubConfig):
 
         # provide additional meta data
         self.output_metafile = True
-
-        # check if output_path exists
-        if not os.path.exists(output_path):
-            os.makedirs(output_path)
 
         # add grid output if not already defined
         if "grid" not in outputs:
@@ -396,10 +425,6 @@ class LpjmlConfig(SubConfig):
             file_name = out.file.name.split("/")
             file_name.reverse()
             out.file.name = f"{output_path}/{file_name[0]}"
-
-        # check if output_path exists
-        if not os.path.exists(output_path):
-            os.makedirs(output_path)
 
     def _set_startfrom(self, path, dependency=None):
         """Set restart file from which LPJmL starts the transient run
@@ -896,7 +921,10 @@ def read_config(file_name,
         lpjml_config = LpjmlConfig(lpjml_config)
 
     if model_path is not None:
-        lpjml_config.model_path = model_path
+        if to_dict:
+            lpjml_config["model_path"] = model_path
+        else:
+            lpjml_config.model_path = model_path
 
     return lpjml_config
 

@@ -1,4 +1,5 @@
 import os
+import sys
 import json
 from subprocess import run, Popen, PIPE, CalledProcessError
 from fuzzywuzzy import fuzz, process
@@ -74,6 +75,7 @@ def compile_lpjml(model_path=".", make_fast=False, make_clean=False):
     # raise error if returncode does not reflect successfull call
     if p.returncode != 0:
         raise CalledProcessError(p.returncode, p.args)
+
 
 def get_countries():
     """Current workaround to get countries defined in LPJmL.
@@ -383,6 +385,9 @@ def create_subdirs(base_path):
         not create corresponding folder (input, output, restart)
     :type base_path: str
     """
+    if is_pytest():
+        return base_path
+
     if not os.path.exists(base_path):
         raise OSError(f"Path '{base_path}' does not exist.")
 
@@ -399,3 +404,10 @@ def create_subdirs(base_path):
         print(f"Restart path '{base_path}/restart' was created.")
 
     return base_path
+
+
+def is_pytest() -> bool:
+    """Detect if we are running via pytest."""
+    # When we are running via pytest it is loaded to the sys modules dictionary.
+    _is_pytest: bool = 'pytest' in sys.modules
+    return _is_pytest

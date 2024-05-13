@@ -14,7 +14,47 @@ from enum import Enum
 from pycoupler.config import read_config
 from pycoupler.data import LPJmLInputType, LPJmLData, LPJmLDataSet,\
     append_to_dict, read_meta, read_data
-from pycoupler.utils import get_countries
+from pycoupler.utils import get_countries, is_pytest
+
+class test_channel:
+    def __init__(self):
+        pass
+
+    def sendall(self, val):
+        pass
+
+    def recv(self, val):
+        pass
+
+    def close(self):
+        pass
+
+    def send(self, val):
+        pass
+
+
+def write_bytestring_to_file(bytestring, filepath):
+    with open(filepath, 'a') as file:
+        file.write(str(bytestring) + '\n')
+
+
+line_counter = 0
+
+def read_lines_from_file(filepath):
+    """Read lines from a file and return as a list
+    """
+    global line_counter
+
+    with open(filepath, 'r') as file:  # Read the file in binary mode
+        bytestring = file.read().strip()
+
+    lines = bytestring.split('\n')
+    if line_counter < len(lines):
+        line = lines[line_counter]
+        line_counter += 1
+        return line
+    else:
+        return None
 
 
 def recvall(channel, size):
@@ -25,6 +65,7 @@ def recvall(channel, size):
     while nbytes < size:
         bytestring += channel.recv(size-nbytes)
         nbytes += len(bytestring)
+    
     return bytestring
 
 
@@ -37,16 +78,24 @@ def send_int(channel, val):
 def read_int(channel):
     """read received string as integer
     """
-    intstr = recvall(channel, struct.calcsize('i'))
-    inttup = struct.unpack('i', intstr)
+    if is_pytest():
+        # write_bytestring_to_file(inttup[0], os.path.join(os.path.dirname(__file__), '../tests/data/test_receive.txt')) # noqa
+        inttup = [int(read_lines_from_file(os.path.join(os.path.dirname(__file__), '../tests/data/test_receive.txt')))] # noqa
+    else:
+        intstr = recvall(channel, struct.calcsize('i'))
+        inttup = struct.unpack('i', intstr)
     return inttup[0]
 
 
 def read_short(channel):
     """read received string as short
     """
-    intstr = recvall(channel, struct.calcsize('h'))
-    inttup = struct.unpack('h', intstr)
+    if is_pytest():
+        # write_bytestring_to_file(inttup[0], os.path.join(os.path.dirname(__file__), '../tests/data/test_receive.txt')) # noqa
+        inttup = [int(read_lines_from_file(os.path.join(os.path.dirname(__file__), '../tests/data/test_receive.txt')))] # noqa
+    else:
+        intstr = recvall(channel, struct.calcsize('h'))
+        inttup = struct.unpack('h', intstr)
     return inttup[0]
 
 
@@ -59,10 +108,14 @@ def send_float(channel, val):
 def read_float(channel):
     """read received string as float
     """
-    floatstr = recvall(channel, struct.calcsize('f'))
-    floattup = struct.unpack('f', floatstr)
-    return floattup[0]
+    if is_pytest():
+        # write_bytestring_to_file(floattup[0], os.path.join(os.path.dirname(__file__), '../tests/data/test_receive.txt')) # noqa
+        floattup = [float(read_lines_from_file(os.path.join(os.path.dirname(__file__), '../tests/data/test_receive.txt')))] # noqa
+    else:
+        floatstr = recvall(channel, struct.calcsize('f'))
+        floattup = struct.unpack('f', floatstr)
 
+    return floattup[0]
 
 class LPJmlValueType(Enum):
     """Available datatypes
@@ -128,15 +181,19 @@ class CopanStatus(Enum):
 def opentdt(host, port):
     """open channel and validate connection to LPJmL
     """
-    # create an INET, STREAMing socket
-    serversocket = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
-    serversocket.setsockopt(socket.SOL_SOCKET, socket.SO_REUSEADDR, 1)
-    # bind the socket to a public host, and a well-known port
-    serversocket.bind((host, port))
-    # become a server socket
-    serversocket.listen(5)
-    # accept connections from outside
-    channel, address = serversocket.accept()
+    if is_pytest():
+        channel = test_channel()
+    else:
+        # create an INET, STREAMing socket
+        serversocket = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
+        serversocket.setsockopt(socket.SOL_SOCKET, socket.SO_REUSEADDR, 1)
+        # bind the socket to a public host, and a well-known port
+        serversocket.bind((host, port))
+        # become a server socket
+        serversocket.listen(5)
+        # accept connections from outside
+        channel, address = serversocket.accept()
+
     channel.send('1'.encode())
     known_int = read_int(channel)
     num = read_int(channel)
@@ -197,6 +254,18 @@ class LPJmLCoupler:
 
         # read configuration file
         self.__config = read_config(config_file)
+
+        if is_pytest():
+            self.__config.set_outputpath(
+                os.path.join(
+                    os.path.dirname(__file__),
+                    '../tests/data/output/coupled_test'
+                )
+            )
+            self.__config.sim_path = os.path.join(
+                os.path.dirname(__file__),
+                '../tests/data'
+            )
 
         # initiate coupling, get number of cells, inputs and outputs and verify
         self.__init_coupling()
