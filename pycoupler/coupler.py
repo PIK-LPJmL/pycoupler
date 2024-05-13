@@ -308,6 +308,10 @@ class LPJmLCoupler:
 
     @property
     def operations_left(self):
+        """Get the operations left for the current simulation year
+        :getter: Operations left
+        :type: list
+        """
         operations = []
         if self.__sim_year >= self.__config.start_coupling:
             if self.__sim_year != self.__year_send_input:
@@ -563,50 +567,38 @@ class LPJmLCoupler:
             self.__sim_year += 1
 
     def read_output(self, year, to_xarray=True):
-        """Read LPJmL output data of iterated year. Returned output comes in
-        the same format as input is supplied to send_input, with output id/name
-        as dict keys:
-        outputs = {
-            'pft_harvestc': <numpy_array_with_shape_(ncell, nband)>,
-            'soilc': <numpy_array_with_shape_(ncell, nband)>
-        }
+        """Read LPJmL output data of the specified year.
 
-        :param year: supply year for validation
+        :param year: Year for which output data is to be read.
         :type year: int
-        :param to_xarray: if True, output is returned as xarray.DataArray
+        :param to_xarray: If True, output is returned as xarray.DataArray.
         :type to_xarray: bool
         :return: Dictionary with output id/name as keys and outputs in the form
-            of numpy.array
-        :rtype: dict
+                of numpy.array or xarray.DataArray.
+        :rtype: dict or xarray.DataArray
         """
-        # Year check - if procvided year matches internal simulation year
+        # Validate the year
         if year != self.__sim_year:
-            raise ValueError(
-                f"Year {year} not matches simulated year {self.__sim_year}"
-            )
-        operations = self.operations_left
+            raise ValueError(f"Year {year} does not match simulated year {self.__sim_year}")
 
-        # Check if read_output operation valid
-        if not operations or LPJmLToken.READ_OUTPUT not in operations:
-            raise IndexError(
-                f"No read_output operation left for year {year}"
-            )
-        elif operations.pop(0) != LPJmLToken.READ_OUTPUT:
-            raise IndexError(f"Invalid operation order. Expected send_input")
+        # Check if read_output operation is valid
+        if not self.operations_left or self.operations_left[0] != LPJmLToken.READ_OUTPUT:
+            raise IndexError(f"No read_output operation left for year {year}")
 
-        # iterate over outputs for private read_output_data
+        # Perform read_output operation
         lpjml_output = self.__iterate_operation(length=self.__noutput_sim,
                                                 fun=self.__read_output_data,
                                                 token=LPJmLToken.READ_OUTPUT,
                                                 args={"validate_year": year,
-                                                      "to_xarray": to_xarray},
+                                                    "to_xarray": to_xarray},
                                                 appendix=True)
+
         if to_xarray:
             lpjml_output = LPJmLDataSet(lpjml_output)
 
         self.__year_read_output = year
 
-        # check if all operations have been performed and increase sim_year
+        # If all operations have been performed, increase sim_year
         if not self.operations_left:
             self.__sim_year += 1
 
@@ -649,8 +641,14 @@ class LPJmLCoupler:
         inputs = LPJmLDataSet(inputs)
         # define longitide and latitude DataArray (workaround to reduce dims to
         #   cells)
-        lons = xr.DataArray(self.grid[:, 0], dims="cell")
-        lats = xr.DataArray(self.grid[:, 1], dims="cell")
+        if not hasattr(self, "_cached_grid"):
+            self._cached_grid = {
+                "lons": xr.DataArray(self.grid[:, 0], dims="cell"),
+                "lats": xr.DataArray(self.grid[:, 1], dims="cell")
+            }
+
+        lons = self._cached_grid["lons"]
+        lats = self._cached_grid["lats"]
 
         other_dim = [
             dim for dim in inputs.dims
@@ -877,55 +875,55 @@ class LPJmLCoupler:
                 args={"input_bands": self.__get_config_input_sockets()}
             )
 
-def __init_output(self):
-    output_sockets = self.__config.get_output_sockets()
+    def __init_output(self):
+        output_sockets = self.__config.get_output_sockets()
 
-    if self.__noutput != len(output_sockets):
-        self.close()
-        raise ValueError(
-            f"Invalid number of output streams received ({self.__noutput})"
-            f", must be {len(output_sockets)} according to"
-            f" configuration."
-        )
-
-    else:
-        # init lists to be filled with nbands, nsteps per output
-        len_outputvar = len(self.config.outputvar)
-        self.__output_bands = [-1] * len_outputvar
-        self.__output_steps = [-1] * len_outputvar
-        self.__output_types = [-1] * len_outputvar
-
-        # Get output indices
-        self.__output_ids = {}
-        self.__static_ids = {}
-        for out in output_sockets:
-            self.__output_ids[output_sockets[out]["index"]] = out
-            if output_sockets[out]["id"] in ["grid", "country", "region"]:
-                self.__static_ids[output_sockets[out]["index"]] = out
-
-        # Get number of bands per cell for each output data stream
-        self.__iterate_operation(length=self.__noutput,
-                                 fun=self.__read_output_details,
-                                 token=LPJmLToken.READ_OUTPUT_SIZE)
-
-def __iterate_operation(self, length, fun, token, args=None, appendix=False):
-    """Iterate reading/sending operation for sequence of inputs and/or outputs"""
-    results = {}
-    for _ in range(length):
-        # check if read token matches expected token and return read token
-        token_check, received_token = self.__check_token(token)
-        if not token_check:
+        if self.__noutput != len(output_sockets):
             self.close()
-            raise ValueError(f"Received LPJmLToken {received_token.name} is not {token.name}")  # noqa
+            raise ValueError(
+                f"Invalid number of output streams received ({self.__noutput})"
+                f", must be {len(output_sockets)} according to"
+                f" configuration."
+            )
 
-        # execute method on channel and if supplied further method arguments
-        result = fun(**args) if args else fun()
+        else:
+            # init lists to be filled with nbands, nsteps per output
+            len_outputvar = len(self.config.outputvar)
+            self.__output_bands = [-1] * len_outputvar
+            self.__output_steps = [-1] * len_outputvar
+            self.__output_types = [-1] * len_outputvar
 
-        # if appendix results are appended/extended and returned as list
-        if appendix:
-            results.update(result)
+            # Get output indices
+            self.__output_ids = {}
+            self.__static_ids = {}
+            for out in output_sockets:
+                self.__output_ids[output_sockets[out]["index"]] = out
+                if output_sockets[out]["id"] in ["grid", "country", "region"]:
+                    self.__static_ids[output_sockets[out]["index"]] = out
 
-    return results if appendix else None
+            # Get number of bands per cell for each output data stream
+            self.__iterate_operation(length=self.__noutput,
+                                    fun=self.__read_output_details,
+                                    token=LPJmLToken.READ_OUTPUT_SIZE)
+
+    def __iterate_operation(self, length, fun, token, args=None, appendix=False):
+        """Iterate reading/sending operation for sequence of inputs and/or outputs"""
+        results = {}
+        for _ in range(length):
+            # check if read token matches expected token and return read token
+            token_check, received_token = self.__check_token(token)
+            if not token_check:
+                self.close()
+                raise ValueError(f"Received LPJmLToken {received_token.name} is not {token.name}")  # noqa
+
+            # execute method on channel and if supplied further method arguments
+            result = fun(**args) if args else fun()
+
+            # if appendix results are appended/extended and returned as list
+            if appendix:
+                results.update(result)
+
+        return results if appendix else None
 
     def __check_token(self, token):
         """ check if read token matches the expected token
@@ -1175,41 +1173,24 @@ def __iterate_operation(self, length, fun, token, args=None, appendix=False):
             self.__send_input_values(data[self.__input_ids[index]])
 
     def __send_input_values(self, data):
-        """Iterate over all values to be send to socket. Recursive iteration
-        with correct order of bands and cells for inputs
+        """Iterate over all values to be sent to the socket. Recursive iteration
+        with the correct order of bands and cells for inputs.
         """
-        dims = list(np.shape(data))
-        if len(dims) == 1:
-            dims.append(1)
-            one_band = True
-        else:
-            one_band = False
+        dims = data.shape
+        one_band = len(dims) == 1
+        cells, bands = dims[0], dims[1]
 
-        if "int" in str(data.dtype):
-            send_function = send_int
-        else:
-            send_function = send_float
+        # Determine the send function based on data type
+        send_function = send_int if "int" in str(data.dtype) else send_float
 
-        dims[0] -= 1
-        dims[1] -= 1
-        cells = dims[0]
-        bands = dims[1]
-        # iterate over bands (first) and cells (second)
-        while cells >= 0 and bands >= 0:
-            # send float value for input (are all inputs floats?) - indices via
-            #   decremented cells, bands and orignal dims
-            if one_band:
-                send_function(self.__channel, data[dims[0]-cells])
-            else:
-                send_function(
-                    self.__channel, data[dims[0]-cells, dims[1]-bands]
-                )
-
-            if bands > 0:
-                bands -= 1
-            elif bands == 0 and cells >= 0:
-                cells -= 1
-                bands = dims[1]
+        # Iterate over bands (outer loop) and cells (inner loop)
+        for band in range(bands):
+            for cell in range(cells):
+                # Send the value to the socket
+                if one_band:
+                    send_function(self.__channel, data[cell])
+                else:
+                    send_function(self.__channel, data[cell, band])
 
     def __read_output_data(self, validate_year, to_xarray=True):
         """Read output data checks supplied year and sets numpy array template
@@ -1267,39 +1248,24 @@ def __iterate_operation(self, length, fun, token, args=None, appendix=False):
             # as list for appending/extending as list
             return {self.__output_ids[index]: output}
 
-    def __read_output_values(self,
-                             output,
-                             dims=None,
-                             lpjml_type=LPJmlValueType(3)):
-        """Iterate over all values to be read from socket. Recursive iteration
-        with correct order of cells and bands for outputs
+    def __read_output_values(self, output, dims=None, lpjml_type=LPJmlValueType(3)):
+        """Iterate over all values to be read from the socket. Recursive iteration
+        with the correct order of cells and bands for outputs.
         """
-        dims[0] -= 1
-        dims[1] -= 1
-        cells = dims[0]
-        bands = dims[1]
+        cells, bands = dims[0], dims[1]
 
-        if dims[0] > 0 and dims[1] == 0:
-            one_band = True
-        else:
-            one_band = False
+        # Determine if there is only one band
+        one_band = cells > 0 and bands == 0
 
-        # iterate over cells (first) and bands (second)
-        while cells >= 0 and bands >= 0:
-            # read float value for output (are all outputs floats?) - indices
-            #   via decremented cells, bands and orignal dims
-            if one_band:
-                output[dims[0]-cells] = lpjml_type.read_fun(self.__channel)
-            else:
-                output[dims[0]-cells, dims[1]-bands] = lpjml_type.read_fun(
-                    self.__channel
-                )
+        # Iterate over cells (outer loop) and bands (inner loop)
+        for cell in range(cells):
+            for band in range(bands):
+                # Read the value from the socket
+                if one_band:
+                    output[cell] = lpjml_type.read_fun(self.__channel)
+                else:
+                    output[cell, band] = lpjml_type.read_fun(self.__channel)
 
-            if cells > 0:
-                cells -= 1
-            elif cells == 0 and bands >= 0:
-                bands -= 1
-                cells = dims[0]
         return output
 
     def __read_meta_output(self, index=None, output_id=None):
