@@ -155,7 +155,7 @@ class LpjmlConfig(SubConfig):
         :type restart_path: str
         """
         self.sim_name = "spinup"
-        self.sim_path = create_subdirs(sim_path)
+        self.sim_path = create_subdirs(sim_path, self.sim_name)
         output_path = f"{sim_path}/output/{self.sim_name}"
 
         # set output writing
@@ -201,7 +201,7 @@ class LpjmlConfig(SubConfig):
         :param append_output: bool
         """
         self.sim_name = sim_name
-        self.sim_path = create_subdirs(sim_path)
+        self.sim_path = create_subdirs(sim_path, self.sim_name)
         output_path = f"{sim_path}/output/{self.sim_name}"
         # set time range for historic run
         self._set_timerange(start_year=start_year,
@@ -271,7 +271,7 @@ class LpjmlConfig(SubConfig):
         :type model_name: str
         """
         self.sim_name = sim_name
-        self.sim_path = create_subdirs(sim_path)
+        self.sim_path = create_subdirs(sim_path, self.sim_name)
         output_path = f"{sim_path}/output/{self.sim_name}"
 
         # set time range for coupled run

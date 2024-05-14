@@ -486,20 +486,6 @@ class LPJmLCoupler:
                     index,
                     time_length=len(hist_years)
                 )
-                # read output values
-                if self.__config.output_metafile:
-                    meta_output = self.__read_meta_output(index=index)
-                else:
-                    meta_output = None
-
-                if meta_output:
-                    # add band names to output
-                    lpjml_output.coords['band'] = meta_output.band_names
-                    lpjml_output = lpjml_output.rename(
-                        band=f"band ({self.__output_ids[index]})"
-                    )
-                    # add meta data to output
-                    lpjml_output.add_meta(meta_output)
 
                 lpjml_output.coords['time'] = pd.date_range(
                     start=str(hist_years[0]),
@@ -592,7 +578,6 @@ class LPJmLCoupler:
                                                 args={"validate_year": year,
                                                     "to_xarray": to_xarray},
                                                 appendix=True)
-
         if to_xarray:
             lpjml_output = LPJmLDataSet(lpjml_output)
 
@@ -1117,6 +1102,20 @@ class LPJmLCoupler:
             ),
             name=self.__output_ids[index]
         )
+        # read output values
+        if self.__config.output_metafile:
+            meta_output = self.__read_meta_output(index=index)
+        else:
+            meta_output = None
+
+        if meta_output:
+            # add band names to output
+            output_tmpl.coords['band'] = meta_output.band_names
+            output_tmpl = output_tmpl.rename(
+                band=f"band ({self.__output_ids[index]})"
+            )
+            # add meta data to output
+            output_tmpl.add_meta(meta_output)
         return output_tmpl
 
     def __send_input_data(self, data, validate_year):
@@ -1204,47 +1203,28 @@ class LPJmLCoupler:
             raise ValueError(f"The expected year: {validate_year} does not " +
                              f"match the received year: {year}")
         if index in self.__output_ids.keys():
+            output = self.__output_templates[index]
             if not to_xarray:
-                # get corresponding number of bands
-                bands = self.__output_bands[index]
-                # create output numpy array template to be filled with output
-                output_tmpl = np.zeros(
-                    shape=(self.__ncell, bands, 1),  # time = 1
-                    dtype=self.__output_types[index].type)
-                # Check if data array is of type integer, use -9999 for nan
-                if self.__output_types[index].type == int:
-                    output_tmpl[:] = -9999
-                else:
-                    output_tmpl[:] = np.nan
+                # read and assign corresponding values from socket to numpy array
+                output = self.__read_output_values(
+                    output=output.values.copy(),
+                    dims=list(
+                        np.shape(output)),
+                    lpjml_type=self.__output_types[index]
+                )
             else:
-                # get corresponding number of bands
-                output_tmpl = self.__output_templates[index]
-                # read output values
-                if self.__config.output_metafile:
-                    meta_output = self.__read_meta_output(index=index)
-                else:
-                    meta_output = None
 
-                if meta_output:
-                    # add band names to output
-                    output_tmpl.coords['band'] = meta_output.band_names
-                    output_tmpl = output_tmpl.rename(
-                        band=f"band ({self.__output_ids[index]})"
-                    )
-                    # add meta data to output
-                    output_tmpl.add_meta(meta_output)
-
-                output_tmpl.coords['time'] = pd.date_range(
+                output.coords['time'] = pd.date_range(
                     str(year), periods=1, freq='A'
                 )
 
-            # read and assign corresponding values from socket to numpy array
-            output = self.__read_output_values(
-                output=output_tmpl,
-                dims=list(
-                    np.shape(output_tmpl)),
-                lpjml_type=self.__output_types[index]
-            )
+                # read and assign corresponding values from socket to numpy array
+                output.values = self.__read_output_values(
+                    output=output.values,
+                    dims=list(
+                        np.shape(output)),
+                    lpjml_type=self.__output_types[index]
+                )
             # as list for appending/extending as list
             return {self.__output_ids[index]: output}
 
