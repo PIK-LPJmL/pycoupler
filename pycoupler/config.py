@@ -643,7 +643,7 @@ class LpjmlConfig(SubConfig):
 
         # check if country specific input files already exist
         if not os.path.isfile(f"{sim_path}/input/coord_{country}.clm") or (
-            not os.path.isfile(f"{sim_path}/input/soil_{country}.bin")
+            not os.path.isfile(f"{sim_path}/input/soil_{country}.clm")
         ) or (
             not os.path.isfile(f"{sim_path}/input/lakes_{country}.bin")
         ) or overwrite_input:
@@ -656,27 +656,6 @@ class LpjmlConfig(SubConfig):
                 f"{sim_path}/input/coord_{country}.clm",
                 country_code
             ], check=True)
-
-            # extract country specific soil file from meta file
-            if self.input.soil.fmt in ['json', 'meta']:
-                soil_filename = read_json(
-                    f"{self.inpath}/{self.input.soil.name}",
-                )["filename"]
-                soil_file = f"{self.inpath}/{self.input.soil.name}"
-                soil_file = (
-                    f"{soil_file[:soil_file.rfind('/')+1]}{soil_filename}"
-                )
-            else:
-                soil_file = f"{self.inpath}/{self.input.soil.name}"
-
-            # regrid soil file to country specific grid
-            run([
-                f"{model_path}/bin/regridsoil",
-                grid_file,
-                f"{sim_path}/input/coord_{country}.clm",
-                soil_file,
-                f"{sim_path}/input/soil_{country}.bin",
-            ], check=True, stdout=open(os.devnull, 'wb'))
 
             # extract country specific lakes file from meta file
             if self.input.lakes.fmt in ['json', 'meta']:
@@ -742,7 +721,7 @@ class LpjmlConfig(SubConfig):
         for config_key, config_input in self.input:
             if config_input.fmt not in ['clm', 'json', 'meta']:
                 continue
-            if config_key in ['soil', 'lakes']:
+            if config_key in ['lakes']:
                 config_input.fmt = "raw"
                 config_input.name = (
                     f"{sim_path}/input/{config_key}_{country}.bin"
