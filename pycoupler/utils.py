@@ -379,11 +379,15 @@ def read_json(file_name, object_hook=None):
     return json_dict
 
 
-def create_subdirs(base_path):
+def create_subdirs(base_path, sim_name):
     """Check if config file is set correctly.
     :param base_path: directory to check wether required subfolders exists. If
         not create corresponding folder (input, output, restart)
     :type base_path: str
+    :param sim_name: name of the simulation. Used to create output folder.
+    :type sim_name: str
+    :return: base_path
+    :rtype: str
     """
     if is_pytest():
         return base_path
@@ -395,9 +399,9 @@ def create_subdirs(base_path):
         os.makedirs(f"{base_path}/input")
         print(f"Input path '{base_path}/input' was created.")
 
-    if not os.path.exists(f"{base_path}/output"):
-        os.makedirs(f"{base_path}/output")
-        print(f"Output path '{base_path}/output' was created.")
+    if not os.path.exists(f"{base_path}/output/{sim_name}"):
+        os.makedirs(f"{base_path}/output/{sim_name}")
+        print(f"Output path '{base_path}/output/{sim_name}' was created.")
 
     if not os.path.exists(f"{base_path}/restart"):
         os.makedirs(f"{base_path}/restart")
