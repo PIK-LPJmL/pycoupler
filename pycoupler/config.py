@@ -329,6 +329,7 @@ class LpjmlConfig(SubConfig):
 
         # provide additional meta data
         self.output_metafile = True
+        self.grid_type = "float"
 
         # add grid output if not already defined
         if "grid" not in outputs:

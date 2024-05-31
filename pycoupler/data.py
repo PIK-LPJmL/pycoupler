@@ -191,7 +191,7 @@ class LPJmLData(xr.DataArray):
         if isinstance(meta_data, LPJmLMetaData):
 
             self.attrs['standard_name'] = meta_data.variable
-            self.attrs['long_name'] = meta_data.descr
+            self.attrs['long_name'] = meta_data.long_name
             self.attrs['units'] = meta_data.unit
             self.attrs['source'] = meta_data.source
             self.attrs['history'] = meta_data.history
@@ -225,8 +225,8 @@ class LPJmLData(xr.DataArray):
         """
 
         # Get the coordinates of all cells
-        coords_np = np.array([self.cell.latitude.values,
-                              self.cell.longitude.values]).T
+        coords_np = np.array([self.cell.lat.values,
+                              self.cell.lon.values]).T
 
         # Build a KDTree for fast nearest-neighbour lookup
         tree = KDTree(coords_np)
@@ -267,11 +267,11 @@ class LPJmLData(xr.DataArray):
             dims=('cell', 'neighbour'),
             coords=dict(
                 cell=self.cell.values,
-                longitude=(
-                    ['cell'], self.longitude.values
+                lon=(
+                    ['cell'], self.lon.values
                 ),
-                latitude=(
-                    ['cell'], self.latitude.values
+                lat=(
+                    ['cell'], self.lat.values
                 ),
                 neighbour=np.arange(8),
             ),
@@ -394,8 +394,13 @@ def read_data(file_name, var_name=None):
     :rtype: LPJmLData
     """
     with xr.open_dataset(file_name,
-                         decode_times=True,
+                         decode_times=False,
                          mask_and_scale=False) as data:
+        units, reference_date = data.time.attrs['units'].split('since')
+        date_time = pd.date_range(
+            start=reference_date, periods=data.sizes['time'], freq='MS'
+        )
+        data['time'] = date_time.year
         if var_name:
             data = data[var_name]
             data = LPJmLData(data)
@@ -441,7 +446,7 @@ class LPJmLMetaData:
     def __repr__(self, sub_repr=False):
         """Representation of the LPJmL Meta object
         """
-        summary_attr = ["sim_name", "source", "history", "variable", "descr",
+        summary_attr = ["sim_name", "source", "history", "variable", "long_name",
                         "unit", "nbands", "band_names", "nyear", "firstyear",
                         "lastyear", "cellsize_lon", "cellsize_lat", "ncell",
                         "firstcell", "datatype", "scalar"]
@@ -462,7 +467,7 @@ class LPJmLMetaData:
             f"  * source        {self.source}",
             f"  * history       {self.history}",
             f"  * variable      {self.variable}",
-            f"  * descr         {self.descr}",
+            f"  * long_name         {self.long_name}",
             f"  * unit          {self.unit}",
             f"  * nbands        {self.nbands}",
             f"  * band_names    {self.band_names}",

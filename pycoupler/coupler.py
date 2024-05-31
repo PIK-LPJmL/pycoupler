@@ -637,7 +637,7 @@ class LPJmLCoupler:
 
         other_dim = [
             dim for dim in inputs.dims
-            if dim not in ["time", "longitude", "latitude"]
+            if dim not in ["time", "lon", "lat"]
         ]
         if other_dim:
             inputs = inputs.rename_dims({other_dim[0]: 'band'})
@@ -665,7 +665,7 @@ class LPJmLCoupler:
         # create same format as before but with selected numpy arrays instead
         # of xarray.DataArray
         inputs = inputs.sel(
-            longitude=lons, latitude=lats, method="nearest", **kwargs
+            lon=lons, lat=lats, method="nearest", **kwargs
         ).transpose("cell", ..., "time")
 
         return inputs
@@ -883,7 +883,9 @@ class LPJmLCoupler:
             self.__static_ids = {}
             for out in output_sockets:
                 self.__output_ids[output_sockets[out]["index"]] = out
-                if output_sockets[out]["id"] in ["grid", "country", "region"]:
+                if output_sockets[out]["id"] in [
+                    "grid", "country", "region", "terr_area", "lake_area"
+                ]:
                     self.__static_ids[output_sockets[out]["index"]] = out
 
             # Get number of bands per cell for each output data stream
@@ -1021,7 +1023,7 @@ class LPJmLCoupler:
                     coords=dict(
                         cell=np.arange(self.__config.startgrid,
                                        self.__config.endgrid+1),
-                        coord=['longitude', 'latitude']
+                        coord=['lon', 'lat']
                     ),
                     name="grid"
                 )
@@ -1061,10 +1063,10 @@ class LPJmLCoupler:
         getattr(self, f"{self.__static_ids[index]}").add_meta(meta_data)
 
         # add longitude and latitude coodinates to xarray
-        getattr(self, f"{self.__static_ids[index]}").coords['longitude'] = (
+        getattr(self, f"{self.__static_ids[index]}").coords['lon'] = (
             ('cell',), self.grid.data[:, 0]
         )
-        getattr(self, f"{self.__static_ids[index]}").coords['latitude'] = (
+        getattr(self, f"{self.__static_ids[index]}").coords['lat'] = (
             ('cell',), self.grid.data[:, 1]
         )
 
@@ -1091,11 +1093,11 @@ class LPJmLCoupler:
             coords=dict(
                 cell=np.arange(self.__config.startgrid,
                                self.__config.endgrid+1),
-                longitude=(
-                    ['cell'], self.grid.coords['longitude'].values
+                lon=(
+                    ['cell'], self.grid.coords['lon'].values
                 ),
-                latitude=(
-                    ['cell'], self.grid.coords['latitude'].values
+                lat=(
+                    ['cell'], self.grid.coords['lat'].values
                 ),
                 band=np.arange(bands),  # [str(i) for i in range(bands)],
                 time=np.arange(time_length)
