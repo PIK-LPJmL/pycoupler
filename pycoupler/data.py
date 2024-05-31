@@ -1,3 +1,5 @@
+import os
+import struct
 import json
 import numpy as np
 import pandas as pd
@@ -467,7 +469,7 @@ class LPJmLMetaData:
             f"  * source        {self.source}",
             f"  * history       {self.history}",
             f"  * variable      {self.variable}",
-            f"  * long_name         {self.long_name}",
+            f"  * long_name     {self.long_name}",
             f"  * unit          {self.unit}",
             f"  * nbands        {self.nbands}",
             f"  * band_names    {self.band_names}",
@@ -493,12 +495,12 @@ class LPJmLMetaData:
 
 
 def read_meta(file_name):
-    """Read meta data from json file and return as dictionary.
+    """Read meta data from json file and return as LPJmLMetaData object.
     :param file_name: path to json file
     :type file_name: str
     :return: meta data as dictionary
     """
-    return read_json(file_name, object_hook=LPJmLMetaData)
+    return LPJmLMetaData(read_json(file_name))
 
 
 def project_data(output_path, file_name):
@@ -603,3 +605,169 @@ def convert_netcdf_to_bin(config_file, output_id=None):
 
         with open(f"{output_dir}/{output.name}.bin.json", 'w') as f:
             json.dump(bin_meta_dict, f, indent=2)
+
+
+def read_header(filename,
+                return_dict=False,
+                force_version=None,
+                verbose=False):
+    """
+    Read header (any version) from LPJmL input/output file
+
+    Reads a header from an LPJmL clm file. CLM is the default format used for
+    LPJmL input files and can also be used for output files.
+    :param filename: Filename to read header from.
+    :type filename: str
+    :param return_dict: If True, return header as dictionary. If False, return
+        as LPJmLMetaData object.
+    :type return_dict: bool
+    :param force_version: Manually set clm version. The default value `NULL`
+        means that the version is determined automatically from the header. Set
+        only if the version number in the file header is incorrect.
+    :type force_version: int
+    :param verbose: If `TRUE` (the default), `read_header` provides some feedback
+        when using default values for missing parameters. If `FALSE`, only errors
+        are reported.
+    :type verbose: bool
+    :return: A LPJmLMetaData object or a dictionary with the header information.
+    """
+
+    if not os.path.exists(filename):
+        raise FileNotFoundError(f"File {filename} does not exist")
+
+    with open(filename, 'rb') as f:
+        # Read the first 30 bytes to determine the header name
+        headername_raw = f.read(30)
+        headername = ''.join(chr(b) for b in headername_raw)
+        first_non_alnum_index = next((i for i, char in enumerate(headername) if not (char.isalnum() or char == '_')), len(headername))
+        headername = headername[:first_non_alnum_index]
+
+        for i, char in enumerate(headername):
+            if not (char.isalnum() or char == '_'):
+                headername = headername[:i]
+                break
+
+        if not headername.startswith("LPJ"):
+            raise ValueError(f"Invalid header name {headername}")
+        if headername == "LPJRESTART":
+            raise ValueError("LPJRESTART header detected. This function does not support restart headers at the moment.")
+        
+        # Skip over the header
+        f.seek(len(headername))
+        
+        # Determine file endian. Try platform-specific endian as default.
+        endian = 'little'
+        version = struct.unpack(f"<i", f.read(4))[0]
+        
+        if version & 0xff == 0:
+            endian = 'big'
+            f.seek(len(headername))
+            version = struct.unpack(f">i", f.read(4))[0]
+        
+        if force_version is not None and force_version != version:
+            if verbose:
+                print(f"Forcing header version to {force_version}")
+            version = force_version
+        
+        # Read main header attributes that are included in all header versions
+        if endian == 'little':
+            headerdata = struct.unpack('<6i', f.read(24))
+        else:
+            headerdata = struct.unpack('>6i', f.read(24))
+        
+        headerdata_dict = {
+            "order": headerdata[0],
+            "firstyear": headerdata[1],
+            "nyear": headerdata[2],
+            "firstcell": headerdata[3],
+            "ncell": headerdata[4],
+            "nbands": headerdata[5],
+        }
+        
+        if version == 2:
+            if endian == 'little':
+                extra_data = struct.unpack('<2f', f.read(8))
+            else:
+                extra_data = struct.unpack('>2f', f.read(8))
+            headerdata_dict.update({"cellsize_lon": extra_data[0], "scalar": extra_data[1]})
+        
+        if version >= 3:
+            if endian == 'little':
+                extra_data = struct.unpack('<3f', f.read(12))
+                datatype = struct.unpack('<i', f.read(4))[0]
+            else:
+                extra_data = struct.unpack('>3f', f.read(12))
+                datatype = struct.unpack('>i', f.read(4))[0]
+            headerdata_dict.update({"cellsize_lon": extra_data[0], "scalar": extra_data[1], "cellsize_lat": extra_data[2], "datatype": datatype})
+        
+        if version == 4:
+            if endian == 'little':
+                nstep = struct.unpack('<i', f.read(4))[0]
+                timestep = struct.unpack('<i', f.read(4))[0]
+            else:
+                nstep = struct.unpack('>i', f.read(4))[0]
+                timestep = struct.unpack('>i', f.read(4))[0]
+            headerdata_dict.update({"nstep": nstep, "timestep": timestep})
+        else:
+            if len(headerdata_dict) == 6:
+                headerdata_dict.update({"cellsize_lon": 0.5, "scalar": 1, "cellsize_lat": 0.5, "datatype": 1, "nstep": 1, "timestep": 1})
+                if verbose:
+                    print("Note: Type 1 header. Adding default values for cellsize, scalar, datatype, nstep and timestep which may not be correct in all cases.")
+            if len(headerdata_dict) == 8:
+                headerdata_dict.update({"cellsize_lat": headerdata_dict["cellsize_lon"], "datatype": 1, "nstep": 1, "timestep": 1})
+                if verbose:
+                    print("Note: Type 2 header. Adding default values for datatype, nstep and timestep which may not be correct in all cases.")
+            if len(headerdata_dict) == 10:
+                headerdata_dict.update({"nstep": 1, "timestep": 1})
+                if verbose:
+                    print("Note: Type 3 header. Adding default values for nstep and timestep which may not be correct in all cases.")
+        
+        if verbose and headerdata_dict.get("datatype") is None:
+            print(f"Warning: Invalid datatype {headerdata_dict['datatype']} in header read from {filename}")
+    
+    if return_dict:
+        return {
+            "name": headername,
+            "header": {"version": version, **headerdata_dict},
+            "endian": endian
+        }
+    else:
+        return LPJmLMetaData({
+            "sim_name": None,
+            "source": None,
+            "history": None,
+            "variable": headername,
+            "long_name": None,
+            "unit": None,
+            "nbands": headerdata_dict["nbands"],
+            "band_names": None,
+            "nyear": headerdata_dict["nyear"],
+            "firstyear": headerdata_dict["firstyear"],
+            "lastyear": headerdata_dict["firstyear"] + headerdata_dict["nyear"] - 1,
+            "cellsize_lon": headerdata_dict["cellsize_lon"],
+            "cellsize_lat": headerdata_dict.get("cellsize_lat", headerdata_dict["cellsize_lon"]),
+            "ncell": headerdata_dict["ncell"],
+            "firstcell": headerdata_dict["firstcell"],
+            "datatype": headerdata_dict["datatype"],
+            "scalar": headerdata_dict["scalar"],
+        })
+
+
+def get_headersize(filename):
+    """
+    Get the size of the header in an LPJmL input/output file.
+    :param filename: Filename to read header size from.
+    :type filename: str
+    :return: Size of the header in bytes.
+    :rtype: int
+    """
+    header = read_header(filename, return_dict=True)
+    version = header["header"]['version']
+    if version < 1 or version > 4:
+        raise ValueError("Invalid header version. Expecting value between 1 and 4.")
+    
+    headersize = len(header['name']) + {1: 7, 2: 9, 3: 11, 4: 13}[version] * 4
+    return headersize
+
+
+
