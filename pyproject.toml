@@ -1,0 +1,41 @@
+[build-system]
+requires = ["setuptools", "wheel"]
+
+
+[project]
+name = "pycoupler"
+version = "0.5.8"
+description = "Python implementation of a package for operating and coupling LPJmL."
+readme = "README.md"
+license = {file = "LICENSE.md"}
+authors = [
+    { name = "Jannes Breier", email = "jannes.breier@pik-potsdam.de" },
+]
+requires-python = ">=3.7"
+keywords = ["DGVM", "ABM", "model coupling", "LPJmL", "copan:CORE"]
+classifiers = [
+  "Development Status :: 4 - Beta",
+  "Programming Language :: Python"
+  "Operating System :: OS Independent",
+  "Programming Language :: Python :: 3.7",
+  "Programming Language :: Python :: 3.8",
+  "Programming Language :: Python :: 3.9",
+  "Programming Language :: Python :: 3.10"
+]
+dependencies = [
+  "numpy>=1.20.3",
+  "netCDF4>=1.5.8",
+  "xarray>=0.21.1",
+  "scipy>=1.7.1",
+  "ruamel.yaml>=0.17.16",
+  "fuzzywuzzy>=0.18.0",
+  "Levenshtein>=0.12.2"
+]
+
+[project.urls]
+Homepage = "https://github.com/PIK-LPJmL/pycoupler"
+Issues = "https://github.com/PIK-LPJmL/pycoupler/issues"
+
+
+[tool.aliases]
+test = "pytest"
