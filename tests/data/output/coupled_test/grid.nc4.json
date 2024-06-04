@@ -10,7 +10,7 @@
   "nstep" : 1,
   "timestep" : 1,
   "nbands" : 2,
-  "descr" : "coordinates",
+  "long_name" : "coordinates",
   "unit" : "degree",
   "firstyear" : 2022,
   "lastyear" : 2022,

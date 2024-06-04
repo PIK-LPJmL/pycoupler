@@ -11,7 +11,7 @@
   "timestep" : 1,
   "nbands" : 5,
   "band_names" : [200.000000,500.000000,1000.000000,2000.000000,3000.000000],
-  "descr" : "total soil carbon density agricultural stands in layer",
+  "long_name" : "total soil carbon density agricultural stands in layer",
   "unit" : "gC/m2",
   "firstyear" : 2022,
   "lastyear" : 2050,

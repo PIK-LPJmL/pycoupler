@@ -10,7 +10,7 @@
   "nstep" : 1,
   "timestep" : 1,
   "nbands" : 1,
-  "descr" : "country code",
+  "long_name" : "country code",
   "unit" : "",
   "firstyear" : 2022,
   "lastyear" : 2022,

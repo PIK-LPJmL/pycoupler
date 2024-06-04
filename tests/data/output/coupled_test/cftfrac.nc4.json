@@ -19,7 +19,7 @@
                   "irrigated tropical roots","irrigated oil crops sunflower","irrigated oil crops soybean",
                   "irrigated oil crops groundnut","irrigated oil crops rapeseed","irrigated sugarcane",
                   "irrigated others","irrigated grassland","irrigated biomass grass","irrigated biomass tree"],
-  "descr" : "CFT fraction",
+  "long_name" : "CFT fraction",
   "unit" : "",
   "firstyear" : 2022,
   "lastyear" : 2050,
