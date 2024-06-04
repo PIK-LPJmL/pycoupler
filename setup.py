@@ -14,7 +14,7 @@ setup(
                 'coupling LPJmL.',
     long_description=readme,
     long_description_content_type='text/markdown',
-    version='0.5.7',
+    version='0.5.8',
     author='Jannes Breier',
     author_email='jannes.breier@pik-potsdam.de',
     url='https://github.com/PIK-LPJmL/pycoupler',
