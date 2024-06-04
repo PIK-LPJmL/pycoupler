@@ -13,7 +13,6 @@ from xarray.core.utils import either_dict_or_kwargs
 from xarray.core.indexing import is_fancy_indexer
 from xarray.core.indexes import isel_indexes
 
-from pycoupler.config import read_config
 from pycoupler.utils import read_json
 import os
 import json
@@ -191,7 +190,6 @@ class LPJmLData(xr.DataArray):
     def add_meta(self, meta_data):
 
         if isinstance(meta_data, LPJmLMetaData):
-
             self.attrs['standard_name'] = meta_data.variable
             self.attrs['long_name'] = meta_data.long_name
             self.attrs['units'] = meta_data.unit
@@ -534,79 +532,6 @@ def project_data(output_path, file_name):
     return ds
 
 
-def convert_netcdf_to_bin(config_file, output_id=None):
-    """Convert netcdf files to binary files.
-    :param output_file: name of the netcdf file(s) to convert
-    :type output_file: str or list
-    """
-    config = read_config(config_file)
-
-    output_dir = f"{config.sim_path}/output/{config.sim_name}"
-
-    if config.input.coord.name.startswith("/"):
-        grid_file = config.input.coord.name
-    else:
-        grid_file = (
-            f"{config.inpath}/{config.input.coord.name}"
-        )
-
-    grid_name = os.path.basename(grid_file)
-
-    if not os.path.isfile(f"{output_dir}/{grid_name}"):
-        run(f"tail -c +44 {grid_file} > {output_dir}/{grid_name}", shell=True)
-
-    grid_file = f"{output_dir}/{grid_name}"
-
-    outputs = [
-        out for out in config.get_output(
-            fmt="cdf", id_only=True
-        ) if out != "grid"
-    ]
-
-    if output_id:
-        if isinstance(output_id, str):
-            output_id = [output_id]  # Convert to list for consistency
-        outputs = [out for out in outputs if out in output_id]
-
-    output_details = [
-        out for out in config.get_output_avail(
-            id_only=False
-        ) if out.name in outputs
-    ]
-
-    for output in output_details:
-        # convert netcdf output to netcdf files
-        conversion_cmd = [
-            f"{config.model_path}/bin/cdf2bin",
-            # "-units", output.unit,
-            "-var", output.var,
-            "-o", f"{output_dir}/{output.name}.bin",
-            "-json",
-            grid_file,
-            f"{output_dir}/{output.name}.nc4"
-        ]
-        if None in conversion_cmd:
-            conversion_cmd.remove(None)
-        run(conversion_cmd)
-
-        nc4_meta_dict = read_json(
-            f"{output_dir}/{output.name}.nc4.json"
-        )
-
-        bin_meta_dict = read_json(
-            f"{output_dir}/{output.name}.bin.json"
-        )
-
-        for key, value in nc4_meta_dict.items():
-            if key not in bin_meta_dict or key == "band_names":
-                bin_meta_dict[key] = value
-            if key == "ref_area":
-                bin_meta_dict[key]["filename"] = nc4_meta_dict['ref_area']['filename'].split('.')[0] + ".bin.json" # noqa
-
-        with open(f"{output_dir}/{output.name}.bin.json", 'w') as f:
-            json.dump(bin_meta_dict, f, indent=2)
-
-
 def read_header(filename,
                 return_dict=False,
                 force_version=None,
@@ -625,11 +550,12 @@ def read_header(filename,
         means that the version is determined automatically from the header. Set
         only if the version number in the file header is incorrect.
     :type force_version: int
-    :param verbose: If `TRUE` (the default), `read_header` provides some feedback
-        when using default values for missing parameters. If `FALSE`, only errors
-        are reported.
+    :param verbose: If `TRUE` (the default), `read_header` provides some
+        feedback when using default values for missing parameters. If `FALSE`,
+        only errors are reported.
     :type verbose: bool
-    :return: A LPJmLMetaData object or a dictionary with the header information.
+    :return: A LPJmLMetaData object or a dictionary with the header
+        information.
     """
 
     if not os.path.exists(filename):
@@ -748,8 +674,10 @@ def read_header(filename,
             "cellsize_lat": headerdata_dict.get("cellsize_lat", headerdata_dict["cellsize_lon"]),
             "ncell": headerdata_dict["ncell"],
             "firstcell": headerdata_dict["firstcell"],
+            "nstep": headerdata_dict["nstep"],
+            "timestep": headerdata_dict["timestep"],
             "datatype": headerdata_dict["datatype"],
-            "scalar": headerdata_dict["scalar"],
+            "scalar": headerdata_dict["scalar"]
         })
 
 

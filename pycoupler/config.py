@@ -5,6 +5,8 @@ import ruamel.yaml
 from subprocess import run
 
 from pycoupler.utils import read_json, get_countries, create_subdirs
+from pycoupler.data import read_header
+
 
 
 class SubConfig:
@@ -478,13 +480,15 @@ class LpjmlConfig(SubConfig):
                 )["ncell"] - 1
             else:
                 if os.path.isfile(self.input.soil.name):
-                    self.endgrid = os.path.getsize(
-                        self.input.soil.name
-                    ) - 1
+                    self.endgrid = read_header(
+                        self.input.soil.name,
+                        return_dict = True
+                    )["header"]["ncell"]-1
                 else:
-                    self.endgrid = os.path.getsize(
-                        f"{self.inpath}/{self.input.soil.name}"
-                    ) - 1
+                    self.endgrid = read_header(
+                        f"{self.inpath}/{self.input.soil.name}",
+                        return_dict = True
+                    )["header"]["ncell"]-1
 
     def _set_coupling(self,
                       inputs,
@@ -691,20 +695,6 @@ class LpjmlConfig(SubConfig):
                 else:
                     input_file = f"{self.inpath}/{config_input.name}"
 
-                # for some input files an additional argument may be  required
-                # if config_key in [
-                #     'lightning',
-                #     'no3_deposition',
-                #     'nh4_deposition',
-                #     'drainage',
-                #     'neighb_irrig',
-                #     'reservoir',
-                #     'wateruse_1900_2000'
-                # ]:
-                #     additional_arg = "-size4"
-                # else:
-                #     additional_arg = ""
-
                 # regrid all other input files to country specific grid
                 regrid_cmd = [
                     f"{model_path}/bin/regridclm",
@@ -733,6 +723,84 @@ class LpjmlConfig(SubConfig):
                 )
 
         self._set_grid_explicitly(only_all=False)
+
+
+    def convert_cdf_to_raw(output_id=None):
+        """Convert netcdf files to raw (binary) files.
+        :param output_id: list with ids of outputs to convert from netcdf to
+            raw
+        :type output_id: list
+        """
+
+        output_dir = f"{self.sim_path}/output/{self.sim_name}"
+
+        if self.input.coord.name.startswith("/"):
+            grid_file = self.input.coord.name
+        else:
+            grid_file = (
+                f"{self.inpath}/{self.input.coord.name}"
+            )
+
+        grid_name = os.path.basename(grid_file)
+
+        if not os.path.isfile(f"{output_dir}/{grid_name}"):
+            run(f"tail -c +44 {grid_file} > {output_dir}/{grid_name}",
+                shell=True)
+
+        grid_file = f"{output_dir}/{grid_name}"
+
+        outputs = [
+            out for out in self.get_output(
+                fmt="cdf", id_only=True
+            ) if out != "grid"
+        ]
+
+        if output_id:
+            if isinstance(output_id, str):
+                output_id = [output_id]  # Convert to list for consistency
+            outputs = [out for out in outputs if out in output_id]
+
+        output_details = [
+            out for out in self.get_output_avail(
+                id_only=False
+            ) if out.name in outputs
+        ]
+
+        for output in output_details:
+            # convert netcdf output to netcdf files
+            conversion_cmd = [
+                f"{self.model_path}/bin/cdf2bin",
+                # "-units", output.unit,
+                "-var", output.var,
+                "-o", f"{output_dir}/{output.name}.bin",
+                "-json",
+                grid_file,
+                f"{output_dir}/{output.name}.nc4"
+            ]
+            if None in conversion_cmd:
+                conversion_cmd.remove(None)
+            run(conversion_cmd)
+
+            nc4_meta_dict = read_json(
+                f"{output_dir}/{output.name}.nc4.json"
+            )
+
+            bin_meta_dict = read_json(
+                f"{output_dir}/{output.name}.bin.json"
+            )
+
+            for key, value in nc4_meta_dict.items():
+                if key not in bin_meta_dict or key == "band_names":
+                    bin_meta_dict[key] = value
+                if key == "ref_area":
+                    bin_meta_dict[key]["filename"] = (
+                        nc4_meta_dict['ref_area']['filename'].split('.')[0] +
+                            ".bin.json"
+                    )
+
+            with open(f"{output_dir}/{output.name}.bin.json", 'w') as f:
+                json.dump(bin_meta_dict, f, indent=2)
+
 
     def __repr__(self, sub_repr=0):
         """Representation of the config object
