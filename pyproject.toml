@@ -4,7 +4,7 @@ requires = ["setuptools", "wheel"]
 
 [project]
 name = "pycoupler"
-version = "0.5.8"
+version = "0.5.9"
 description = "Python implementation of a package for operating and coupling LPJmL."
 readme = "README.md"
 license = {file = "LICENSE.md"}
