@@ -63,6 +63,9 @@ def test_set_config(test_path):
         model_path=test_path, file_name="data/lpjml_config.json"
     )
 
+    config_coupled.startgrid = 27410
+    config_coupled.endgrid = 27411
+
     # set coupled run configuration
     config_coupled.set_coupled(
         test_path,
@@ -92,8 +95,8 @@ def test_set_config(test_path):
     config_coupled.fix_co2 = True
     config_coupled.fix_co2_year = 2018
     config_coupled.input.co2.name = "input_VERSION2/co2_1841-2018.dat"
-    config_coupled.input.wetdays.name = "CRU_TS4.03/cru_ts4.03.1901.2018.wet.clm"  # noqa
-    config_coupled.input.landuse.name = "input_toolbox_30arcmin/cftfrac_1500-2017_64bands_f2o.clm"  # noqa
+    config_coupled.input.wetdays.name = "CRU_TS4.03/cru_ts4.03.1901.2018.wet.clm" # noqa
+    config_coupled.input.landuse.name = "input_toolbox_30arcmin/cftfrac_1500-2017_64bands_f2o.clm" # noqa
     config_coupled.fix_climate = True
     config_coupled.fix_climate_cycle = 11
     config_coupled.fix_climate_year = 2013
@@ -101,12 +104,9 @@ def test_set_config(test_path):
     # only for global runs = TRUE
     config_coupled.river_routing = False
     config_coupled.tillage_type = "read"
-    config_coupled.residue_treatment = "fixed_residue_remove" # "read_residue_data" # "no_residue_remove" # "fixed_residue_remove"
+    config_coupled.residue_treatment = "fixed_residue_remove"
     config_coupled.double_harvest = False
     config_coupled.intercrop = True
-
-    config_coupled.startgrid = 27410
-    config_coupled.endgrid = 27411
 
     # create config for coupled run
     check_config_coupled = read_config(

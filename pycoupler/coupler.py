@@ -490,7 +490,7 @@ class LPJmLCoupler:
                 lpjml_output.coords['time'] = pd.date_range(
                     start=str(hist_years[0]),
                     end=str(hist_years[-1]+1),
-                    freq='A'
+                    freq='YE'
                 )
                 lpjml_output.data = output_dict[key]
                 output_dict[key] = lpjml_output
@@ -660,7 +660,7 @@ class LPJmLCoupler:
         inputs.coords['time'] = pd.date_range(
             start=str(min(inputs.coords["time"].values)),
             end=str(max(inputs.coords["time"].values)+1),
-            freq='A'
+            freq='YE'
         )
         # create same format as before but with selected numpy arrays instead
         # of xarray.DataArray
@@ -1217,7 +1217,7 @@ class LPJmLCoupler:
             else:
 
                 output.coords['time'] = pd.date_range(
-                    str(year), periods=1, freq='A'
+                    str(year), periods=1, freq='YE'
                 )
 
                 # read and assign corresponding values from socket to numpy array
