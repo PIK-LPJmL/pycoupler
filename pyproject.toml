@@ -15,7 +15,7 @@ requires-python = ">=3.7"
 keywords = ["DGVM", "ABM", "model coupling", "LPJmL", "copan:CORE"]
 classifiers = [
   "Development Status :: 4 - Beta",
-  "Programming Language :: Python"
+  "Programming Language :: Python",
   "Operating System :: OS Independent",
   "Programming Language :: Python :: 3.7",
   "Programming Language :: Python :: 3.8",
@@ -32,6 +32,7 @@ dependencies = [
   "Levenshtein>=0.12.2"
 ]
 
+
 [project.urls]
 Homepage = "https://github.com/PIK-LPJmL/pycoupler"
 Issues = "https://github.com/PIK-LPJmL/pycoupler/issues"
@@ -39,3 +40,4 @@ Issues = "https://github.com/PIK-LPJmL/pycoupler/issues"
 
 [tool.aliases]
 test = "pytest"
+docs = "sphinx-build -b html ./docs ./docs/_build"
