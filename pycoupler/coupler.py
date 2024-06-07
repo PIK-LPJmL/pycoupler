@@ -287,7 +287,7 @@ class LPJmLCoupler:
         # Create output templates
         self.__output_templates = {
             output_key: self._create_xarray_template(int(output_key))
-            for output_key in self.__output_ids.keys()
+            for output_key in self.__output_ids
         }
 
     @property
@@ -1204,7 +1204,7 @@ class LPJmLCoupler:
             self.close()
             raise ValueError(f"The expected year: {validate_year} does not " +
                              f"match the received year: {year}")
-        if index in self.__output_ids.keys():
+        if index in self.__output_ids:
             output = self.__output_templates[index]
             if not to_xarray:
                 # read and assign corresponding values from socket to numpy array

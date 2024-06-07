@@ -1,21 +1,18 @@
 import os
 import struct
-import json
+from enum import Enum
+from collections.abc import Hashable
+
 import numpy as np
 import pandas as pd
 import xarray as xr
-
-from subprocess import run
-from collections.abc import Hashable
-from enum import Enum
 from scipy.spatial import KDTree
 from xarray.core.utils import either_dict_or_kwargs
 from xarray.core.indexing import is_fancy_indexer
 from xarray.core.indexes import isel_indexes
 
 from pycoupler.utils import read_json
-import os
-import json
+
 
 class LPJmLInputType(Enum):
     """Available Input types"""
@@ -32,12 +29,11 @@ class LPJmLInputType(Enum):
         """
         if self.name == "landuse":
             return 64
-        elif self.name in ["fertilizer_nr", "manure_nr"]:
+        if self.name in ["fertilizer_nr", "manure_nr"]:
             return 32
-        elif self.name == "residue_on_field":
+        if self.name == "residue_on_field":
             return 16
-        else:  # "with_tillage"
-            return 1
+        return 1
 
     @property
     def type(self):
@@ -53,10 +49,7 @@ class LPJmLInputType(Enum):
         """ check if multiple bands - better check for categorical bands
         (ADJUST WHEN REQUIRED)
         """
-        if self.nband > 1:
-            return True
-        else:
-            return False
+        return bool(self.nband > 1)
 
 
 def append_to_dict(data_dict, data):
@@ -98,49 +91,47 @@ class LPJmLData(xr.DataArray):
         missing_dims="raise",
         **indexers_kwargs,
     ):
-        """Return a new DataArray whose data is given by selecting indexes
+        """
+        Return a new DataArray whose data is given by selecting indexes
         along the specified dimension(s).
 
-        Parameters
-        ----------
-        indexers : dict, optional
-            A dict with keys matching dimensions and values given
+        :param indexers: A dict with keys matching dimensions and values given
             by integers, slice objects or arrays.
             indexer can be a integer, slice, array-like or DataArray.
             If DataArrays are passed as indexers, xarray-style indexing will be
             carried out. See :ref:`indexing` for the details.
             One of indexers or indexers_kwargs must be provided.
-        drop : bool, default: False
-            If ``drop=True``, drop coordinates variables indexed by integers
+        :type indexers: dict, optional
+
+        :param drop: If ``drop=True``, drop coordinates variables indexed by integers
             instead of making them scalar.
-        missing_dims : {"raise", "warn", "ignore"}, default: "raise"
-            What to do if dimensions that should be selected from are not
+        :type drop: bool, default: False
+
+        :param missing_dims: What to do if dimensions that should be selected from are not
             present in the DataArray:
             - "raise": raise an exception
             - "warn": raise a warning, and ignore the missing dimensions
             - "ignore": ignore the missing dimensions
-        **indexers_kwargs : {dim: indexer, ...}, optional
-            The keyword arguments form of ``indexers``.
+        :type missing_dims: {"raise", "warn", "ignore"}, default: "raise"
 
-        Returns
-        -------
-        indexed : xarray.DataArray
+        :param indexers_kwargs: The keyword arguments form of ``indexers``.
+        :type indexers_kwargs: {dim: indexer, ...}, optional
 
-        See Also
-        --------
-        Dataset.isel
-        DataArray.sel
+        :return: indexed
+        :rtype: xarray.DataArray
 
-        Examples
-        --------
+        :seealso: Dataset.isel, DataArray.sel
+
+        :Example:
+
         >>> da = xr.DataArray(np.arange(25).reshape(5, 5), dims=("x", "y"))
         >>> da
         <xarray.DataArray (x: 5, y: 5)>
         array([[ 0,  1,  2,  3,  4],
-               [ 5,  6,  7,  8,  9],
-               [10, 11, 12, 13, 14],
-               [15, 16, 17, 18, 19],
-               [20, 21, 22, 23, 24]])
+            [ 5,  6,  7,  8,  9],
+            [10, 11, 12, 13, 14],
+            [15, 16, 17, 18, 19],
+            [20, 21, 22, 23, 24]])
         Dimensions without coordinates: x, y
 
         >>> tgt_x = xr.DataArray(np.arange(0, 5), dims="points")
@@ -188,7 +179,12 @@ class LPJmLData(xr.DataArray):
         return self._replace(variable=variable, coords=coords, indexes=indexes)
 
     def add_meta(self, meta_data):
+        """
+        Add meta data to the data array.
 
+        :param meta_data: Meta data to be added to the data array.
+        :type meta_data: LPJmLMetaData
+        """
         if isinstance(meta_data, LPJmLMetaData):
             self.attrs['standard_name'] = meta_data.variable
             self.attrs['long_name'] = meta_data.long_name
@@ -281,7 +277,8 @@ class LPJmLData(xr.DataArray):
         return neighbours
 
     def transform(self):
-        # TODO: implement function to convert cell into lon/lat format
+        """ TODO: implement function to convert cell into lon/lat format
+        """
         pass
 
 
@@ -349,7 +346,7 @@ class LPJmLDataSet(xr.Dataset):
 
         # get the corresponding "band" index and delete all other band indexes
         band_idx = [
-            key for key in coords.keys()
+            key for key in coords
             if key.startswith("band") and key != "band"
         ]
         if band_idx:
@@ -451,7 +448,7 @@ class LPJmLMetaData:
                         "lastyear", "cellsize_lon", "cellsize_lat", "ncell",
                         "firstcell", "datatype", "scalar"]
         other_attr = [
-            to_repr for to_repr in self.__dict__.keys()
+            to_repr for to_repr in self.__dict__
             if to_repr not in summary_attr
         ]
         if sub_repr:
@@ -532,6 +529,9 @@ def project_data(output_path, file_name):
     return ds
 
 
+# Function has been derived from the lpjmlkit R package
+#   https://github.com/PIK-LPJmL/lpjmlkit
+#   Author of original R function: Sebastian Ostberg
 def read_header(filename,
                 return_dict=False,
                 force_version=None,
@@ -565,7 +565,9 @@ def read_header(filename,
         # Read the first 30 bytes to determine the header name
         headername_raw = f.read(30)
         headername = ''.join(chr(b) for b in headername_raw)
-        first_non_alnum_index = next((i for i, char in enumerate(headername) if not (char.isalnum() or char == '_')), len(headername))
+        first_non_alnum_index = next(
+            (i for i, char in enumerate(headername) if not (char.isalnum() or char == '_')), len(headername) # noqa
+        )
         headername = headername[:first_non_alnum_index]
 
         for i, char in enumerate(headername):
@@ -576,31 +578,34 @@ def read_header(filename,
         if not headername.startswith("LPJ"):
             raise ValueError(f"Invalid header name {headername}")
         if headername == "LPJRESTART":
-            raise ValueError("LPJRESTART header detected. This function does not support restart headers at the moment.")
-        
+            raise ValueError(
+                "LPJRESTART header detected. This function does not support" +
+                " restart headers at the moment."
+            )
+
         # Skip over the header
         f.seek(len(headername))
-        
+
         # Determine file endian. Try platform-specific endian as default.
         endian = 'little'
         version = struct.unpack(f"<i", f.read(4))[0]
-        
+
         if version & 0xff == 0:
             endian = 'big'
             f.seek(len(headername))
             version = struct.unpack(f">i", f.read(4))[0]
-        
+
         if force_version is not None and force_version != version:
             if verbose:
                 print(f"Forcing header version to {force_version}")
             version = force_version
-        
+
         # Read main header attributes that are included in all header versions
         if endian == 'little':
             headerdata = struct.unpack('<6i', f.read(24))
         else:
             headerdata = struct.unpack('>6i', f.read(24))
-        
+
         headerdata_dict = {
             "order": headerdata[0],
             "firstyear": headerdata[1],
@@ -609,14 +614,16 @@ def read_header(filename,
             "ncell": headerdata[4],
             "nbands": headerdata[5],
         }
-        
+
         if version == 2:
             if endian == 'little':
                 extra_data = struct.unpack('<2f', f.read(8))
             else:
                 extra_data = struct.unpack('>2f', f.read(8))
-            headerdata_dict.update({"cellsize_lon": extra_data[0], "scalar": extra_data[1]})
-        
+            headerdata_dict.update(
+                {"cellsize_lon": extra_data[0], "scalar": extra_data[1]}
+            )
+
         if version >= 3:
             if endian == 'little':
                 extra_data = struct.unpack('<3f', f.read(12))
@@ -624,8 +631,15 @@ def read_header(filename,
             else:
                 extra_data = struct.unpack('>3f', f.read(12))
                 datatype = struct.unpack('>i', f.read(4))[0]
-            headerdata_dict.update({"cellsize_lon": extra_data[0], "scalar": extra_data[1], "cellsize_lat": extra_data[2], "datatype": datatype})
-        
+            headerdata_dict.update(
+                {
+                    "cellsize_lon": extra_data[0],
+                    "scalar": extra_data[1],
+                    "cellsize_lat": extra_data[2],
+                    "datatype": datatype
+                }
+            )
+
         if version == 4:
             if endian == 'little':
                 nstep = struct.unpack('<i', f.read(4))[0]
@@ -636,21 +650,57 @@ def read_header(filename,
             headerdata_dict.update({"nstep": nstep, "timestep": timestep})
         else:
             if len(headerdata_dict) == 6:
-                headerdata_dict.update({"cellsize_lon": 0.5, "scalar": 1, "cellsize_lat": 0.5, "datatype": 1, "nstep": 1, "timestep": 1})
+                headerdata_dict.update(
+                    {
+                        "cellsize_lon": 0.5,
+                        "scalar": 1,
+                        "cellsize_lat": 0.5,
+                        "datatype": 1,
+                        "nstep": 1,
+                        "timestep": 1
+                    }
+                )
                 if verbose:
-                    print("Note: Type 1 header. Adding default values for cellsize, scalar, datatype, nstep and timestep which may not be correct in all cases.")
+                    print(
+                        "Note: Type 1 header. Adding default values for" + 
+                        " cellsize, scalar, datatype, nstep and timestep" + 
+                        " which may not be correct in all cases."
+                    )
             if len(headerdata_dict) == 8:
-                headerdata_dict.update({"cellsize_lat": headerdata_dict["cellsize_lon"], "datatype": 1, "nstep": 1, "timestep": 1})
+                headerdata_dict.update(
+                    {
+                        "cellsize_lat": headerdata_dict["cellsize_lon"],
+                        "datatype": 1,
+                        "nstep": 1,
+                        "timestep": 1
+                    }
+                )
                 if verbose:
-                    print("Note: Type 2 header. Adding default values for datatype, nstep and timestep which may not be correct in all cases.")
+                    print(
+                        "Note: Type 2 header. Adding default values for" +
+                        " datatype, nstep and timestep which may not be" +
+                        " correct in all cases."
+                    )
             if len(headerdata_dict) == 10:
-                headerdata_dict.update({"nstep": 1, "timestep": 1})
+                headerdata_dict.update(
+                    {
+                        "nstep": 1,
+                        "timestep": 1
+                    }
+                )
                 if verbose:
-                    print("Note: Type 3 header. Adding default values for nstep and timestep which may not be correct in all cases.")
-        
+                    print(
+                        "Note: Type 3 header. Adding default values for" +
+                        " nstep and timestep which may not be correct in all" +
+                        " cases."
+                    )
+
         if verbose and headerdata_dict.get("datatype") is None:
-            print(f"Warning: Invalid datatype {headerdata_dict['datatype']} in header read from {filename}")
-    
+            print(
+                f"Warning: Invalid datatype {headerdata_dict['datatype']} in" +
+                f" header read from {filename}"
+            )
+
     if return_dict:
         return {
             "name": headername,
@@ -669,9 +719,9 @@ def read_header(filename,
             "band_names": None,
             "nyear": headerdata_dict["nyear"],
             "firstyear": headerdata_dict["firstyear"],
-            "lastyear": headerdata_dict["firstyear"] + headerdata_dict["nyear"] - 1,
+            "lastyear": headerdata_dict["firstyear"] + headerdata_dict["nyear"] - 1, # noqa
             "cellsize_lon": headerdata_dict["cellsize_lon"],
-            "cellsize_lat": headerdata_dict.get("cellsize_lat", headerdata_dict["cellsize_lon"]),
+            "cellsize_lat": headerdata_dict.get("cellsize_lat", headerdata_dict["cellsize_lon"]), # noqa
             "ncell": headerdata_dict["ncell"],
             "firstcell": headerdata_dict["firstcell"],
             "nstep": headerdata_dict["nstep"],
@@ -681,6 +731,9 @@ def read_header(filename,
         })
 
 
+# Function has been derived from the lpjmlkit R package
+#   https://github.com/PIK-LPJmL/lpjmlkit
+#   Author of original R function: Sebastian Ostberg
 def get_headersize(filename):
     """
     Get the size of the header in an LPJmL input/output file.
@@ -692,10 +745,9 @@ def get_headersize(filename):
     header = read_header(filename, return_dict=True)
     version = header["header"]['version']
     if version < 1 or version > 4:
-        raise ValueError("Invalid header version. Expecting value between 1 and 4.")
-    
+        raise ValueError(
+            "Invalid header version. Expecting value between 1 and 4."
+        )
+
     headersize = len(header['name']) + {1: 7, 2: 9, 3: 11, 4: 13}[version] * 4
     return headersize
-
-
-
