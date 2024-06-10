@@ -17,6 +17,7 @@ from pycoupler.data import LPJmLInputType, LPJmLData, LPJmLDataSet,\
 from pycoupler.utils import get_countries, is_pytest
 
 class test_channel:
+    """Test channel class for testing purposes"""
     def __init__(self):
         pass
 
@@ -34,24 +35,25 @@ class test_channel:
 
 
 def write_bytestring_to_file(bytestring, filepath):
+    """Write bytestring to file in binary mode (for testing purposes)
+    """
     with open(filepath, 'a') as file:
         file.write(str(bytestring) + '\n')
 
-
-line_counter = 0
+LINE_COUNTER = 0
 
 def read_lines_from_file(filepath):
-    """Read lines from a file and return as a list
+    """Read lines from a file and return as a list (for testing purposes)
     """
-    global line_counter
+    global LINE_COUNTER
 
     with open(filepath, 'r') as file:  # Read the file in binary mode
         bytestring = file.read().strip()
 
     lines = bytestring.split('\n')
-    if line_counter < len(lines):
-        line = lines[line_counter]
-        line_counter += 1
+    if LINE_COUNTER < len(lines):
+        line = lines[LINE_COUNTER]
+        LINE_COUNTER += 1
         return line
     else:
         return None

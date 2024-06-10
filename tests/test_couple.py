@@ -1,7 +1,7 @@
+"""Test the LPJmLCoupler class."""
 import os
 import numpy as np
 import pytest
-import warnings
 from pycoupler.config import read_config
 from pycoupler.coupler import LPJmLCoupler
 
@@ -9,18 +9,19 @@ from pycoupler.coupler import LPJmLCoupler
 
 @pytest.fixture
 def test_path():
+    """Fixture for the test path."""
     return os.path.dirname(os.path.abspath(__file__))
 
 
 @pytest.fixture
 def lpjml_coupler(test_path):
-    # Configuration
+    """Fixture for the LPJmLCoupler class."""
     config_coupled_fn = f"{test_path}/data/config_coupled_test.json"
     return LPJmLCoupler(config_file=config_coupled_fn)
 
 
 def test_lpjml_coupler(lpjml_coupler):
-
+    """Test the LPJmLCoupler class."""
     inputs = lpjml_coupler.read_input(copy=False)
     outputs = lpjml_coupler.read_historic_output()
 
@@ -57,7 +58,7 @@ def test_lpjml_coupler(lpjml_coupler):
 
 
 def test_set_config(test_path):
-
+    """Test the set_config method of the LPJmLCoupler class."""
     # create config for coupled run
     config_coupled = read_config(
         model_path=test_path, file_name="data/lpjml_config.json"
