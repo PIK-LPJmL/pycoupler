@@ -1,5 +1,6 @@
 """Classes and functions to handle LPJmL configurations and related operations
 """
+
 import os
 import subprocess
 import json
@@ -887,10 +888,7 @@ class LpjmlConfig(SubConfig):
 
 
 def parse_config(
-    file_name="./lpjml_config.json",
-    spin_up=False,
-    macros=None,
-    config_class=False
+    file_name="./lpjml_config.json", spin_up=False, macros=None, config_class=False
 ):
     """Precompile lpjml_config.json and return LpjmlConfig object or dict. Also
     evaluate macros. Analogous to R function `lpjmlKit::parse_config`.
