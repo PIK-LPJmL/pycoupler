@@ -8,7 +8,6 @@ from pycoupler.utils import read_json, get_countries, create_subdirs
 from pycoupler.data import read_header
 
 
-
 class SubConfig:
     """This serves as an LPJmL sub config class that can be easily accessed,
     converted to a dictionary or written as a json file.
@@ -17,16 +16,16 @@ class SubConfig:
         and builds up a nested LpjmLConfig class with corresponding fields
     :type config_dict: dict
     """
+
     def __init__(self, config_dict):
-        """Constructor method
-        """
+        """Constructor method"""
         self.__dict__.update(config_dict)
 
     def to_dict(self):
-        """Convert class object to dictionary
-        """
+        """Convert class object to dictionary"""
+
         def obj_to_dict(obj):
-            if not hasattr(obj, '__dict__'):
+            if not hasattr(obj, "__dict__"):
                 return obj
             result = {}
             for key, val in obj.__dict__.items():
@@ -40,11 +39,11 @@ class SubConfig:
                     element = obj_to_dict(val)
                 result[key] = element
             return result
+
         return obj_to_dict(self)
 
     def __iter__(self):
-        """Iteration method to get items of a SubConfig
-        """
+        """Iteration method to get items of a SubConfig"""
         for key, value in self.__dict__.items():
             if not key.startswith("_"):
                 yield key, value
@@ -70,7 +69,7 @@ class SubConfig:
             json_file = file_name
 
         # write json and prettify via indent
-        with open(json_file, 'w') as con:
+        with open(json_file, "w") as con:
             json.dump(config_dict, con, indent=2)
 
         return json_file
@@ -87,8 +86,7 @@ class LpjmlConfig(SubConfig):
     """
 
     def __init__(self, sub_config):
-        """Constructor method
-        """
+        """Constructor method"""
         # add changed attribute to sub config to track config changes
         if "changed" not in sub_config.__dict__:
             sub_config.__dict__["changed"] = []
@@ -105,11 +103,11 @@ class LpjmlConfig(SubConfig):
         :type to_dict: bool
         """
         if id_only:
-                return [out.name for out in self.outputvar]
+            return [out.name for out in self.outputvar]
         else:
             if to_dict:
                 return {out.name: out.to_dict() for out in self.outputvar}
-            else:    
+            else:
                 return self.outputvar
 
     def get_output(self, id_only=True, to_dict=False, fmt=None):
@@ -127,24 +125,20 @@ class LpjmlConfig(SubConfig):
         """
         if fmt:
             if id_only:
-                return [out.id for out in self.output if (
-                    out.file.fmt == fmt
-                )]
+                return [out.id for out in self.output if (out.file.fmt == fmt)]
             else:
                 outs = [
-                    out for pos, out in enumerate(
-                        self.output
-                    ) if out.file.fmt == fmt
+                    out for pos, out in enumerate(self.output) if out.file.fmt == fmt
                 ]
         else:
             if id_only:
                 return [out.id for out in self.output]
             else:
                 outs = self.output
-        
+
         if to_dict:
             return {out.id: out.to_dict() for out in outs}
-        else:    
+        else:
             return outs
 
     def set_spinup(self, sim_path):
@@ -165,15 +159,18 @@ class LpjmlConfig(SubConfig):
         # set restart directory to restart from in subsequent historic run
         self._set_restart(path=f"{sim_path}/restart")
 
-    def set_transient(self,
-                      sim_path,
-                      start_year, end_year,
-                      sim_name="transient",
-                      dependency=None,
-                      write_output=[],
-                      write_temporal_resolution="annual",
-                      write_file_format="cdf",
-                      append_output=True):
+    def set_transient(
+        self,
+        sim_path,
+        start_year,
+        end_year,
+        sim_name="transient",
+        dependency=None,
+        write_output=[],
+        write_temporal_resolution="annual",
+        write_file_format="cdf",
+        append_output=True,
+    ):
         """Set configuration required for historic model runs
         :param sim_path: define sim_path data is written to
         :type sim_path: str
@@ -206,33 +203,38 @@ class LpjmlConfig(SubConfig):
         self.sim_path = create_subdirs(sim_path, self.sim_name)
         output_path = f"{sim_path}/output/{self.sim_name}"
         # set time range for historic run
-        self._set_timerange(start_year=start_year,
-                            end_year=end_year,
-                            write_start_year=start_year)
+        self._set_timerange(
+            start_year=start_year, end_year=end_year, write_start_year=start_year
+        )
         # set output writing
-        self._set_output(output_path,
-                         outputs=write_output,
-                         temporal_resolution=write_temporal_resolution,
-                         file_format=write_file_format,
-                         append_output=append_output)
+        self._set_output(
+            output_path,
+            outputs=write_output,
+            temporal_resolution=write_temporal_resolution,
+            file_format=write_file_format,
+            append_output=append_output,
+        )
         # set start from directory to start from spinup run
-        self._set_startfrom(path=f"{sim_path}/restart",
-                            dependency=dependency)
+        self._set_startfrom(path=f"{sim_path}/restart", dependency=dependency)
         # set restart directory to restart from in subsequent transient run
         self._set_restart(path=f"{sim_path}/restart")
 
-    def set_coupled(self,
-                    sim_path,
-                    start_year, end_year,
-                    coupled_input, coupled_output,
-                    sim_name="coupled",
-                    dependency = None,
-                    coupled_year=None,
-                    write_output=[],
-                    write_temporal_resolution="annual",
-                    write_file_format="cdf",
-                    append_output=True,
-                    model_name="copan:CORE"):
+    def set_coupled(
+        self,
+        sim_path,
+        start_year,
+        end_year,
+        coupled_input,
+        coupled_output,
+        sim_name="coupled",
+        dependency=None,
+        coupled_year=None,
+        write_output=[],
+        write_temporal_resolution="annual",
+        write_file_format="cdf",
+        append_output=True,
+        model_name="copan:CORE",
+    ):
         """Set configuration required for coupled model runs
         :param sim_path: define sim_path data is written to
         :type sim_path: str
@@ -277,32 +279,39 @@ class LpjmlConfig(SubConfig):
         output_path = f"{sim_path}/output/{self.sim_name}"
 
         # set time range for coupled run
-        self._set_timerange(start_year=start_year,
-                            end_year=end_year,
-                            write_start_year=start_year)
+        self._set_timerange(
+            start_year=start_year, end_year=end_year, write_start_year=start_year
+        )
         # set grid explicitly to be able to use start and endgrid
         self._set_grid_explicitly()
 
         # set output directory, outputs (relevant ones for pbs and agriculture)
-        write_output += [
-            item for item in coupled_output if item not in write_output
-        ]
-        self._set_output(output_path,
-                         outputs=write_output,
-                         temporal_resolution=write_temporal_resolution,
-                         file_format=write_file_format,
-                         append_output=append_output)
+        write_output += [item for item in coupled_output if item not in write_output]
+        self._set_output(
+            output_path,
+            outputs=write_output,
+            temporal_resolution=write_temporal_resolution,
+            file_format=write_file_format,
+            append_output=append_output,
+        )
         # set coupling parameters
-        self._set_coupling(inputs=coupled_input,
-                           outputs=coupled_output,
-                           start_year=coupled_year,
-                           model_name=model_name)
+        self._set_coupling(
+            inputs=coupled_input,
+            outputs=coupled_output,
+            start_year=coupled_year,
+            model_name=model_name,
+        )
         # set start from directory to start from historic run
-        self._set_startfrom(path=f"{sim_path}/restart",
-                            dependency=dependency)
+        self._set_startfrom(path=f"{sim_path}/restart", dependency=dependency)
 
-    def _set_output(self, output_path, outputs=[], file_format="raw",
-                    temporal_resolution="annual", append_output=True):
+    def _set_output(
+        self,
+        output_path,
+        outputs=[],
+        file_format="raw",
+        temporal_resolution="annual",
+        append_output=True,
+    ):
         """Set outputs to be written by LPJmL, define temporal resolution
         :param output_path: define output_path the output is written to. If
             `append_output == True` output_path is only altered for appended
@@ -325,9 +334,9 @@ class LpjmlConfig(SubConfig):
             altered.
         :param append_output: bool
         """
-        available_res = ('annual', 'monthly', 'daily')
-        available_formats = {'raw': 'bin', 'clm': 'clm', 'cdf': 'nc4'}
-        nonvariable_outputs = ('globalflux')
+        available_res = ("annual", "monthly", "daily")
+        available_formats = {"raw": "bin", "clm": "clm", "cdf": "nc4"}
+        nonvariable_outputs = "globalflux"
 
         # provide additional meta data
         self.output_metafile = True
@@ -344,23 +353,25 @@ class LpjmlConfig(SubConfig):
             if isinstance(temporal_resolution, list):
                 temp_res = temporal_resolution
                 if len(outputs) != len(temporal_resolution):
-                    raise ValueError("outputs and temporal_resolution have a" +
-                                     " different length. Please adjust.")
+                    raise ValueError(
+                        "outputs and temporal_resolution have a"
+                        + " different length. Please adjust."
+                    )
             else:
                 temp_res = [temporal_resolution]
 
             # check if temporal resolution is available
             if any(res not in available_res for res in temp_res):
-                raise ValueError("Temporal resolution not available for " +
-                                 "LPJmL. Choose from 'annual', 'monthly' " +
-                                 "and 'daily'.")
+                raise ValueError(
+                    "Temporal resolution not available for "
+                    + "LPJmL. Choose from 'annual', 'monthly' "
+                    + "and 'daily'."
+                )
 
         # create dict of outputvar names with indexes for iteration
-        outputvar_names = {
-            ov.name: pos for pos, ov in enumerate(self.outputvar)
-        }
+        outputvar_names = {ov.name: pos for pos, ov in enumerate(self.outputvar)}
         # extract dict of outputvar for manipulation
-        outputvars = self.to_dict()['outputvar']
+        outputvars = self.to_dict()["outputvar"]
 
         if not append_output:
             self.output = list()
@@ -378,8 +389,7 @@ class LpjmlConfig(SubConfig):
                 if out.id not in nonvariable_outputs:
                     self.output[pos].file.fmt = file_format
                     self.output[pos].file.name = (
-                        f"{output_path}/{out.id}"
-                        f".{available_formats[file_format]}"
+                        f"{output_path}/{out.id}" f".{available_formats[file_format]}"
                     )
                 else:
                     self.output[pos].file.name = (
@@ -393,24 +403,28 @@ class LpjmlConfig(SubConfig):
 
                 # check if temporal resolution is defined for output
                 if not temporal_resolution:
-                    timestep = outputvars[outputvar_names[out]]['timestep']
+                    timestep = outputvars[outputvar_names[out]]["timestep"]
                 elif isinstance(temporal_resolution, list):
                     timestep = temporal_resolution[pos]
                 else:
                     timestep = temporal_resolution
 
                 # create new output entry
-                new_out = SubConfig({
-                    'id': outputvars[outputvar_names[out]]['name'],
-                    'file': SubConfig({
-                        'fmt': file_format,
-                        # 'socket': False,
-                        'timestep': timestep,
-                        'name': f"{output_path}/"
+                new_out = SubConfig(
+                    {
+                        "id": outputvars[outputvar_names[out]]["name"],
+                        "file": SubConfig(
+                            {
+                                "fmt": file_format,
+                                # 'socket': False,
+                                "timestep": timestep,
+                                "name": f"{output_path}/"
                                 f"{outputvars[outputvar_names[out]]['name']}"
                                 f".{available_formats[file_format]}",
-                    })
-                })
+                            }
+                        ),
+                    }
+                )
                 self.output.append(new_out)
             elif out not in outputvar_names:
                 # raise error if defined outputs are not in outputvar
@@ -430,11 +444,9 @@ class LpjmlConfig(SubConfig):
             out.file.name = f"{output_path}/{file_name[0]}"
 
     def _set_startfrom(self, path, dependency=None):
-        """Set restart file from which LPJmL starts the transient run
-        """
+        """Set restart file from which LPJmL starts the transient run"""
         if dependency:
-            self.restart_filename = (
-                f"{path}/restart_{dependency}.lpj")
+            self.restart_filename = f"{path}/restart_{dependency}.lpj"
 
         else:
             file_name = self.restart_filename.split("/")
@@ -442,16 +454,11 @@ class LpjmlConfig(SubConfig):
             self.restart_filename = f"{path}/{file_name[0]}"
 
     def _set_restart(self, path):
-        """Set restart file from which LPJmL starts the transient run
-        """
-        self.write_restart_filename = (
-            f"{path}/restart_{self.sim_name}.lpj")
+        """Set restart file from which LPJmL starts the transient run"""
+        self.write_restart_filename = f"{path}/restart_{self.sim_name}.lpj"
         self.restart_year = self.lastyear
 
-    def _set_timerange(self,
-                       start_year=1901,
-                       end_year=2017,
-                       write_start_year=None):
+    def _set_timerange(self, start_year=1901, end_year=2017, write_start_year=None):
         """Set simulation time range, outputyear to start as a default here.
         :param start_year: start year of simulation
         :type start_year: int
@@ -468,33 +475,34 @@ class LpjmlConfig(SubConfig):
             self.outputyear = start_year
 
     def _set_grid_explicitly(self, only_all=True):
-        """Set startgrid and endgrid for LPJmL simulation
-        """
+        """Set startgrid and endgrid for LPJmL simulation"""
         if self.startgrid == "all":
             self.startgrid = 0
         if self.endgrid == "all" or not only_all:
-            if self.input.soil.fmt in ['json', 'meta']:
-                self.endgrid = read_config(
-                    f"{self.inpath}/{self.input.soil.name}",
-                    to_dict=True
-                )["ncell"] - 1
+            if self.input.soil.fmt in ["json", "meta"]:
+                self.endgrid = (
+                    read_config(f"{self.inpath}/{self.input.soil.name}", to_dict=True)[
+                        "ncell"
+                    ]
+                    - 1
+                )
             else:
                 if os.path.isfile(self.input.soil.name):
-                    self.endgrid = read_header(
-                        self.input.soil.name,
-                        return_dict = True
-                    )["header"]["ncell"]-1
+                    self.endgrid = (
+                        read_header(self.input.soil.name, return_dict=True)["header"][
+                            "ncell"
+                        ]
+                        - 1
+                    )
                 else:
-                    self.endgrid = read_header(
-                        f"{self.inpath}/{self.input.soil.name}",
-                        return_dict = True
-                    )["header"]["ncell"]-1
+                    self.endgrid = (
+                        read_header(
+                            f"{self.inpath}/{self.input.soil.name}", return_dict=True
+                        )["header"]["ncell"]
+                        - 1
+                    )
 
-    def _set_coupling(self,
-                      inputs,
-                      outputs,
-                      start_year=None,
-                      model_name="copan:CORE"):
+    def _set_coupling(self, inputs, outputs, start_year=None, model_name="copan:CORE"):
         """Coupled settings - no spinup, not write restart file and set sockets
         for inputs and outputs (via corresponding ids)
         :param inputs: list of inputs to be used as socket for coupling.
@@ -528,9 +536,9 @@ class LpjmlConfig(SubConfig):
         """
         for inp in inputs:
             sock_input = getattr(self.input, inp)
-            if 'id' not in sock_input.__dict__.keys():
-                raise ValueError('Please use a config with input ids.')
-            sock_input.__dict__['socket'] = True
+            if "id" not in sock_input.__dict__.keys():
+                raise ValueError("Please use a config with input ids.")
+            sock_input.__dict__["socket"] = True
 
     def _set_outputsockets(self, outputs=[]):
         """Set sockets for inputs and outputs (via corresponding ids)
@@ -543,9 +551,7 @@ class LpjmlConfig(SubConfig):
             outputs.append("grid")
 
         # get names/ids only of outputs that are defined in outputvar
-        valid_outs = {
-            out.name for out in self.outputvar if out.name in outputs
-        }
+        valid_outs = {out.name for out in self.outputvar if out.name in outputs}
 
         # check if all outputs are valid
         nonvalid_outputs = list(set(outputs) - valid_outs)
@@ -566,33 +572,37 @@ class LpjmlConfig(SubConfig):
                 self.output[pos].file.timestep = "annual"
 
     def get_input_sockets(self, id_only=False):
-        """get defined socket inputs as dict
-        """
+        """get defined socket inputs as dict"""
         inputs = self.input.to_dict()
         if id_only:
-            return [inp for inp in inputs if (
-                "socket" in inputs[inp]) and inputs[inp]["socket"]]
+            return [
+                inp
+                for inp in inputs
+                if ("socket" in inputs[inp]) and inputs[inp]["socket"]
+            ]
         else:
             return {
-                inp: inputs[inp] for inp in inputs if (
-                    "socket" in inputs[inp]) and inputs[inp]["socket"]
+                inp: inputs[inp]
+                for inp in inputs
+                if ("socket" in inputs[inp]) and inputs[inp]["socket"]
             }
 
     def get_output_sockets(self, id_only=False):
-        """get defined socket outputs as dict
-        """
+        """get defined socket outputs as dict"""
         outputs = self.to_dict()["output"]
         name_id = {out.name: out.id for out in self.outputvar}
 
         if id_only:
-            return [out["id"] for out in outputs if (
-                "socket" in out["file"]) and out["file"]["socket"]]
+            return [
+                out["id"]
+                for out in outputs
+                if ("socket" in out["file"]) and out["file"]["socket"]
+            ]
         else:
             return {
-                out["id"]: dict(
-                    {'index': name_id[out["id"]]}, **out
-                ) for out in outputs if (
-                    "socket" in out["file"]) and out["file"]["socket"]
+                out["id"]: dict({"index": name_id[out["id"]]}, **out)
+                for out in outputs
+                if ("socket" in out["file"]) and out["file"]["socket"]
             }
 
     def add_config(self, file_name):
@@ -602,11 +612,9 @@ class LpjmlConfig(SubConfig):
         """
         self.coupled_config = read_yaml(file_name, CoupledConfig)
 
-    def regrid(self,
-               sim_path,
-               model_path=None,
-               country_code='BEL',
-               overwrite_input=False):
+    def regrid(
+        self, sim_path, model_path=None, country_code="BEL", overwrite_input=False
+    ):
         """Regrid LPJmL configuration file to a new country.
         :param sim_path: directory to check wether required subfolders exists. If
             not create corresponding folder (input, output, restart)
@@ -634,10 +642,12 @@ class LpjmlConfig(SubConfig):
 
         # get country name from country code
         country = next(
-            (countries[country]["name"] for country in countries if (
-                countries[country]["code"] == country_code
-            )),
-            None
+            (
+                countries[country]["name"]
+                for country in countries
+                if (countries[country]["code"] == country_code)
+            ),
+            None,
         ).lower()
 
         if not os.path.isfile(self.input.coord.name):
@@ -646,49 +656,58 @@ class LpjmlConfig(SubConfig):
             grid_file = self.input.coord.name
 
         # check if country specific input files already exist
-        if not os.path.isfile(f"{sim_path}/input/coord_{country}.clm") or (
-            not os.path.isfile(f"{sim_path}/input/soil_{country}.clm")
-        ) or (
-            not os.path.isfile(f"{sim_path}/input/lakes_{country}.bin")
-        ) or overwrite_input:
+        if (
+            not os.path.isfile(f"{sim_path}/input/coord_{country}.clm")
+            or (not os.path.isfile(f"{sim_path}/input/soil_{country}.clm"))
+            or (not os.path.isfile(f"{sim_path}/input/lakes_{country}.bin"))
+            or overwrite_input
+        ):
 
             # extract country specific grid
-            run([
-                f"{model_path}/bin/getcountry",
-                f"{self.inpath}/{self.input.countrycode.name}",
-                grid_file,
-                f"{sim_path}/input/coord_{country}.clm",
-                country_code
-            ], check=True)
+            run(
+                [
+                    f"{model_path}/bin/getcountry",
+                    f"{self.inpath}/{self.input.countrycode.name}",
+                    grid_file,
+                    f"{sim_path}/input/coord_{country}.clm",
+                    country_code,
+                ],
+                check=True,
+            )
 
             # extract country specific lakes file from meta file
-            if self.input.lakes.fmt in ['json', 'meta']:
-                lakes_filename = read_json(
-                    f"{self.inpath}/{self.input.lakes.name}"
-                )["filename"]
+            if self.input.lakes.fmt in ["json", "meta"]:
+                lakes_filename = read_json(f"{self.inpath}/{self.input.lakes.name}")[
+                    "filename"
+                ]
                 lakes_file = f"{self.inpath}/{self.input.lakes.name}"
-                lakes_file = (
-                    f"{lakes_file[:lakes_file.rfind('/')+1]}{lakes_filename}"
-                )
+                lakes_file = f"{lakes_file[:lakes_file.rfind('/')+1]}{lakes_filename}"
             else:
                 lakes_file = f"{self.inpath}/{self.input.lakes.name}"
 
             # regrid lakes file to country specific grid
-            run([
-                f"{model_path}/bin/regridsoil",
-                grid_file,
-                f"{sim_path}/input/coord_{country}.clm",
-                lakes_file,
-                f"{sim_path}/input/lakes_{country}.bin",
-            ], check=True, stdout=open(os.devnull, 'wb'))
+            run(
+                [
+                    f"{model_path}/bin/regridsoil",
+                    grid_file,
+                    f"{sim_path}/input/coord_{country}.clm",
+                    lakes_file,
+                    f"{sim_path}/input/lakes_{country}.bin",
+                ],
+                check=True,
+                stdout=open(os.devnull, "wb"),
+            )
 
             # loop over all used input files to regrid them to country specific
             #   grid
             for config_key, config_input in self.input:
 
-                if config_input.fmt != 'clm' or config_key == 'coord' or (
-                    config_input.name == 'DUMMYLOCATION'
-                ):                    continue
+                if (
+                    config_input.fmt != "clm"
+                    or config_key == "coord"
+                    or (config_input.name == "DUMMYLOCATION")
+                ):
+                    continue
 
                 if os.path.isfile(config_input.name):
                     input_file = config_input.name
@@ -705,27 +724,22 @@ class LpjmlConfig(SubConfig):
                 ]
                 # if additional_arg:
                 #     regrid_cmd.insert(1, additional_arg)
-                run(regrid_cmd, check=True, stdout=open(os.devnull, 'wb'))
+                run(regrid_cmd, check=True, stdout=open(os.devnull, "wb"))
 
         # change config file to country specific input files
         for config_key, config_input in self.input:
-            if config_input.fmt not in ['clm', 'json', 'meta']:
+            if config_input.fmt not in ["clm", "json", "meta"]:
                 continue
-            if config_key in ['lakes']:
+            if config_key in ["lakes"]:
                 config_input.fmt = "raw"
-                config_input.name = (
-                    f"{sim_path}/input/{config_key}_{country}.bin"
-                )
+                config_input.name = f"{sim_path}/input/{config_key}_{country}.bin"
             else:
                 config_input.fmt = "clm"
-                config_input.name = (
-                    f"{sim_path}/input/{config_key}_{country}.clm"
-                )
+                config_input.name = f"{sim_path}/input/{config_key}_{country}.clm"
 
         self._set_grid_explicitly(only_all=False)
 
-
-    def convert_cdf_to_raw(output_id=None):
+    def convert_cdf_to_raw(self, output_id=None):
         """Convert netcdf files to raw (binary) files.
         :param output_id: list with ids of outputs to convert from netcdf to
             raw
@@ -737,22 +751,17 @@ class LpjmlConfig(SubConfig):
         if self.input.coord.name.startswith("/"):
             grid_file = self.input.coord.name
         else:
-            grid_file = (
-                f"{self.inpath}/{self.input.coord.name}"
-            )
+            grid_file = f"{self.inpath}/{self.input.coord.name}"
 
         grid_name = os.path.basename(grid_file)
 
         if not os.path.isfile(f"{output_dir}/{grid_name}"):
-            run(f"tail -c +44 {grid_file} > {output_dir}/{grid_name}",
-                shell=True)
+            run(f"tail -c +44 {grid_file} > {output_dir}/{grid_name}", shell=True)
 
         grid_file = f"{output_dir}/{grid_name}"
 
         outputs = [
-            out for out in self.get_output(
-                fmt="cdf", id_only=True
-            ) if out != "grid"
+            out for out in self.get_output(fmt="cdf", id_only=True) if out != "grid"
         ]
 
         if output_id:
@@ -761,9 +770,7 @@ class LpjmlConfig(SubConfig):
             outputs = [out for out in outputs if out in output_id]
 
         output_details = [
-            out for out in self.get_output_avail(
-                id_only=False
-            ) if out.name in outputs
+            out for out in self.get_output_avail(id_only=False) if out.name in outputs
         ]
 
         for output in output_details:
@@ -771,44 +778,49 @@ class LpjmlConfig(SubConfig):
             conversion_cmd = [
                 f"{self.model_path}/bin/cdf2bin",
                 # "-units", output.unit,
-                "-var", output.var,
-                "-o", f"{output_dir}/{output.name}.bin",
+                "-var",
+                output.var,
+                "-o",
+                f"{output_dir}/{output.name}.bin",
                 "-json",
                 grid_file,
-                f"{output_dir}/{output.name}.nc4"
+                f"{output_dir}/{output.name}.nc4",
             ]
             if None in conversion_cmd:
                 conversion_cmd.remove(None)
             run(conversion_cmd)
 
-            nc4_meta_dict = read_json(
-                f"{output_dir}/{output.name}.nc4.json"
-            )
+            nc4_meta_dict = read_json(f"{output_dir}/{output.name}.nc4.json")
 
-            bin_meta_dict = read_json(
-                f"{output_dir}/{output.name}.bin.json"
-            )
+            bin_meta_dict = read_json(f"{output_dir}/{output.name}.bin.json")
 
             for key, value in nc4_meta_dict.items():
                 if key not in bin_meta_dict or key == "band_names":
                     bin_meta_dict[key] = value
                 if key == "ref_area":
                     bin_meta_dict[key]["filename"] = (
-                        nc4_meta_dict['ref_area']['filename'].split('.')[0] +
-                            ".bin.json"
+                        nc4_meta_dict["ref_area"]["filename"].split(".")[0]
+                        + ".bin.json"
                     )
 
-            with open(f"{output_dir}/{output.name}.bin.json", 'w') as f:
+            with open(f"{output_dir}/{output.name}.bin.json", "w") as f:
                 json.dump(bin_meta_dict, f, indent=2)
 
-
     def __repr__(self, sub_repr=0):
-        """Representation of the config object
-        """
-        summary_attr = ["sim_id", "sim_name", "version",
-                        "firstyear", "lastyear", "startgrid", "endgrid",
-                        "landuse", "coupled_model", "start_coupling",
-                        "coupled_config"]
+        """Representation of the config object"""
+        summary_attr = [
+            "sim_id",
+            "sim_name",
+            "version",
+            "firstyear",
+            "lastyear",
+            "startgrid",
+            "endgrid",
+            "landuse",
+            "coupled_model",
+            "start_coupling",
+            "coupled_config",
+        ]
         changed_repr = [
             to_repr for to_repr in self.changed if to_repr not in summary_attr
         ]
@@ -818,23 +830,27 @@ class LpjmlConfig(SubConfig):
         else:
             summary = f"<pycoupler.{self.__class__.__name__}>"
             spacing = "\n"
-        summary = spacing.join([
-            summary,
-            f"Settings:      {self.sim_id} v{self.version}",
-            "  (general)",
-            f"  * sim_name   {self.sim_name}",
-            f"  * firstyear  {self.firstyear}",
-            f"  * lastyear   {self.lastyear}",
-            f"  * startgrid  {self.startgrid}",
-            f"  * endgrid    {self.endgrid}",
-            f"  * landuse    {self.landuse}",
-        ])
+        summary = spacing.join(
+            [
+                summary,
+                f"Settings:      {self.sim_id} v{self.version}",
+                "  (general)",
+                f"  * sim_name   {self.sim_name}",
+                f"  * firstyear  {self.firstyear}",
+                f"  * lastyear   {self.lastyear}",
+                f"  * startgrid  {self.startgrid}",
+                f"  * endgrid    {self.endgrid}",
+                f"  * landuse    {self.landuse}",
+            ]
+        )
         if changed_repr:
             summary_list = [summary, "  (changed)"]
-            summary_list.extend([
-                f"  * {torepr}{(20-len(torepr))*' '} {getattr(self, torepr)}"
-                for torepr in changed_repr
-            ])
+            summary_list.extend(
+                [
+                    f"  * {torepr}{(20-len(torepr))*' '} {getattr(self, torepr)}"
+                    for torepr in changed_repr
+                ]
+            )
             summary = spacing.join(summary_list)
 
         if self.coupled_model:
@@ -850,14 +866,16 @@ class LpjmlConfig(SubConfig):
                 }"""
             else:
                 coupled_config_repr = ""
-            summary = spacing.join([
-                summary,
-                f"Coupled model:        {self.coupled_model}",
-                f"  * start_coupling    {sc}",
-                f"  * input (coupled)   {input_coupled}",
-                f"  * output (coupled)  {output_coupled}",
-                coupled_config_repr
-            ])
+            summary = spacing.join(
+                [
+                    summary,
+                    f"Coupled model:        {self.coupled_model}",
+                    f"  * start_coupling    {sc}",
+                    f"  * input (coupled)   {input_coupled}",
+                    f"  * output (coupled)  {output_coupled}",
+                    coupled_config_repr,
+                ]
+            )
 
         return summary
 
@@ -866,8 +884,9 @@ class LpjmlConfig(SubConfig):
         self.changed.append(__name)
 
 
-def parse_config(file_name="./lpjml.js", spin_up=False,
-                 macros=None, config_class=False):
+def parse_config(
+    file_name="./lpjml.js", spin_up=False, macros=None, config_class=False
+):
     """Precompile lpjml.js and return LpjmlConfig object or dict. Also
     evaluate macros. Analogous to R function `lpjmlKit::parse_config`.
     :param path: path to lpjml root
@@ -889,7 +908,7 @@ def parse_config(file_name="./lpjml.js", spin_up=False,
     cmd = ["cpp", "-P"]
     # add arguments
     if not spin_up:
-        cmd.append('-DFROM_RESTART')
+        cmd.append("-DFROM_RESTART")
     if macros:
         if isinstance(macros, list):
             cmd.extend(macros)
@@ -906,11 +925,7 @@ def parse_config(file_name="./lpjml.js", spin_up=False,
     return lpjml_config
 
 
-def read_config(file_name,
-                model_path=None,
-                spin_up=False,
-                macros=None,
-                to_dict=False):
+def read_config(file_name, model_path=None, spin_up=False, macros=None, to_dict=False):
     """Read function for config files to be returned as LpjmlConfig object or
     alternatively dict.
     :param file_name: file name (including relative/absolute path) of the
@@ -978,11 +993,10 @@ def read_config(file_name,
 
 
 class CoupledConfig(SubConfig):
-    """Class to handle coupled model configurations.
-    """
+    """Class to handle coupled model configurations."""
+
     def __repr__(self, sub_repr=1, order=1):
-        """Representation of the config object
-        """
+        """Representation of the config object"""
         spacing = "\n" + "  " * sub_repr
         if order == 1 and sub_repr == 1:
             summary = f"Coupled configuration:{spacing}"
@@ -991,18 +1005,20 @@ class CoupledConfig(SubConfig):
 
         for key, value in self.__dict__.items():
             if isinstance(value, SubConfig):
-                summary += f"""{'  ' * sub_repr}* {key}: {value.__repr__(
+                summary += (
+                    f"""{'  ' * sub_repr}* {key}: {value.__repr__(
                     sub_repr + 1, order + 1
-                )}""".strip() + spacing
+                )}""".strip()
+                    + spacing
+                )
             else:
-                summary += f"{'  ' * sub_repr}* {key:<20} {value}".strip() +\
-                    spacing
+                summary += f"{'  ' * sub_repr}* {key:<20} {value}".strip() + spacing
 
         return summary
 
 
 def read_yaml(file_name, config_class):
-    with open(file_name, 'r') as f:
+    with open(file_name, "r") as f:
         yaml_data = ruamel.yaml.safe_load(f)
 
     return from_yaml(yaml_data, config_class)
@@ -1010,20 +1026,23 @@ def read_yaml(file_name, config_class):
 
 def from_yaml(yaml_data, config_class):
     if isinstance(yaml_data, dict):
-        return config_class({k: from_yaml(v, config_class)
-                             for k, v in yaml_data.items()})
+        return config_class(
+            {k: from_yaml(v, config_class) for k, v in yaml_data.items()}
+        )
     elif isinstance(yaml_data, list):
         return [from_yaml(v, config_class) for v in yaml_data]
     else:
         return yaml_data
 
 
-def regrid(config_file,
-           sim_path,
-           model_path,
-           country_code='LUX',
-           overwrite_input=False,
-           new_config_file=None):
+def regrid(
+    config_file,
+    sim_path,
+    model_path,
+    country_code="LUX",
+    overwrite_input=False,
+    new_config_file=None,
+):
     """Regrid LPJmL configuration file to a new country.
     :param config_file: path to LPJmL configuration file
     :type config_file: str
@@ -1048,10 +1067,12 @@ def regrid(config_file,
 
     config = read_config(config_file, model_path=model_path)
 
-    config.regrid(sim_path=sim_path,
-                  model_path=model_path,
-                  country_code=country_code,
-                  overwrite_input=overwrite_input)
+    config.regrid(
+        sim_path=sim_path,
+        model_path=model_path,
+        country_code=country_code,
+        overwrite_input=overwrite_input,
+    )
 
     if new_config_file is not None:
         config.to_json(new_config_file)

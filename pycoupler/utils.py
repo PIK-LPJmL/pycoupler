@@ -19,11 +19,10 @@ def clone_lpjml(model_location=".", branch="lpjml53_copan"):
     git_token = os.environ.get("GIT_READ_TOKEN")
     cmd = ["git", "clone", f"https://oauth2:{git_token}@{git_url}"]
     with Popen(
-        cmd, stdout=PIPE, bufsize=1, universal_newlines=True,
-        cwd=model_location
+        cmd, stdout=PIPE, bufsize=1, universal_newlines=True, cwd=model_location
     ) as p:
         for line in p.stdout:
-            print(line, end='')
+            print(line, end="")
     # raise error if returncode does not reflect successfull call
     if p.returncode != 0:
         raise CalledProcessError(p.returncode, p.args)
@@ -31,11 +30,13 @@ def clone_lpjml(model_location=".", branch="lpjml53_copan"):
     if branch:
         with Popen(
             ["git", "checkout", branch],
-            stdout=PIPE, bufsize=1, universal_newlines=True,
-            cwd=f"{model_location}/LPJmL_internal"
+            stdout=PIPE,
+            bufsize=1,
+            universal_newlines=True,
+            cwd=f"{model_location}/LPJmL_internal",
         ) as p:
             for line in p.stdout:
-                print(line, end='')
+                print(line, end="")
 
 
 def compile_lpjml(model_path=".", make_fast=False, make_clean=False):
@@ -50,36 +51,31 @@ def compile_lpjml(model_path=".", make_fast=False, make_clean=False):
     :type make_clean: bool
     """
     if not os.path.isdir(model_path):
-        raise ValueError(
-            f"Folder of model_path '{model_path}' does not exist!"
-        )
+        raise ValueError(f"Folder of model_path '{model_path}' does not exist!")
     if not os.path.isfile(f"{model_path}/bin/lpjml"):
-        proc_status = run(
-            "./configure.sh", capture_output=True, cwd=model_path
-        )
-        print(proc_status.stdout.decode('utf-8'))
+        proc_status = run("./configure.sh", capture_output=True, cwd=model_path)
+        print(proc_status.stdout.decode("utf-8"))
     # make clean first
     if make_clean:
         run(["make", "clean"], capture_output=True, cwd=model_path)
     # make all call with possibility to make fast via -j8 arg
-    cmd = ['make']
+    cmd = ["make"]
     if make_fast:
-        cmd.append('-j16')
-    cmd.append('all')
+        cmd.append("-j16")
+    cmd.append("all")
     # open process to be iteratively printed to the console
     with Popen(
         cmd, stdout=PIPE, bufsize=1, universal_newlines=True, cwd=model_path
     ) as p:
         for line in p.stdout:
-            print(line, end='')
+            print(line, end="")
     # raise error if returncode does not reflect successfull call
     if p.returncode != 0:
         raise CalledProcessError(p.returncode, p.args)
 
 
 def get_countries():
-    """Current workaround to get countries defined in LPJmL.
-    """
+    """Current workaround to get countries defined in LPJmL."""
     return {
         "Afghanistan": {"name": "Afghanistan", "code": "AFG"},
         "Aland Islands": {"name": "Aland Islands", "code": "ALA"},
@@ -103,12 +99,11 @@ def get_countries():
         "Bermuda": {"name": "Bermuda", "code": "BMU"},
         "Bhutan": {"name": "Bhutan", "code": "BTN"},
         "Bolivia": {"name": "Bolivia", "code": "BOL"},
-        "Bosnia and Herzegovina": {
-            "name": "Bosnia and Herzegovina", "code": "BIH"
-        },
+        "Bosnia and Herzegovina": {"name": "Bosnia and Herzegovina", "code": "BIH"},
         "Botswana": {"name": "Botswana", "code": "BWA"},
         "British Indian Ocean Territory": {
-            "name": "British Indian Ocean Territory", "code": "IOT"
+            "name": "British Indian Ocean Territory",
+            "code": "IOT",
         },
         "Brunei": {"name": "Brunei", "code": "BRN"},
         "Bulgaria": {"name": "Bulgaria", "code": "BGR"},
@@ -119,15 +114,11 @@ def get_countries():
         "Cameroon": {"name": "Cameroon", "code": "CMR"},
         "Cape Verde": {"name": "Cape Verde", "code": "CPV"},
         "Cayman Islands": {"name": "Cayman Islands", "code": "CYM"},
-        "Central African Republic": {
-            "name": "Central African Republic", "code": "CAF"
-        },
+        "Central African Republic": {"name": "Central African Republic", "code": "CAF"},
         "Chad": {"name": "Chad", "code": "TCD"},
         "Chile": {"name": "Chile", "code": "CHL"},
         "Christmas Island": {"name": "Christmas Island", "code": "CXR"},
-        "Cocos Keeling Islands": {
-            "name": "Cocos Keeling Islands", "code": "CCK"
-        },
+        "Cocos Keeling Islands": {"name": "Cocos Keeling Islands", "code": "CCK"},
         "Colombia": {"name": "Colombia", "code": "COL"},
         "Comoros": {"name": "Comoros", "code": "COM"},
         "Congo Brazzaville": {"name": "Congo-Brazzaville", "code": "COG"},
@@ -150,11 +141,13 @@ def get_countries():
         "Estonia": {"name": "Estonia", "code": "EST"},
         "Ethiopia": {"name": "Ethiopia", "code": "ETH"},
         "Falkland Islands or Islas Malvinas": {
-            "name": "Falkland Islands or Islas Malvinas", "code": "FLK"
+            "name": "Falkland Islands or Islas Malvinas",
+            "code": "FLK",
         },
         "Faroe Islands": {"name": "Faroe Islands", "code": "FRO"},
         "Federated States of Micronesia": {
-            "name": "Federated States of Micronesia", "code": "FSM"
+            "name": "Federated States of Micronesia",
+            "code": "FSM",
         },
         "Fiji": {"name": "Fiji", "code": "FJI"},
         "Finland": {"name": "Finland", "code": "FIN"},
@@ -162,8 +155,9 @@ def get_countries():
         "French Guiana": {"name": "French Guiana", "code": "GUF"},
         "French Polynesia": {"name": "French Polynesia", "code": "PYF"},
         "French Southern and Antarctica Lands": {
-            "name": "French Southern and Antarctica Lands", "code": "NOC"
-            },
+            "name": "French Southern and Antarctica Lands",
+            "code": "NOC",
+        },
         "Gabon": {"name": "Gabon", "code": "GAB"},
         "Gambia The": {"name": "Gambia,The", "code": "GMB"},
         "Georgia": {"name": "Georgia", "code": "GEO"},
@@ -181,7 +175,8 @@ def get_countries():
         "Guyana": {"name": "Guyana", "code": "GUY"},
         "Haiti": {"name": "Haiti", "code": "HTI"},
         "Heard Island and McDonald Islands": {
-            "name": "Heard Island and McDonald Islands", "code": "HMD"
+            "name": "Heard Island and McDonald Islands",
+            "code": "HMD",
         },
         "Honduras": {"name": "Honduras", "code": "HND"},
         "Hong Kong": {"name": "Hong Kong", "code": "HKG"},
@@ -246,9 +241,7 @@ def get_countries():
         "No Land": {"name": "No Land", "code": "XNL"},
         "Norfolk Island": {"name": "Norfolk Island", "code": "NFK"},
         "North Korea": {"name": "North Korea", "code": "PRK"},
-        "Northern Mariana Islands": {
-            "name": "Northern Mariana Islands", "code": "MNP"
-        },
+        "Northern Mariana Islands": {"name": "Northern Mariana Islands", "code": "MNP"},
         "Norway": {"name": "Norway", "code": "NOR"},
         "Oman": {"name": "Oman", "code": "OMN"},
         "Pakistan": {"name": "Pakistan", "code": "PAK"},
@@ -268,18 +261,15 @@ def get_countries():
         "Rwanda": {"name": "Rwanda", "code": "RWA"},
         "Saint Helena Ascension and Tristan da Cunha": {
             "name": "Saint Helena Ascension and Tristan da Cunha",
-            "code": "SHN"
+            "code": "SHN",
         },
-        "Saint Kitts and Nevis": {
-            "name": "Saint Kitts and Nevis", "code": "KNA"
-        },
+        "Saint Kitts and Nevis": {"name": "Saint Kitts and Nevis", "code": "KNA"},
         "Saint Lucia": {"name": "Saint Lucia", "code": "LCA"},
         "Saint Pierre and Miquelon": {
-            "name": "Saint Pierre and Miquelon", "code": "SPM"
+            "name": "Saint Pierre and Miquelon",
+            "code": "SPM",
         },
-        "Sao Tome and Principe": {
-            "name": "Sao Tome and Principe", "code": "STP"
-        },
+        "Sao Tome and Principe": {"name": "Sao Tome and Principe", "code": "STP"},
         "Saudi Arabia": {"name": "Saudi Arabia", "code": "SAU"},
         "Senegal": {"name": "Senegal", "code": "SEN"},
         "Serbia": {"name": "Serbia", "code": "SRB"},
@@ -293,14 +283,15 @@ def get_countries():
         "South Africa": {"name": "South Africa", "code": "ZAF"},
         "South Georgia and the South Sandwich Islands": {
             "name": "South Georgia and the South Sandwich Islands",
-            "code": "SGS"
+            "code": "SGS",
         },
         "South Korea": {"name": "South Korea", "code": "KOR"},
         "South Sudan": {"name": "South Sudan", "code": "SSD"},
         "Spain": {"name": "Spain", "code": "ESP"},
         "Sri Lanka": {"name": "Sri Lanka", "code": "LKA"},
         "St Vincent and the Grenadines": {
-            "name": "St. Vincent and the Grenadines", "code": "VCT"
+            "name": "St. Vincent and the Grenadines",
+            "code": "VCT",
         },
         "Sudan": {"name": "Sudan", "code": "SDN"},
         "Suriname": {"name": "Suriname", "code": "SUR"},
@@ -312,7 +303,8 @@ def get_countries():
         "Taiwan": {"name": "Taiwan", "code": "TWN"},
         "Tajikistan": {"name": "Tajikistan", "code": "TJK"},
         "Tanzania United Republic of": {
-            "name": "Tanzania, United Republic of", "code": "TZA"
+            "name": "Tanzania, United Republic of",
+            "code": "TZA",
         },
         "Thailand": {"name": "Thailand", "code": "THA"},
         "Timor Leste": {"name": "Timor Leste", "code": "TLS"},
@@ -323,18 +315,15 @@ def get_countries():
         "Tunisia": {"name": "Tunisia", "code": "TUN"},
         "Turkey": {"name": "Turkey", "code": "TUR"},
         "Turkmenistan": {"name": "Turkmenistan", "code": "TKM"},
-        "Turks and Caicos Islands": {
-            "name": "Turks and Caicos Islands", "code": "TCA"
-        },
+        "Turks and Caicos Islands": {"name": "Turks and Caicos Islands", "code": "TCA"},
         "Tuvalu": {"name": "Tuvalu", "code": "TUV"},
         "Uganda": {"name": "Uganda", "code": "UGA"},
         "Ukraine": {"name": "Ukraine", "code": "UKR"},
-        "United Arab Emirates": {
-            "name": "United Arab Emirates", "code": "ARE"
-        },
+        "United Arab Emirates": {"name": "United Arab Emirates", "code": "ARE"},
         "United Kingdom": {"name": "United Kingdom", "code": "GBR"},
         "United States Minor Outlying Islands": {
-            "name": "United States Minor Outlying Islands", "code": "UMI"
+            "name": "United States Minor Outlying Islands",
+            "code": "UMI",
         },
         "Uruguay": {"name": "Uruguay", "code": "URY"},
         "Uzbekistan": {"name": "Uzbekistan", "code": "UZB"},
@@ -356,7 +345,7 @@ def get_countries():
         "China": {"name": "China", "code": "CHN"},
         "India": {"name": "India", "code": "IND"},
         "Russia": {"name": "Russia", "code": "RUS"},
-        "United States": {"name": "United States of America", "code": "USA"}
+        "United States": {"name": "United States of America", "code": "USA"},
     }
 
 
@@ -369,7 +358,7 @@ def search_country(query):
     """
     countries = get_countries()
     name, _ = process.extractOne(query, countries.keys(), scorer=fuzz.ratio)
-    return countries[name]['code']
+    return countries[name]["code"]
 
 
 def read_json(file_name, object_hook=None):
@@ -413,5 +402,5 @@ def create_subdirs(base_path, sim_name):
 def is_pytest() -> bool:
     """Detect if we are running via pytest."""
     # When we are running via pytest it is loaded to the sys modules dictionary.
-    _is_pytest: bool = 'pytest' in sys.modules
+    _is_pytest: bool = "pytest" in sys.modules
     return _is_pytest

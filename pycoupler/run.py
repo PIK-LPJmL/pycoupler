@@ -6,15 +6,12 @@ from pycoupler.config import read_config
 import multiprocessing as mp
 
 
-def operate_lpjml(config_file,
-                  std_to_file=False):
+def operate_lpjml(config_file, std_to_file=False):
 
     config = read_config(config_file)
 
     if not os.path.isdir(config.model_path):
-        raise ValueError(
-            f"Folder of model_path '{config.model_path}' does not exist!"
-        )
+        raise ValueError(f"Folder of model_path '{config.model_path}' does not exist!")
 
     output_path = f"{config.sim_path}/output/{config.sim_name}"
 
@@ -29,40 +26,44 @@ def operate_lpjml(config_file,
     cmd = [f"{config.model_path}/bin/lpjml", config_file]
     # environment settings to be used for interartive LPJmL sessions
     #   MPI settings conflict with (e.g. on login node)
-    os.environ['I_MPI_DAPL_UD'] = 'disable'
-    os.environ['I_MPI_FABRICS'] = 'shm:shm'
-    os.environ['I_MPI_DAPL_FABRIC'] = 'shm:sh'
+    os.environ["I_MPI_DAPL_UD"] = "disable"
+    os.environ["I_MPI_FABRICS"] = "shm:shm"
+    os.environ["I_MPI_DAPL_FABRIC"] = "shm:sh"
     if std_to_file:
-        with open(stdout_file, 'w') as f_out, open(
-            stderr_file, 'w'
-        ) as f_err:
+        with open(stdout_file, "w") as f_out, open(stderr_file, "w") as f_err:
             with Popen(
-                cmd, stdout=f_out, stderr=f_err,
-                bufsize=1, universal_newlines=True,
-                cwd=config.model_path
+                cmd,
+                stdout=f_out,
+                stderr=f_err,
+                bufsize=1,
+                universal_newlines=True,
+                cwd=config.model_path,
             ) as p:
                 p.wait()
     else:
         with Popen(
-            cmd, stdout=PIPE, stderr=PIPE, bufsize=1, universal_newlines=True,
-            cwd=config.model_path
+            cmd,
+            stdout=PIPE,
+            stderr=PIPE,
+            bufsize=1,
+            universal_newlines=True,
+            cwd=config.model_path,
         ) as p:
             for line in p.stdout:
-                print(line, end='')
+                print(line, end="")
             for line in p.stderr:
-                print(line, end='')
+                print(line, end="")
 
     # reset default MPI settings to be able to submit jobs in parallel again
-    os.environ['I_MPI_DAPL_UD'] = 'enable'
-    os.environ['I_MPI_FABRICS'] = 'shm:dapl'
-    del os.environ['I_MPI_DAPL_FABRIC']
+    os.environ["I_MPI_DAPL_UD"] = "enable"
+    os.environ["I_MPI_FABRICS"] = "shm:dapl"
+    del os.environ["I_MPI_DAPL_FABRIC"]
     # raise error if returncode does not reflect successfull call
     if p.returncode != 0:
         raise CalledProcessError(p.returncode, p.args)
 
 
-def run_lpjml(config_file,
-              std_to_file=False):
+def run_lpjml(config_file, std_to_file=False):
     """Run LPJmL using a generated (class LpjmlConfig) config file.
     Similar to R function `lpjmlKit::run_lpjml`.
     :param config_file: file name including path if not current to config_file
@@ -71,21 +72,22 @@ def run_lpjml(config_file,
         in the output folder. Defaults to False.
     :type std_to_file: bool
     """
-    run = mp.Process(target=operate_lpjml,
-                     args=(config_file, std_to_file))
+    run = mp.Process(target=operate_lpjml, args=(config_file, std_to_file))
     run.start()
 
     return run
 
 
-def submit_lpjml(config_file,
-                 group="copan",
-                 sclass="short",
-                 ntasks=256,
-                 wtime=None,
-                 dependency=None,
-                 blocking=None,
-                 couple_to=None):
+def submit_lpjml(
+    config_file,
+    group="copan",
+    sclass="short",
+    ntasks=256,
+    wtime=None,
+    dependency=None,
+    blocking=None,
+    couple_to=None,
+):
     """Submit LPJmL run to Slurm using `lpjsubmit` and a generated
     (class LpjmlConfig) config file. Provide arguments for Slurm sbatch
     depending on the run. Similar to R function `lpjmlKit::submit_lpjml`.
@@ -121,9 +123,7 @@ def submit_lpjml(config_file,
 
     config = read_config(config_file)
     if not os.path.isdir(config.model_path):
-        raise ValueError(
-            f"Folder of model_path '{config.model_path}' does not exist!"
-        )
+        raise ValueError(f"Folder of model_path '{config.model_path}' does not exist!")
 
     output_path = f"{config.sim_path}/output/{config.sim_name}"
 
@@ -135,14 +135,13 @@ def submit_lpjml(config_file,
         os.makedirs(output_path)
         print(f"Created output_path '{output_path}'")
 
-
-    lpjroot = os.environ['LPJROOT']
+    lpjroot = os.environ["LPJROOT"]
     # prepare lpjsubmit command to be called via subprocess
     cmd = [f"{config.model_path}/bin/lpjsubmit"]
     # specify sbatch arguments required by lpjsubmit internally
-    cmd.extend([
-        "-group", group, "-class", sclass, "-o", stdout_file, "-e", stderr_file
-    ])
+    cmd.extend(
+        ["-group", group, "-class", sclass, "-o", stdout_file, "-e", stderr_file]
+    )
     # if dependency (jobid) defined, submit is queued by slurm with nocheck
     if dependency:
         cmd.extend(["-nocheck", "-dependency", str(dependency)])
@@ -177,25 +176,27 @@ python3 {couple_to} $config_file
     cmd.extend([str(ntasks), config_file])
     # set LPJROOT to model_path to be able to call lpjsubmit
     try:
-        os.environ['LPJROOT'] = config.model_path
+        os.environ["LPJROOT"] = config.model_path
         # call lpjsubmit via subprocess and return status if successfull
         submit_status = run(cmd, capture_output=True)
     except Exception as e:
         print("Error occurred:", e)
     finally:
-        os.environ['LPJROOT'] = lpjroot
+        os.environ["LPJROOT"] = lpjroot
 
     # print stdout and stderr if not successful
     if submit_status.returncode == 0:
-        print(submit_status.stdout.decode('utf-8'))
+        print(submit_status.stdout.decode("utf-8"))
     else:
-        print(submit_status.stdout.decode('utf-8'))
-        print(submit_status.stderr.decode('utf-8'))
+        print(submit_status.stdout.decode("utf-8"))
+        print(submit_status.stderr.decode("utf-8"))
         raise CalledProcessError(submit_status.returncode, submit_status.args)
     # return job id
-    return submit_status.stdout.decode('utf-8').split(
-        "Submitted batch job "
-    )[1].split("\n")[0]
+    return (
+        submit_status.stdout.decode("utf-8")
+        .split("Submitted batch job ")[1]
+        .split("\n")[0]
+    )
 
 
 def check_lpjml(config_file):
@@ -208,17 +209,15 @@ def check_lpjml(config_file):
     """
     config = read_config(config_file)
     if not os.path.isdir(config.model_path):
-        raise ValueError(
-            f"Folder of model_path '{config.model_path}' does not exist!"
-        )
+        raise ValueError(f"Folder of model_path '{config.model_path}' does not exist!")
     if os.path.isfile(f"{config.model_path}/bin/lpjcheck"):
         proc_status = run(
-            ["./bin/lpjcheck", config_file], capture_output=True,  # "-param",
-            cwd=config.model_path
+            ["./bin/lpjcheck", config_file],
+            capture_output=True,  # "-param",
+            cwd=config.model_path,
         )
     if proc_status.returncode == 0:
-        print(proc_status.stdout.decode('utf-8'))
+        print(proc_status.stdout.decode("utf-8"))
     else:
-        print(proc_status.stdout.decode('utf-8'))
-        print(proc_status.stderr.decode('utf-8'))
-
+        print(proc_status.stdout.decode("utf-8"))
+        print(proc_status.stderr.decode("utf-8"))
