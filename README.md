@@ -44,10 +44,9 @@ Use the package manager [pip](https://pip.pypa.io/en/stable/) to install pycoupl
 pip install .
 ```
 
-Please make to clone LPJmL in advance and provide its path via `model_path`.  
-Also make sure to also have set the [working environment for LPJmL](https://gitlab.pik-potsdam.de/lpjml/LPJmL_internal/-/blob/master/INSTALL) correctly if you are not working
-on the PIK cluster (with Slurm Workload Manager).  
-
+Please clone and compile [LPJmL](https://github.com/PIK-LPJmL/LPJmL) in advance.  
+Make sure to also have set the [working environment for LPJmL](https://github.com/PIK-LPJmL/LPJmL/blob/master/INSTALL) correctly if you are not working
+on the PIK HPC (with Slurm Workload Manager).  
 
 ## Contributing
 Merge requests are welcome. For major changes, please open an issue first to
