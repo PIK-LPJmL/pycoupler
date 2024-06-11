@@ -1,8 +1,10 @@
+"""Classes and functions to handle LPJmL configurations and related operations
+"""
 import os
 import subprocess
 import json
-import ruamel.yaml
 from subprocess import run
+import ruamel.yaml
 
 from pycoupler.utils import read_json, get_countries, create_subdirs
 from pycoupler.data import read_header
@@ -885,13 +887,16 @@ class LpjmlConfig(SubConfig):
 
 
 def parse_config(
-    file_name="./lpjml.js", spin_up=False, macros=None, config_class=False
+    file_name="./lpjml_config.json",
+    spin_up=False,
+    macros=None,
+    config_class=False
 ):
-    """Precompile lpjml.js and return LpjmlConfig object or dict. Also
+    """Precompile lpjml_config.json and return LpjmlConfig object or dict. Also
     evaluate macros. Analogous to R function `lpjmlKit::parse_config`.
     :param path: path to lpjml root
     :type path: str
-    :param js_filename: js file filename, defaults to lpjml.js
+    :param js_filename: js file filename, defaults to lpjml_config.json
     :type js_filename: str
     :param spin_up: convenience argument to set macro whether to start
         from restart file (`True`) or not (`False`). Defaults to `True`

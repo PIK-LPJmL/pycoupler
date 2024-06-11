@@ -5,7 +5,7 @@ build-backend = "setuptools.build_meta"
 [project]
 name = "pycoupler"
 version = "0.5.11"
-description = "Python implementation of a package for operating and coupling LPJmL."
+description = "dynamic model coupling of LPJmL"
 readme = "README.md"
 license = {file = "LICENSE.md"}
 authors = [

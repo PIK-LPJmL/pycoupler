@@ -2,39 +2,36 @@
 
 [![CI](https://github.com/PIK-LPJmL/pycoupler/actions/workflows/check.yml/badge.svg)](https://github.com/PIK-LPJmL/pycoupler/actions)
 
-
-An LPJmL Python interface to operate
-[LPJmL](https://github.com/PIK-LPJmL) within a Python
-environment and to couple it to Python models, programs or simple programming
-scripts.
-*pycoupler* is written with the intention to establish the coupling of
-[copan:core](https://github.com/pik-copan/pycopancore/) with LPJmL.
+An LPJmL-Python interface for operating [LPJmL](https://github.com/PIK-LPJmL) in
+a Python environment and coupling it with Python models, programmes or simple
+programming scripts.
+*pycoupler* was written with the aim of establishing the coupling of
+[copan:CORE](https://github.com/pik-copan/pycopancore/) with LPJmL.
 Coupling with LPJmL is possible on an annual basis, i.e. for each year in which
-LPJmL is in coupling mode, the desired inputs must be passed via *pycoupler*.
-LPJmL subsequently simulates the corresponding year and returns the desired
-outputs at the end of the year.
-Based on the output data, the coupled program can (again) generate new inputs.
+LPJmL is in coupling mode, the desired inputs must be passed via
+*pycoupler*.
+LPJmL simulates the corresponding year and returns the desired outputs at the
+end of the year.
+The coupled programme can use the output data to generate new inputs for the
+next year.
 
 ## Overview
 
 ### LPJmL Config &#9881; for handling LPJmL configurations
-* Read LPJmL configuration files
-* Set LPJmL configuration parameters
-* Write LPJmL configuration files
-* ...
+* Read & write &#9997; LPJmL configuration files as `LPJmLConfig` objects
+* Set options & parameters for spinup, transient and coupled simulations
+* `regrid()` &#127760; LPJmL output data for country-specific simulations
+* LPJmL can be checked `check_lpjml()` &#128269; and operated `run_lpjml()` &#9654; `submit_lpjml()` &#128640; with written configuration files
 
 ### LPJmL Coupler &#128268; to couple LPJmL with other models
-* Initiate Coupling to LPJmL
-* Send input data to LPJmL
-* Read output data from LPJmL
-* Close coupling
-* ...
-### Miscellaneaous
-* Run/submit LPJmL simulations
-* Check LPJmL configuration files
-* Supply and preprocess input data for LPJmL
-* Read and postprocess LPJmL output data
-* ...
+* `LPJmLCoupler` class to initiate bi-directional, annual coupling to LPJmL
+* &#128229; Read output data (annual) from LPJmL
+* &#128228; Send input data (annual) to LPJmL
+
+### LPJmL Data &#128190; for reading and processing LPJmL data
+* [xarray](https://github.com/pydata/xarray)-based data classes
+* Read LPJmL netCDF files &#128506; as `LPJmLData` or `LPJmLDataSet`objects
+* `LPJmLMetaData` for reading and handling LPJmL meta files or header data
 
 ## Installation
 
@@ -48,8 +45,11 @@ Please clone and compile [LPJmL](https://github.com/PIK-LPJmL/LPJmL) in advance.
 Make sure to also have set the [working environment for LPJmL](https://github.com/PIK-LPJmL/LPJmL/blob/master/INSTALL) correctly if you are not working
 on the PIK HPC (with Slurm Workload Manager).  
 
-## Contributing
-Merge requests are welcome. For major changes, please open an issue first to
-discuss what you would like to change.
+See `./scripts` for examples on how to use the package.
 
-Please make sure to update tests as appropriate.
+## Questions / Problems
+
+In case of questions please contact Jannes Breier jannesbr@pik-potsdam.de or [open an issue](https://github.com/PIK-LPJmL/pycoupler/issues/new).
+
+## Contributing
+Merge requests are welcome, see [CONTRIBUTING.md](CONTRIBUTING.md). For major changes, please open an issue first to discuss what you would like to change.

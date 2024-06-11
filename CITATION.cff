@@ -1,0 +1,23 @@
+cff-version: 1.2.0
+message: If you use this software, please cite it using the metadata from this file.
+type: software
+title: 'pycoupler: dynamic model coupling of LPJmL'
+version: 1.0.0
+date-released: '2024-06-11'
+abstract: An LPJmL-Python interface for operating LPJmL in a Python environment
+  and coupling it with Python models, programmes or simple programming scripts.
+  pycoupler was written with the aim of establishing the coupling of copan:CORE
+  with LPJmL. Coupling with LPJmL is possible on an annual basis, i.e. for each
+  year in which LPJmL is in coupling mode, the desired inputs must be passed via
+  pycoupler. LPJmL simulates the corresponding year and returns the desired
+  outputs at the end of the year. The coupled programme can use the output data
+  to generate new inputs for the next year.
+authors:
+- family-names: Breier
+  given-names: Jannes
+  email: jannesbr@pik-potsdam.de
+  orcid: 0000-0002-9055-6904
+
+license: AGPL-3.0
+repository-code: https://github.com/PIK-LPJmL/pycoupler
+
