@@ -1,10 +1,10 @@
 """Test the LPJmLCoupler class."""
+
 import os
 import numpy as np
 import pytest
 from pycoupler.config import read_config
 from pycoupler.coupler import LPJmLCoupler
-
 
 
 @pytest.fixture
@@ -25,7 +25,7 @@ def test_lpjml_coupler(lpjml_coupler):
     inputs = lpjml_coupler.read_input(copy=False)
     outputs = lpjml_coupler.read_historic_output()
 
-    hist_outputs = outputs.copy(deep = True)
+    hist_outputs = outputs.copy(deep=True)
 
     for year in lpjml_coupler.get_sim_years():
         inputs.time.values[0] = np.datetime64(f"{year}-12-31")
@@ -41,12 +41,8 @@ def test_lpjml_coupler(lpjml_coupler):
             lpjml_coupler.close()
 
     # assert that the output is the same as the historic output
-    assert np.allclose(
-        outputs["cftfrac"].values, hist_outputs["cftfrac"].values
-    )
-    assert not np.allclose(
-        outputs["hdate"].values, hist_outputs["hdate"].values
-    )
+    assert np.allclose(outputs["cftfrac"].values, hist_outputs["cftfrac"].values)
+    assert not np.allclose(outputs["hdate"].values, hist_outputs["hdate"].values)
 
     assert not np.allclose(
         outputs["pft_harvestc"].values, hist_outputs["pft_harvestc"].values
@@ -72,7 +68,8 @@ def test_set_config(test_path):
         test_path,
         sim_name="coupled_test",
         dependency="historic_run",
-        start_year=2001, end_year=2050,
+        start_year=2001,
+        end_year=2050,
         coupled_year=2023,
         coupled_input=["with_tillage"],  # residue_on_field
         coupled_output=[
@@ -81,8 +78,8 @@ def test_set_config(test_path):
             "pft_harvestc",
             "hdate",
             "country",
-            "region"
-        ]
+            "region",
+        ],
     )
 
     # only for single cells runs
@@ -96,8 +93,12 @@ def test_set_config(test_path):
     config_coupled.fix_co2 = True
     config_coupled.fix_co2_year = 2018
     config_coupled.input.co2.name = "input_VERSION2/co2_1841-2018.dat"
-    config_coupled.input.wetdays.name = "CRU_TS4.03/cru_ts4.03.1901.2018.wet.clm" # noqa
-    config_coupled.input.landuse.name = "input_toolbox_30arcmin/cftfrac_1500-2017_64bands_f2o.clm" # noqa
+    config_coupled.input.wetdays.name = (
+        "CRU_TS4.03/cru_ts4.03.1901.2018.wet.clm"  # noqa
+    )
+    config_coupled.input.landuse.name = (
+        "input_toolbox_30arcmin/cftfrac_1500-2017_64bands_f2o.clm"  # noqa
+    )
     config_coupled.fix_climate = True
     config_coupled.fix_climate_cycle = 11
     config_coupled.fix_climate_year = 2013
@@ -111,7 +112,7 @@ def test_set_config(test_path):
 
     # create config for coupled run
     check_config_coupled = read_config(
-        model_path = test_path, file_name="data/config_coupled_test.json"
+        model_path=test_path, file_name="data/config_coupled_test.json"
     )
     # update with actual output path (test directory)
     check_config_coupled.set_outputpath(f"{test_path}/output/coupled_test")

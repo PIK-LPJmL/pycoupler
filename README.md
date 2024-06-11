@@ -1,4 +1,7 @@
-# pycoupler  <a href=''><img src='docs/img/logo.png' align="right" height="139" /></a>
+# pycoupler: dynamic model coupling of LPJmL <a href=''><img src='docs/img/logo.png' align="right" height="139" /></a>
+
+[![CI](https://github.com/PIK-LPJmL/pycoupler/actions/workflows/check.yml/badge.svg)](https://github.com/PIK-LPJmL/pycoupler/actions)
+
 
 An LPJmL Python interface to operate
 [LPJmL](https://github.com/PIK-LPJmL) within a Python

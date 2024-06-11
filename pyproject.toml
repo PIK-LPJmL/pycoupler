@@ -1,10 +1,10 @@
 [build-system]
 requires = ["setuptools", "wheel"]
-
+build-backend = "setuptools.build_meta"
 
 [project]
 name = "pycoupler"
-version = "0.5.9"
+version = "0.5.10"
 description = "Python implementation of a package for operating and coupling LPJmL."
 readme = "README.md"
 license = {file = "LICENSE.md"}
@@ -14,30 +14,55 @@ authors = [
 requires-python = ">=3.7"
 keywords = ["DGVM", "ABM", "model coupling", "LPJmL", "copan:CORE"]
 classifiers = [
-  "Development Status :: 4 - Beta",
-  "Programming Language :: Python",
-  "Operating System :: OS Independent",
-  "Programming Language :: Python :: 3.7",
-  "Programming Language :: Python :: 3.8",
-  "Programming Language :: Python :: 3.9",
-  "Programming Language :: Python :: 3.10"
+    "Development Status :: 4 - Beta",
+    "Intended Audience :: Developers",
+    "Intended Audience :: Science/Research",
+    "Topic :: Scientific/Engineering",
+    "Topic :: Software Development :: Libraries",
+    "Programming Language :: Python",
+    "Operating System :: OS Independent",
+    "Programming Language :: Python :: 3.7",
+    "Programming Language :: Python :: 3.8",
+    "Programming Language :: Python :: 3.9",
+    "Programming Language :: Python :: 3.10"
 ]
 dependencies = [
-  "numpy>=1.20.3",
-  "netCDF4>=1.5.8",
-  "xarray>=0.21.1",
-  "scipy>=1.7.1",
-  "ruamel.yaml>=0.17.16",
-  "fuzzywuzzy>=0.18.0",
-  "Levenshtein>=0.12.2"
+    "numpy>=1.20.3",
+    "netCDF4>=1.5.8",
+    "xarray>=0.21.1",
+    "scipy>=1.7.1",
+    "ruamel.yaml>=0.17.16",
+    "fuzzywuzzy>=0.18.0",
+    "Levenshtein>=0.12.2"
 ]
 
+[project.optional-dependencies]
+dev = [
+    "pytest",
+    "sphinx",
+    "black",
+    "flake8"
+]
 
 [project.urls]
 Homepage = "https://github.com/PIK-LPJmL/pycoupler"
 Issues = "https://github.com/PIK-LPJmL/pycoupler/issues"
-
+Documentation = "https://github.com/PIK-LPJmL/pycoupler/wiki"
 
 [tool.aliases]
 test = "pytest"
 docs = "sphinx-build -b html ./docs ./docs/_build"
+
+[tool.pytest.ini_options]
+minversion = "6.0"
+addopts = "--strict-markers"
+
+[tool.black]
+line-length = 88
+target-version = ['py37', 'py38', 'py39', 'py310']
+
+[tool.flake8]
+max-line-length = 88
+
+[project.scripts]
+pycoupler-cli = "pycoupler.cli:main"
