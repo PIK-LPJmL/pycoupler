@@ -127,5 +127,6 @@ def test_set_config(test_path):
     del config_coupled_dict["changed"]
     del check_config_coupled_dict["changed"]
 
-    # assert that dict config_coupled has the content and structure as check_config_coupled
+    # assert that dict config_coupled has the content and structure as
+    #   check_config_coupled
     assert config_coupled_dict == check_config_coupled_dict

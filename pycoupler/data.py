@@ -107,8 +107,8 @@ class LPJmLData(xr.DataArray):
             instead of making them scalar.
         :type drop: bool, default: False
 
-        :param missing_dims: What to do if dimensions that should be selected from are not
-            present in the DataArray:
+        :param missing_dims: What to do if dimensions that should be selected
+            from are not present in the DataArray:
             - "raise": raise an exception
             - "warn": raise a warning, and ignore the missing dimensions
             - "ignore": ignore the missing dimensions
