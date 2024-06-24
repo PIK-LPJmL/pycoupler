@@ -197,9 +197,9 @@ class LPJmLData(xr.DataArray):
                 self.attrs["cellsize"] = meta_data.cellsize_lon
 
             if hasattr(meta_data, "global_attrs"):
-                self.attrs["institution"] = meta_data.global_attrs.institution
-                self.attrs["contact"] = meta_data.global_attrs.contact
-                self.attrs["comment"] = meta_data.global_attrs.comment
+                self.attrs["institution"] = meta_data.global_attrs["institution"]
+                self.attrs["contact"] = meta_data.global_attrs["contact"]
+                self.attrs["comment"] = meta_data.global_attrs["comment"]
         else:
             raise TypeError("meta_data must be of type LPJmLMetaData!")
 
