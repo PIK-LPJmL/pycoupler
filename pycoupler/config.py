@@ -1022,7 +1022,7 @@ class CoupledConfig(SubConfig):
 
 def read_yaml(file_name, config_class):
     with open(file_name, "r") as f:
-        yaml = YAML(typ='safe', pure=True)
+        yaml = YAML(typ="safe", pure=True)
         yaml_data = yaml.load(f)
 
     return from_yaml(yaml_data, config_class)

@@ -107,7 +107,7 @@ def submit_lpjml(
     :param wtime: define the time limit. Setting a lower time
                  limit than the maximum runtime for `sclass` can reduce the wait
                  time in the SLURM job queue. More information at
-                 <https://www.pik-potsdam.de/en> and 
+                 <https://www.pik-potsdam.de/en> and
                  <https://slurm.schedmd.com/sbatch.html>.
     :type wtime: str
     :param dependency: if there is a job that should be processed first (e.g.

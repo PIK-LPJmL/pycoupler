@@ -677,9 +677,11 @@ class LPJmLCoupler:
         )
         # create same format as before but with selected numpy arrays instead
         # of xarray.DataArray
-        inputs = inputs.sel(lon=lons, lat=lats, method="nearest", **kwargs).transpose(
-            "cell", ..., "time"
-        ).load()
+        inputs = (
+            inputs.sel(lon=lons, lat=lats, method="nearest", **kwargs)
+            .transpose("cell", ..., "time")
+            .load()
+        )
 
         return inputs
 
