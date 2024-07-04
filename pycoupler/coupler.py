@@ -504,7 +504,7 @@ class LPJmLCoupler:
                 )
 
                 lpjml_output.coords["time"] = pd.date_range(
-                    start=str(hist_years[0]), end=str(hist_years[-1] + 1), freq="A"
+                    start=str(hist_years[0]), end=str(hist_years[-1] + 1), freq="YE"
                 )
                 lpjml_output.data = output_dict[key]
                 output_dict[key] = lpjml_output
@@ -673,13 +673,13 @@ class LPJmLCoupler:
         inputs.coords["time"] = pd.date_range(
             start=str(min(inputs.coords["time"].values)),
             end=str(max(inputs.coords["time"].values) + 1),
-            freq="A",
+            freq="YE",
         )
         # create same format as before but with selected numpy arrays instead
         # of xarray.DataArray
         inputs = inputs.sel(lon=lons, lat=lats, method="nearest", **kwargs).transpose(
             "cell", ..., "time"
-        )
+        ).load()
 
         return inputs
 
@@ -1231,7 +1231,7 @@ class LPJmLCoupler:
                 )
             else:
 
-                output.coords["time"] = pd.date_range(str(year), periods=1, freq="A")
+                output.coords["time"] = pd.date_range(str(year), periods=1, freq="YE")
 
                 # read and assign corresponding values from socket to numpy array
                 output.values = self.__read_output_values(
@@ -1247,13 +1247,12 @@ class LPJmLCoupler:
         with the correct order of cells and bands for outputs.
         """
         cells, bands = dims[0], dims[1]
-
         # Determine if there is only one band
         one_band = cells > 0 and bands == 0
 
         # Iterate over cells (outer loop) and bands (inner loop)
-        for cell in range(cells):
-            for band in range(bands):
+        for band in range(bands):
+            for cell in range(cells):
                 # Read the value from the socket
                 if one_band:
                     output[cell] = lpjml_type.read_fun(self.__channel)

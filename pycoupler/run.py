@@ -95,25 +95,26 @@ def submit_lpjml(
     :type config_file: str
     :param group: PIK group name to be used for Slurm. Defaults to "copan".
     :type group: str
-    :param sclass: define the job classification,
-        for more information have a look
-        [here](https://www.pik-potsdam.de/en/institute/about/it-services/hpc/user-guides/slurm#section-5).
-        Defaults to "short".
+    :param sclass: define the job classification, options are "short", "medium",
+        "long", "priority", "standby", "io". For more information have a look
+        More information at <https://www.pik-potsdam.de/en>.
+        Defaults to `"short"`.
     :type sclass: str
-    :param ntasks: define the number of tasks/threads,
-        for more information have a look
-        [here](https://www.pik-potsdam.de/en/institute/about/it-services/hpc/user-guides/slurm#section-18).
-        Defaults to 256.
+    :param ntasks: define the number of tasks/threads.
+        More information at <https://www.pik-potsdam.de/en> and
+        <https://slurm.schedmd.com/sbatch.html>. Defaults to 256.
     :type ntasks: int/str
-    :param wtime: define the time limit which can be an advantage to get faster
-        to the top of the (s)queue. For more information have a look
-        [here](https://www.pik-potsdam.de/en/institute/about/it-services/hpc/user-guides/slurm#section-18).
+    :param wtime: define the time limit. Setting a lower time
+                 limit than the maximum runtime for `sclass` can reduce the wait
+                 time in the SLURM job queue. More information at
+                 <https://www.pik-potsdam.de/en> and 
+                 <https://slurm.schedmd.com/sbatch.html>.
     :type wtime: str
     :param dependency: if there is a job that should be processed first (e.g.
         spinup) then pass its job id here.
     :type depdendency: int/str
-    :param blocking: cores to be blocked. For more information have a look
-        [here](https://www.pik-potsdam.de/en/institute/about/it-services/hpc/user-guides/slurm#section-18).
+    :param blocking: cores to be blocked. More information at
+        <https://www.pik-potsdam.de/en> and <https://slurm.schedmd.com/sbatch.html>.
     :type blocking: int
     :param couple_to: path to program/model/script LPJmL should be coupled to
     :type couple_to: str
@@ -135,7 +136,7 @@ def submit_lpjml(
         os.makedirs(output_path)
         print(f"Created output_path '{output_path}'")
 
-    lpjroot = os.environ["LPJROOT"]
+    lpjroot = os.environ.get("LPJROOT")
     # prepare lpjsubmit command to be called via subprocess
     cmd = [f"{config.model_path}/bin/lpjsubmit"]
     # specify sbatch arguments required by lpjsubmit internally
@@ -150,7 +151,7 @@ def submit_lpjml(
         cmd.extend(["-wtime", str(wtime)])
     # if cores to be blocked
     if blocking:
-        cmd.extend(["-blocking", blocking])
+        cmd.extend(["-blocking", str(blocking)])
 
     # run in coupled mode and pass coupling program/model
     if couple_to:
@@ -182,7 +183,10 @@ python3 {couple_to} $config_file
     except Exception as e:
         print("Error occurred:", e)
     finally:
-        os.environ["LPJROOT"] = lpjroot
+        if lpjroot:
+            os.environ["LPJROOT"] = lpjroot
+        else:
+            del os.environ["LPJROOT"]
 
     # print stdout and stderr if not successful
     if submit_status.returncode == 0:

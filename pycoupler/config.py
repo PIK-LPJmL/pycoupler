@@ -5,7 +5,7 @@ import os
 import subprocess
 import json
 from subprocess import run
-import ruamel.yaml
+from ruamel.yaml import YAML
 
 from pycoupler.utils import read_json, get_countries, create_subdirs
 from pycoupler.data import read_header
@@ -1022,7 +1022,8 @@ class CoupledConfig(SubConfig):
 
 def read_yaml(file_name, config_class):
     with open(file_name, "r") as f:
-        yaml_data = ruamel.yaml.safe_load(f)
+        yaml = YAML(typ='safe', pure=True)
+        yaml_data = yaml.load(f)
 
     return from_yaml(yaml_data, config_class)
 
