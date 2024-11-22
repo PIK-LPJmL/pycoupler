@@ -314,6 +314,14 @@ class LPJmLCoupler:
             for output_key in self.__output_ids
         }
 
+    # callled when writing class as pickle - exclude channel (socket) attribute
+    def __getstate__(self):
+        # Create a dictionary of the attributes to pickle, excluding the socket
+        state = self.__dict__.copy()
+        if '_channel' in state:
+            del state['_channel']  # Exclude the socket
+        return state
+
     @property
     def config(self):
         """Get the underlyig LpjmLConfig object
@@ -516,7 +524,7 @@ class LPJmLCoupler:
 
     def close(self):
         """Close socket channel"""
-        self.__channel.close()
+        self._channel.close()
 
     def send_input(self, input_dict, year):
         """Send input data of iterated year as dictionary to LPJmL. Dictionary
@@ -803,9 +811,9 @@ class LPJmLCoupler:
 
     def __init_channel(self, version, host, port):
         # open/initialize socket channel
-        self.__channel = opentdt(host, port)
+        self._channel = opentdt(host, port)
         # Check coupler protocol version
-        self.version = read_int(self.__channel)
+        self.version = read_int(self._channel)
         if self.version != version:
             self.close()
             raise ValueError(
@@ -819,7 +827,7 @@ class LPJmLCoupler:
         self.__year_send_input = None
 
         # read amount of LPJml cells
-        self.__ncell = read_int(self.__channel)
+        self.__ncell = read_int(self._channel)
         if self.__ncell != len(
             range(self.__config.startgrid, self.__config.endgrid + 1)
         ):
@@ -830,10 +838,10 @@ class LPJmLCoupler:
             )
 
         # read amount of input streams
-        self.__ninput = read_int(self.__channel)
+        self.__ninput = read_int(self._channel)
 
         # read amount of output streams
-        self.__noutput = self.__noutput_sim = read_int(self.__channel)
+        self.__noutput = self.__noutput_sim = read_int(self._channel)
 
         # verify and initialize input attributes and send input information
         self.__init_input()
@@ -933,7 +941,7 @@ class LPJmLCoupler:
 
     def __check_token(self, token):
         """check if read token matches the expected token"""
-        received_token = read_token(self.__channel)
+        received_token = read_token(self._channel)
         if received_token == token:
             return True, received_token
         else:
@@ -941,19 +949,19 @@ class LPJmLCoupler:
 
     def __send_band_size(self, input_bands):
         """Send input band size for read index to socket"""
-        index = read_int(self.__channel)
+        index = read_int(self._channel)
         # convert received LPJmL data types into Python compatible types
         self.__set_input_types(index)
         if index in input_bands.keys():
             # Send number of bands
-            send_int(self.__channel, val=input_bands[index])
+            send_int(self._channel, val=input_bands[index])
         else:
             self.close()
             raise ValueError(f"Input of input ID {index} not supported.")
 
     def __set_input_types(self, index):
         """Convert received LPJmL data types into Python compatible types"""
-        self.__input_types[index] = LPJmlValueType(read_int(self.__channel))
+        self.__input_types[index] = LPJmlValueType(read_int(self._channel))
 
     def __get_config_input_sockets(self):
         """Get and validate input sockets, check if defined in LPJmLInputType
@@ -981,34 +989,34 @@ class LPJmLCoupler:
         """Read output details per output index (timesteps, number of bands,
         data types) from socket
         """
-        index = read_int(self.__channel)
+        index = read_int(self._channel)
         # Get number of steps for output
-        self.__output_steps[index] = read_int(self.__channel)
+        self.__output_steps[index] = read_int(self._channel)
         # Get number of bands for output
-        self.__output_bands[index] = read_int(self.__channel)
+        self.__output_bands[index] = read_int(self._channel)
         # Get datatype for output
-        self.__output_types[index] = LPJmlValueType(read_int(self.__channel))
+        self.__output_types[index] = LPJmlValueType(read_int(self._channel))
 
         # check if only annual timesteps were set
         if self.__output_steps[index] > 1:
-            send_int(self.__channel, CopanStatus.COPAN_ERR.value)
+            send_int(self._channel, CopanStatus.COPAN_ERR.value)
             self.close()
             raise ValueError(
                 f"Time step {self.__output_steps[index]} "
                 + f" for output ID {index} invalid."
             )
         else:
-            send_int(self.__channel, CopanStatus.COPAN_OK.value)
+            send_int(self._channel, CopanStatus.COPAN_OK.value)
 
     def __communicate_status(self):
         """Check if LPJmL token equals GET_STATUS, send OK or ERROR"""
-        check_token = LPJmLToken(read_int(self.__channel))
+        check_token = LPJmLToken(read_int(self._channel))
         if check_token == LPJmLToken.GET_STATUS:
             if self.__ninput != 0 and self.__noutput != 0:
-                send_int(self.__channel, CopanStatus.COPAN_OK.value)
+                send_int(self._channel, CopanStatus.COPAN_OK.value)
             else:
                 self.close()
-                send_int(self.__channel, CopanStatus.COPAN_ERR.value)
+                send_int(self._channel, CopanStatus.COPAN_ERR.value)
                 raise ValueError("No inputs OR outputs defined.")
         else:
             raise ValueError(
@@ -1066,7 +1074,7 @@ class LPJmLCoupler:
         """Read static data to be called within initialization of coupler.
         Currently only grid data supported
         """
-        index = read_int(self.__channel)
+        index = read_int(self._channel)
 
         read_fun = self.__output_types[index].read_fun
         meta_data = self.__read_meta_output(index)
@@ -1075,7 +1083,7 @@ class LPJmLCoupler:
         for cell in range(0, self.__ncell):
             for band in range(0, self.__output_bands[index]):
                 getattr(self, f"{self.__static_ids[index]}")[cell, band] = (
-                    read_fun(self.__channel) * meta_data.scalar
+                    read_fun(self._channel) * meta_data.scalar
                 )
 
         # add meta data to xarray
@@ -1139,7 +1147,7 @@ class LPJmLCoupler:
         format and year for input index. If set correct executes private
         send_input_values method that does the sending.
         """
-        index = read_int(self.__channel)
+        index = read_int(self._channel)
         if isinstance(data, LPJmLDataSet):
             data = data.to_numpy()
         elif not isinstance(data[self.__input_ids[index]], np.ndarray):
@@ -1162,7 +1170,7 @@ class LPJmLCoupler:
                 + "Please supply a numpy array with data type: "
                 + f"{np.dtype(self.__input_types[index].type)}."
             )
-        year = read_int(self.__channel)
+        year = read_int(self._channel)
         if not validate_year == year:
             self.close()
             raise ValueError(
@@ -1203,17 +1211,17 @@ class LPJmLCoupler:
             for cell in range(cells):
                 # Send the value to the socket
                 if one_band:
-                    send_function(self.__channel, data[cell])
+                    send_function(self._channel, data[cell])
                 else:
-                    send_function(self.__channel, data[cell, band])
+                    send_function(self._channel, data[cell, band])
 
     def __read_output_data(self, validate_year, to_xarray=True):
         """Read output data checks supplied year and sets numpy array template
         for corresponding output (index). If set correct executes
         private read_output_values method to read the corresponding output.
         """
-        index = read_int(self.__channel)
-        year = read_int(self.__channel)
+        index = read_int(self._channel)
+        year = read_int(self._channel)
         if not validate_year == year:
             self.close()
             raise ValueError(
@@ -1255,9 +1263,9 @@ class LPJmLCoupler:
             for cell in range(cells):
                 # Read the value from the socket
                 if one_band:
-                    output[cell] = lpjml_type.read_fun(self.__channel)
+                    output[cell] = lpjml_type.read_fun(self._channel)
                 else:
-                    output[cell, band] = lpjml_type.read_fun(self.__channel)
+                    output[cell, band] = lpjml_type.read_fun(self._channel)
 
         return output
 
@@ -1292,10 +1300,13 @@ class LPJmLCoupler:
 
     def __repr__(self):
         """Representation of the Coupler object"""
-        try:
-            port = self.__channel.getsockname()[1]
-        except OSError:
-            port = "<closed>"
+        if hasattr(self, '_channel'):
+            try:
+                port = self._channel.getsockname()[1]
+            except OSError:
+                port = "<closed>"
+        else:
+            port = "<none>"
 
         summary = f"<pycoupler.{self.__class__.__name__}>"
         summary = "\n".join(
