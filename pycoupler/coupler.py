@@ -318,8 +318,8 @@ class LPJmLCoupler:
     def __getstate__(self):
         # Create a dictionary of the attributes to pickle, excluding the socket
         state = self.__dict__.copy()
-        if '_channel' in state:
-            del state['_channel']  # Exclude the socket
+        if "_channel" in state:
+            del state["_channel"]  # Exclude the socket
         return state
 
     @property
@@ -1302,7 +1302,7 @@ class LPJmLCoupler:
 
     def __repr__(self):
         """Representation of the Coupler object"""
-        if hasattr(self, '_channel'):
+        if hasattr(self, "_channel"):
             try:
                 port = self._channel.getsockname()[1]
             except OSError:
