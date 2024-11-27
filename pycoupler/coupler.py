@@ -89,7 +89,7 @@ def read_int(channel):
         # write_bytestring_to_file(inttup[0], os.path.join(os.path.dirname(__file__), '../tests/data/test_receive.txt')) # noqa
         inttup = [
             int(
-                read_lines_from_file(f"{os.environ["TEST_PATH"]}/data/test_receive.txt")
+                read_lines_from_file(f"{os.environ['TEST_PATH']}/data/test_receive.txt")
             )
         ]  # noqa
     else:
@@ -104,7 +104,7 @@ def read_short(channel):
         # write_bytestring_to_file(inttup[0], os.path.join(os.path.dirname(__file__), '../tests/data/test_receive.txt')) # noqa
         inttup = [
             int(
-                read_lines_from_file(f"{os.environ["TEST_PATH"]}/data/test_receive.txt")
+                read_lines_from_file(f"{os.environ['TEST_PATH']}/data/test_receive.txt")
             )
         ]  # noqa
     else:
@@ -124,7 +124,7 @@ def read_float(channel):
         # write_bytestring_to_file(floattup[0], os.path.join(os.path.dirname(__file__), '../tests/data/test_receive.txt')) # noqa
         floattup = [
             float(
-                read_lines_from_file(f"{os.environ["TEST_PATH"]}/data/test_receive.txt")
+                read_lines_from_file(f"{os.environ['TEST_PATH']}/data/test_receive.txt")
             )
         ]  # noqa
     else:
@@ -270,9 +270,9 @@ class LPJmLCoupler:
 
         if hasattr(sys, "_called_from_test"):
             self.__config.set_outputpath(
-                f"{os.environ["TEST_PATH"]}/data/output/coupled_test"
+                f"{os.environ['TEST_PATH']}/data/output/coupled_test"
             )
-            self.__config.sim_path = os.path.join(f"{os.environ["TEST_PATH"]}/data/")
+            self.__config.sim_path = os.path.join(f"{os.environ['TEST_PATH']}/data/")
 
         # initiate coupling, get number of cells, inputs and outputs and verify
         self.__init_coupling()
