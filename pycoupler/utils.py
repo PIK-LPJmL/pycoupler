@@ -308,7 +308,7 @@ def create_subdirs(base_path, sim_name):
     :return: base_path
     :rtype: str
     """
-    if is_pytest():
+    if hasattr(sys, "_called_from_test"):
         return base_path
 
     if not os.path.exists(base_path):
@@ -327,10 +327,3 @@ def create_subdirs(base_path, sim_name):
         print(f"Restart path '{base_path}/restart' was created.")
 
     return base_path
-
-
-def is_pytest() -> bool:
-    """Detect if we are running via pytest."""
-    # When we are running via pytest it is loaded to the sys modules dictionary.
-    _is_pytest: bool = "pytest" in sys.modules
-    return _is_pytest

@@ -1,4 +1,5 @@
 import os
+import sys
 import socket
 import struct
 import tempfile
@@ -20,7 +21,7 @@ from pycoupler.data import (
     read_meta,
     read_data,
 )
-from pycoupler.utils import get_countries, is_pytest
+from pycoupler.utils import get_countries
 
 
 class test_channel:
@@ -41,6 +42,9 @@ class test_channel:
     def send(self, val):
         pass
 
+    def getsockname(self):
+        return ["test", "<none>"]
+
 
 def write_bytestring_to_file(bytestring, filepath):
     """Write bytestring to file in binary mode (for testing purposes)"""
@@ -48,20 +52,16 @@ def write_bytestring_to_file(bytestring, filepath):
         file.write(str(bytestring) + "\n")
 
 
-LINE_COUNTER = 0
-
-
 def read_lines_from_file(filepath):
     """Read lines from a file and return as a list (for testing purposes)"""
-    global LINE_COUNTER
 
     with open(filepath, "r") as file:  # Read the file in binary mode
         bytestring = file.read().strip()
 
     lines = bytestring.split("\n")
-    if LINE_COUNTER < len(lines):
-        line = lines[LINE_COUNTER]
-        LINE_COUNTER += 1
+    if int(os.environ["TEST_LINE_COUNTER"]) < len(lines):
+        line = lines[int(os.environ["TEST_LINE_COUNTER"])]
+        os.environ["TEST_LINE_COUNTER"] = str(int(os.environ["TEST_LINE_COUNTER"]) + 1)
         return line
     else:
         return None
@@ -85,15 +85,11 @@ def send_int(channel, val):
 
 def read_int(channel):
     """read received string as integer"""
-    if is_pytest():
+    if hasattr(sys, "_called_from_test"):
         # write_bytestring_to_file(inttup[0], os.path.join(os.path.dirname(__file__), '../tests/data/test_receive.txt')) # noqa
         inttup = [
             int(
-                read_lines_from_file(
-                    os.path.join(
-                        os.path.dirname(__file__), "../tests/data/test_receive.txt"
-                    )
-                )
+                read_lines_from_file(f"{os.environ["TEST_PATH"]}/data/test_receive.txt")
             )
         ]  # noqa
     else:
@@ -104,15 +100,11 @@ def read_int(channel):
 
 def read_short(channel):
     """read received string as short"""
-    if is_pytest():
+    if hasattr(sys, "_called_from_test"):
         # write_bytestring_to_file(inttup[0], os.path.join(os.path.dirname(__file__), '../tests/data/test_receive.txt')) # noqa
         inttup = [
             int(
-                read_lines_from_file(
-                    os.path.join(
-                        os.path.dirname(__file__), "../tests/data/test_receive.txt"
-                    )
-                )
+                read_lines_from_file(f"{os.environ["TEST_PATH"]}/data/test_receive.txt")
             )
         ]  # noqa
     else:
@@ -128,15 +120,11 @@ def send_float(channel, val):
 
 def read_float(channel):
     """read received string as float"""
-    if is_pytest():
+    if hasattr(sys, "_called_from_test"):
         # write_bytestring_to_file(floattup[0], os.path.join(os.path.dirname(__file__), '../tests/data/test_receive.txt')) # noqa
         floattup = [
             float(
-                read_lines_from_file(
-                    os.path.join(
-                        os.path.dirname(__file__), "../tests/data/test_receive.txt"
-                    )
-                )
+                read_lines_from_file(f"{os.environ["TEST_PATH"]}/data/test_receive.txt")
             )
         ]  # noqa
     else:
@@ -206,7 +194,7 @@ class CopanStatus(Enum):
 
 def opentdt(host, port):
     """open channel and validate connection to LPJmL"""
-    if is_pytest():
+    if hasattr(sys, "_called_from_test"):
         channel = test_channel()
     else:
         # create an INET, STREAMing socket
@@ -280,15 +268,11 @@ class LPJmLCoupler:
         # read configuration file
         self.__config = read_config(config_file)
 
-        if is_pytest():
+        if hasattr(sys, "_called_from_test"):
             self.__config.set_outputpath(
-                os.path.join(
-                    os.path.dirname(__file__), "../tests/data/output/coupled_test"
-                )
+                f"{os.environ["TEST_PATH"]}/data/output/coupled_test"
             )
-            self.__config.sim_path = os.path.join(
-                os.path.dirname(__file__), "../tests/data"
-            )
+            self.__config.sim_path = os.path.join(f"{os.environ["TEST_PATH"]}/data/")
 
         # initiate coupling, get number of cells, inputs and outputs and verify
         self.__init_coupling()

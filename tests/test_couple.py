@@ -2,25 +2,19 @@
 
 import os
 import numpy as np
-import pytest
+from unittest.mock import patch
 from pycoupler.config import read_config
 from pycoupler.coupler import LPJmLCoupler
 
-
-@pytest.fixture
-def test_path():
-    """Fixture for the test path."""
-    return os.path.dirname(os.path.abspath(__file__))
+from .conftest import get_test_path
 
 
-@pytest.fixture
-def lpjml_coupler(test_path):
-    """Fixture for the LPJmLCoupler class."""
+@patch.dict(os.environ, {"TEST_PATH": get_test_path(), "TEST_LINE_COUNTER": "0"})
+def test_lpjml_coupler(test_path):
+
     config_coupled_fn = f"{test_path}/data/config_coupled_test.json"
-    return LPJmLCoupler(config_file=config_coupled_fn)
+    lpjml_coupler = LPJmLCoupler(config_file=config_coupled_fn)
 
-
-def test_lpjml_coupler(lpjml_coupler):
     """Test the LPJmLCoupler class."""
     inputs = lpjml_coupler.read_input(copy=False)
     outputs = lpjml_coupler.read_historic_output()

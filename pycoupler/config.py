@@ -1010,8 +1010,8 @@ class CoupledConfig(SubConfig):
             if isinstance(value, SubConfig):
                 summary += (
                     f"""{'  ' * sub_repr}* {key}: {value.__repr__(
-                    sub_repr + 1, order + 1
-                )}""".strip()
+                        sub_repr + 1, order + 1
+                    )}""".strip()
                     + spacing
                 )
             else:
