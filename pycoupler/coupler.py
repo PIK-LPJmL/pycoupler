@@ -3,13 +3,12 @@ import sys
 import socket
 import struct
 import tempfile
-import warnings
 
 import numpy as np
 import pandas as pd
 import xarray as xr
 
-from subprocess import run, CalledProcessError
+from subprocess import run
 from enum import Enum
 
 from pycoupler.config import read_config
@@ -20,6 +19,7 @@ from pycoupler.data import (
     append_to_dict,
     read_meta,
     read_data,
+    read_header,
 )
 from pycoupler.utils import get_countries
 
@@ -709,67 +709,56 @@ class LPJmLCoupler:
             file_name_clm = sock_inputs[key]["name"].split("/")[-1]
             # name tmp file after original name (even though could be random)
             file_name_tmp = f"{file_name_clm.split('.')[0]}_tmp.clm"
-            # predefine cut clm command for reusage
+
+            # read meta data of input file
+            meta_data = read_header(sock_inputs[key]["name"])
+
+            # determine start cut off and end cut off year
+            if meta_data.firstyear > end_year:
+                cut_start_year = meta_data.firstyear
+                cut_end_year = meta_data.firstyear
+            elif meta_data.lastyear < start_year:
+                cut_start_year = meta_data.lastyear
+                cut_end_year = meta_data.lastyear
+            elif meta_data.firstyear > start_year:
+                cut_start_year = meta_data.firstyear
+                cut_end_year = min(meta_data.lastyear, end_year)
+            elif meta_data.lastyear < end_year:
+                cut_start_year = start_year
+                cut_end_year = meta_data.lastyear
+
             cut_clm_start = [
                 f"{self.__config.model_path}/bin/cutclm",
-                str(start_year),
+                str(cut_start_year),
                 sock_inputs[key]["name"],
                 f"{temp_dir}/1_{file_name_tmp}",
             ]
+            run(cut_clm_start, stdout=open(os.devnull, "wb"))
 
-            start_year_check = start_year
-            reverse = False
-            # run cut clm file before start year and after end year in sequence
-            # workaround for not having header information (missing function)
-            while True:
-                try:
-                    run(cut_clm_start, stdout=open(os.devnull, "wb"), check=True)
-                    break
-                # if cut clm fails, try to change start year
-                except CalledProcessError:
-                    # first increase year until end_year is reached
-                    if not reverse:
-                        start_year_check += 1
-                        # if year is larger than end_year, start decreasing
-                        #   from start_year
-                        if start_year_check > end_year:
-                            warnings.warn(
-                                f"Input file for '{key}' does not include data"
-                                f" between {start_year} and {end_year}!"
-                            )
-                            reverse = True
-                            start_year_check = start_year - 1
-                    elif reverse:
-                        start_year_check -= 1
-                        end_year = start_year_check
-                        # assuming 30 years backwards tolerance (climate)
-                        if start_year_check < start_year - 30:
-                            raise ValueError(
-                                f"Input file for '{key}' does not include data"
-                                f"anywhere near {start_year}."
-                            )
-                    cut_clm_start[1] = str(start_year_check)
-
+            # predefine cut clm command for reusage
             # cannot deal with overwriting a temp file with same name
             cut_clm_end = [
                 f"{self.__config.model_path}/bin/cutclm",
                 "-end",
-                str(end_year),
+                str(cut_end_year),
                 f"{temp_dir}/1_{file_name_tmp}",
                 f"{temp_dir}/2_{file_name_tmp}",
             ]
             run(cut_clm_end, stdout=open(os.devnull, "wb"))
+
             # a flag for multi (categorical) band input - if true, set
             #   "-landuse"
             if getattr(LPJmLInputType, key).bands:
                 is_multiband = "-landuse"
             else:
                 is_multiband = None
+
             # a flag for integer input - if true, set "-int"
             if getattr(LPJmLInputType, key).type == int:
                 is_int = "-intnetcdf"
             else:
                 is_int = None
+
             # default grid file (only valid for 0.5 degree inputs)
             if self.config.input.coord.name.startswith("/"):
                 grid_file = self.config.input.coord.name
@@ -785,6 +774,7 @@ class LPJmLCoupler:
                 f"{temp_dir}/2_{file_name_tmp}",
                 f"{input_path}/{key}.nc",
             ]
+
             if None in conversion_cmd:
                 conversion_cmd.remove(None)
             run(conversion_cmd)
