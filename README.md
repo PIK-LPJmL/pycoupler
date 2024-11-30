@@ -1,7 +1,7 @@
 # pycoupler: dynamic model coupling of LPJmL <a href=''><img src='docs/img/logo.png' align="right" height="139" /></a>
 
 [![DOI](https://zenodo.org/badge/631875667.svg)](https://zenodo.org/doi/10.5281/zenodo.11576705) 
-[![CI](https://github.com/PIK-LPJmL/pycoupler/actions/workflows/check.yml/badge.svg)](https://github.com/PIK-LPJmL/pycoupler/actions) [![codecov](https://codecov.io/gh/pik-lpjml/pycoupler/graph/badge.svg?token=A7ONVL4AR4)](https://codecov.io/gh/pik-lpjml/pycoupler)
+[![CI](https://github.com/PIK-LPJmL/pycoupler/actions/workflows/check.yml/badge.svg)](https://github.com/PIK-LPJmL/pycoupler/actions) [![codecov](https://codecov.io/gh/jnnsbrr/pycoupler/graph/badge.svg?token=A7ONVL4AR4)](https://codecov.io/gh/jnnsbrr/pycoupler)
 
 An LPJmL-Python interface for operating [LPJmL](https://github.com/PIK-LPJmL) in
 a Python environment and coupling it with Python models, programmes or simple

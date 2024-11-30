@@ -2,6 +2,7 @@
 """
 
 import os
+import sys
 import subprocess
 import json
 from subprocess import run
@@ -664,7 +665,7 @@ class LpjmlConfig(SubConfig):
             or (not os.path.isfile(f"{sim_path}/input/soil_{country}.clm"))
             or (not os.path.isfile(f"{sim_path}/input/lakes_{country}.bin"))
             or overwrite_input
-        ):
+        ) and not hasattr(sys, "_called_from_test"):
 
             # extract country specific grid
             run(
