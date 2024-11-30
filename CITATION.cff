@@ -17,6 +17,10 @@ authors:
   given-names: Jannes
   email: jannesbr@pik-potsdam.de
   orcid: 0000-0002-9055-6904
+- family-names: von Bloh
+  given-names: Werner
+  email: bloh@pik-potsdam.de
+  orcid: 0000-0002-7399-2704
 
 license: AGPL-3.0
 repository-code: https://github.com/PIK-LPJmL/pycoupler
