@@ -1,6 +1,6 @@
 """Test the LPJmLConfig class."""
 
-from pycoupler.config import read_config
+from pycoupler.config import read_config, read_yaml, SubConfig
 
 
 def test_set_spinup_config(test_path):
@@ -140,6 +140,18 @@ def test_set_coupled_config(test_path):
     del config_coupled_dict["changed"]
     del check_config_coupled_dict["changed"]
 
+    config_coupled
     # assert that dict config_coupled has the content and structure as
     #   check_config_coupled
     assert config_coupled_dict == check_config_coupled_dict
+
+
+def test_read_yaml(test_path):
+    coupled_config = read_yaml(f"{test_path}/data/config.yaml", SubConfig)
+
+    coupled_config
+    # change setting
+    coupled_config.lpjml_settings.iso_country_code = False
+
+    assert coupled_config.lpjml_settings.country_code_to_name is True
+    assert coupled_config.lpjml_settings.iso_country_code is False
