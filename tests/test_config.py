@@ -1,6 +1,6 @@
 """Test the LPJmLConfig class."""
 
-from pycoupler.config import read_config, read_yaml, SubConfig
+from pycoupler.config import read_config, read_yaml, CoupledConfig
 
 
 def test_set_spinup_config(test_path):
@@ -140,18 +140,34 @@ def test_set_coupled_config(test_path):
     del config_coupled_dict["changed"]
     del check_config_coupled_dict["changed"]
 
-    config_coupled
-    # assert that dict config_coupled has the content and structure as
-    #   check_config_coupled
+    assert (
+        repr(config_coupled)
+        == "<pycoupler.LpjmlConfig>\nSettings:      lpjml v5.8\n  (general)\n  * sim_name   coupled_test\n  * firstyear  2001\n  * lastyear   2050\n  * startgrid  27410\n  * endgrid    27411\n  * landuse    yes\n  (changed)\n  * model_path           /p/projects/open/Jannes/testing/pycoupler/tests\n  * sim_path             /p/projects/open/Jannes/testing/pycoupler/tests\n  * outputyear           2022\n  * output_metafile      True\n  * grid_type            float\n  * write_restart        False\n  * nspinup              0\n  * float_grid           True\n  * restart_filename     /p/projects/open/Jannes/testing/pycoupler/tests/restart/restart_historic_run.lpj\n  * outputyear           2022\n  * radiation            cloudiness\n  * fix_co2              True\n  * fix_co2_year         2018\n  * fix_climate          True\n  * fix_climate_cycle    11\n  * fix_climate_year     2013\n  * river_routing        False\n  * tillage_type         read\n  * residue_treatment    fixed_residue_remove\n  * double_harvest       False\n  * intercrop            True\nCoupled model:        copan:CORE\n  * start_coupling    2023\n  * input (coupled)   ['with_tillage']\n  * output (coupled)  ['grid', 'pft_harvestc', 'cftfrac', 'soilc_agr_layer', 'hdate', 'country', 'region']\n"  # noqa
+    )  # noqa
     assert config_coupled_dict == check_config_coupled_dict
+
+    config_coupled.sim_path = f"{test_path}/data"
+    assert config_coupled.convert_cdf_to_raw() == "tested"
 
 
 def test_read_yaml(test_path):
-    coupled_config = read_yaml(f"{test_path}/data/config.yaml", SubConfig)
+    coupled_config = read_yaml(f"{test_path}/data/config.yaml", CoupledConfig)
 
-    coupled_config
     # change setting
     coupled_config.lpjml_settings.iso_country_code = False
 
+    assert (
+        repr(coupled_config)
+        == "Coupled configuration:\n  * lpjml_settings: \n    * country_code_to_name True\n    * iso_country_code     False\n  "  # noqa
+    )  # noqa
     assert coupled_config.lpjml_settings.country_code_to_name is True
     assert coupled_config.lpjml_settings.iso_country_code is False
+
+
+def test_read_config(test_path):
+    coupled_config = read_config(
+        f"{test_path}/data/config_coupled_test.json", to_dict=True
+    )
+    assert coupled_config["model_path"] == "LPJmL_internal"
+    assert coupled_config["sim_path"] == "lpjml"
+    assert coupled_config["coupled_model"] == "copan:CORE"

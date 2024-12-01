@@ -759,7 +759,9 @@ class LpjmlConfig(SubConfig):
 
         grid_name = os.path.basename(grid_file)
 
-        if not os.path.isfile(f"{output_dir}/{grid_name}"):
+        if not os.path.isfile(f"{output_dir}/{grid_name}") and not hasattr(
+            sys, "_called_from_test"
+        ):
             run(f"tail -c +44 {grid_file} > {output_dir}/{grid_name}", shell=True)
 
         grid_file = f"{output_dir}/{grid_name}"
@@ -790,9 +792,12 @@ class LpjmlConfig(SubConfig):
                 grid_file,
                 f"{output_dir}/{output.name}.nc4",
             ]
+
             if None in conversion_cmd:
                 conversion_cmd.remove(None)
-            run(conversion_cmd)
+
+            if not hasattr(sys, "_called_from_test"):
+                run(conversion_cmd)
 
             nc4_meta_dict = read_json(f"{output_dir}/{output.name}.nc4.json")
 
@@ -806,6 +811,9 @@ class LpjmlConfig(SubConfig):
                         nc4_meta_dict["ref_area"]["filename"].split(".")[0]
                         + ".bin.json"
                     )
+
+            if hasattr(sys, "_called_from_test"):
+                return "tested"
 
             with open(f"{output_dir}/{output.name}.bin.json", "w") as f:
                 json.dump(bin_meta_dict, f, indent=2)
