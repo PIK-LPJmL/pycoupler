@@ -377,7 +377,8 @@ def read_data(file_name, var_name=None):
         if var_name:
             data = data[var_name]
             data = LPJmLData(data)
-
+        else:
+            data = LPJmLDataSet(data)
         return data
 
 
