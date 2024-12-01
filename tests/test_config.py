@@ -11,7 +11,7 @@ def test_set_spinup_config(test_path):
     )
 
     # set spinup run configuration
-    config_spinup.set_spinup(sim_path=test_path)
+    config_spinup.set_spinup(sim_path=f"{test_path}/data")
 
     # only for global runs = TRUE
     config_spinup.river_routing = False
@@ -21,10 +21,10 @@ def test_set_spinup_config(test_path):
         sim_path=f"{test_path}/data", country_code="NLD", overwrite_input=False
     )
     assert config_spinup.model_path == test_path
-    assert config_spinup.sim_path == test_path
+    assert config_spinup.sim_path == f"{test_path}/data"
     assert (
         config_spinup.write_restart_filename
-        == f"{test_path}/restart/restart_spinup.lpj"
+        == f"{test_path}/data/restart/restart_spinup.lpj"
     )
     assert config_spinup.restart_year == 2011
     assert config_spinup.river_routing is False
@@ -39,7 +39,7 @@ def test_set_historic_config(test_path):
 
     # set historic run configuration
     config_historic.set_transient(
-        sim_path=test_path,
+        sim_path=f"{test_path}/data",
         sim_name="historic_run",
         dependency="spinup",
         start_year=1901,
@@ -53,11 +53,14 @@ def test_set_historic_config(test_path):
     config_historic.double_harvest = False
 
     assert config_historic.model_path == test_path
-    assert config_historic.sim_path == test_path
-    assert config_historic.restart_filename == f"{test_path}/restart/restart_spinup.lpj"
+    assert config_historic.sim_path == f"{test_path}/data"
+    assert (
+        config_historic.restart_filename
+        == f"{test_path}/data/restart/restart_spinup.lpj"
+    )
     assert (
         config_historic.write_restart_filename
-        == f"{test_path}/restart/restart_historic_run.lpj"
+        == f"{test_path}/data/restart/restart_historic_run.lpj"
     )
     assert config_historic.restart_year == 2000
     assert config_historic.river_routing is False
@@ -70,7 +73,7 @@ def test_set_coupled_config(test_path):
     """Test the set_config method of the LPJmLCoupler class."""
     # create config for coupled run
     config_coupled = read_config(
-        model_path=test_path, file_name="data/lpjml_config.json"
+        model_path=f"{test_path}/data", file_name="lpjml_config.json"
     )
 
     config_coupled.startgrid = 27410
@@ -78,7 +81,7 @@ def test_set_coupled_config(test_path):
 
     # set coupled run configuration
     config_coupled.set_coupled(
-        sim_path=test_path,
+        sim_path=f"{test_path}/data",
         sim_name="coupled_test",
         dependency="historic_run",
         start_year=2001,
@@ -125,10 +128,10 @@ def test_set_coupled_config(test_path):
 
     # create config for coupled run
     check_config_coupled = read_config(
-        model_path=test_path, file_name="data/config_coupled_test.json"
+        model_path=f"{test_path}/data", file_name="config_coupled_test.json"
     )
     # update with actual output path (test directory)
-    check_config_coupled.set_outputpath(f"{test_path}/output/coupled_test")
+    check_config_coupled.set_outputpath(f"{test_path}/data/output/coupled_test")
 
     # align both config objects
     check_config_coupled.restart_filename = config_coupled.restart_filename
@@ -142,7 +145,7 @@ def test_set_coupled_config(test_path):
 
     assert (
         repr(config_coupled)
-        == f"<pycoupler.LpjmlConfig>\nSettings:      lpjml v5.8\n  (general)\n  * sim_name   coupled_test\n  * firstyear  2001\n  * lastyear   2050\n  * startgrid  27410\n  * endgrid    27411\n  * landuse    yes\n  (changed)\n  * model_path           {test_path}\n  * sim_path             {test_path}\n  * outputyear           2022\n  * output_metafile      True\n  * grid_type            float\n  * write_restart        False\n  * nspinup              0\n  * float_grid           True\n  * restart_filename     {test_path}/restart/restart_historic_run.lpj\n  * outputyear           2022\n  * radiation            cloudiness\n  * fix_co2              True\n  * fix_co2_year         2018\n  * fix_climate          True\n  * fix_climate_cycle    11\n  * fix_climate_year     2013\n  * river_routing        False\n  * tillage_type         read\n  * residue_treatment    fixed_residue_remove\n  * double_harvest       False\n  * intercrop            True\nCoupled model:        copan:CORE\n  * start_coupling    2023\n  * input (coupled)   ['with_tillage']\n  * output (coupled)  ['grid', 'pft_harvestc', 'cftfrac', 'soilc_agr_layer', 'hdate', 'country', 'region']\n"  # noqa
+        == f"<pycoupler.LpjmlConfig>\nSettings:      lpjml v5.8\n  (general)\n  * sim_name   coupled_test\n  * firstyear  2001\n  * lastyear   2050\n  * startgrid  27410\n  * endgrid    27411\n  * landuse    yes\n  (changed)\n  * model_path           {test_path}/data\n  * sim_path             {test_path}/data\n  * outputyear           2022\n  * output_metafile      True\n  * grid_type            float\n  * write_restart        False\n  * nspinup              0\n  * float_grid           True\n  * restart_filename     {test_path}/data/restart/restart_historic_run.lpj\n  * outputyear           2022\n  * radiation            cloudiness\n  * fix_co2              True\n  * fix_co2_year         2018\n  * fix_climate          True\n  * fix_climate_cycle    11\n  * fix_climate_year     2013\n  * river_routing        False\n  * tillage_type         read\n  * residue_treatment    fixed_residue_remove\n  * double_harvest       False\n  * intercrop            True\nCoupled model:        copan:CORE\n  * start_coupling    2023\n  * input (coupled)   ['with_tillage']\n  * output (coupled)  ['grid', 'pft_harvestc', 'cftfrac', 'soilc_agr_layer', 'hdate', 'country', 'region']\n"  # noqa
     )  # noqa
     assert config_coupled_dict == check_config_coupled_dict
 

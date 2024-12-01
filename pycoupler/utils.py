@@ -1,5 +1,4 @@
 import os
-import sys
 import json
 from fuzzywuzzy import fuzz, process
 
@@ -308,9 +307,6 @@ def create_subdirs(base_path, sim_name):
     :return: base_path
     :rtype: str
     """
-    if hasattr(sys, "_called_from_test"):
-        return base_path
-
     if not os.path.exists(base_path):
         raise OSError(f"Path '{base_path}' does not exist.")
 
