@@ -1,6 +1,6 @@
 """Test the LPJmLConfig class."""
 
-from pycoupler.config import read_config, read_yaml, CoupledConfig
+from pycoupler.config import read_config, read_yaml, CoupledConfig, parse_config
 
 
 def test_set_spinup_config(test_path):
@@ -149,6 +149,16 @@ def test_set_coupled_config(test_path):
     config_coupled.sim_path = f"{test_path}/data"
     assert config_coupled.convert_cdf_to_raw() == "tested"
 
+    assert {
+        "grid",
+        "pft_harvestc",
+        "cftfrac",
+        "soilc_agr_layer",
+        "hdate",
+        "country",
+        "region",  # noqa
+    }.issubset(set(config_coupled.get_output()))
+
 
 def test_read_yaml(test_path):
     coupled_config = read_yaml(f"{test_path}/data/config.yaml", CoupledConfig)
@@ -171,3 +181,19 @@ def test_read_config(test_path):
     assert coupled_config["model_path"] == "LPJmL_internal"
     assert coupled_config["sim_path"] == "lpjml"
     assert coupled_config["coupled_model"] == "copan:CORE"
+
+    coupled_config = read_config(
+        f"{test_path}/data/config_coupled_test.json", to_dict=False
+    )
+    assert coupled_config.__class__.__name__ == "LpjmlConfig"
+
+
+def test_parse_config(test_path):
+    coupled_config = parse_config(f"{test_path}/data/lpjml_config.json")
+    assert coupled_config["model_path"] == "LPJmL_internal"
+    assert coupled_config["coupled_model"] is None
+
+    coupled_config = parse_config(
+        f"{test_path}/data/lpjml_config.json", config_class=CoupledConfig
+    )
+    assert coupled_config.__class__.__name__ == "CoupledConfig"
