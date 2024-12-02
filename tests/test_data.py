@@ -10,7 +10,7 @@ from pycoupler.data import (
     read_header,
     get_headersize,
     LPJmLInputType,
-    append_to_dict
+    append_to_dict,
 )
 from pycoupler.coupler import LPJmLCoupler
 from .conftest import get_test_path
