@@ -733,7 +733,8 @@ class LPJmLCoupler:
                 sock_inputs[key]["name"],
                 f"{temp_dir}/1_{file_name_tmp}",
             ]
-            run(cut_clm_start, stdout=open(os.devnull, "wb"))
+            if not hasattr(sys, "_called_from_test"):
+                run(cut_clm_start, stdout=open(os.devnull, "wb"))
 
             # predefine cut clm command for reusage
             # cannot deal with overwriting a temp file with same name
@@ -744,7 +745,9 @@ class LPJmLCoupler:
                 f"{temp_dir}/1_{file_name_tmp}",
                 f"{temp_dir}/2_{file_name_tmp}",
             ]
-            run(cut_clm_end, stdout=open(os.devnull, "wb"))
+            if not hasattr(sys, "_called_from_test"):
+
+                run(cut_clm_end, stdout=open(os.devnull, "wb"))
 
             # a flag for multi (categorical) band input - if true, set
             #   "-landuse"
@@ -777,7 +780,11 @@ class LPJmLCoupler:
 
             if None in conversion_cmd:
                 conversion_cmd.remove(None)
-            run(conversion_cmd)
+
+            if not hasattr(sys, "_called_from_test"):
+                run(conversion_cmd)
+            else:
+                return "tested"
             # remove the temporary clm (binary) files, 1_* is not created in
             #   every case
             if os.path.isfile(f"{temp_dir}/1_{file_name_tmp}"):

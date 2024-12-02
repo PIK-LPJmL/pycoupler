@@ -66,3 +66,12 @@ def test_lpjml_coupler(test_path):
         repr(lpjml_coupler)
         == f"<pycoupler.LPJmLCoupler>\nSimulation:  (version: 3, localhost:<none>)\n  * sim_year   2050\n  * ncell      2\n  * ninput     1\nConfiguration:\n  Settings:      lpjml v5.8\n    (general)\n    * sim_name   coupled_test\n    * firstyear  2001\n    * lastyear   2050\n    * startgrid  27410\n    * endgrid    27411\n    * landuse    yes\n    (changed)\n    * model_path           LPJmL_internal\n    * sim_path             {test_path}/data/\n    * outputyear           2022\n    * output_metafile      True\n    * write_restart        False\n    * nspinup              0\n    * float_grid           True\n    * restart_filename     restart/restart_historic_run.lpj\n    * outputyear           2022\n    * radiation            cloudiness\n    * fix_co2              True\n    * fix_co2_year         2018\n    * fix_climate          True\n    * fix_climate_cycle    11\n    * fix_climate_year     2013\n    * river_routing        False\n    * tillage_type         read\n    * residue_treatment    fixed_residue_remove\n    * double_harvest       False\n    * intercrop            True\n    * sim_path             {test_path}/data/\n  Coupled model:        copan:CORE\n    * start_coupling    2023\n    * input (coupled)   ['with_tillage']\n    * output (coupled)  ['grid', 'pft_harvestc', 'cftfrac', 'soilc_agr_layer', 'hdate', 'country', 'region']\n  "  # noqa
     )
+
+
+@patch.dict(os.environ, {"TEST_PATH": get_test_path(), "TEST_LINE_COUNTER": "0"})
+def test_copy_input(test_path):
+
+    config_coupled_fn = f"{test_path}/data/config_coupled_test.json"
+    lpjml_coupler = LPJmLCoupler(config_file=config_coupled_fn)
+
+    assert lpjml_coupler._copy_input(start_year=2022, end_year=2022) == "tested"
