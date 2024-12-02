@@ -485,7 +485,9 @@ class LpjmlConfig(SubConfig):
         if self.endgrid == "all" or not only_all:
             if self.input.soil.fmt in ["json", "meta"]:
                 self.endgrid = (
-                    read_config(f"{self.inpath}/{self.input.soil.name}", to_dict=True)[
+                    read_config(
+                        f"{self.inpath}/{self.input.soil.name}", to_dict=True
+                    )[  # noqa
                         "ncell"
                     ]
                     - 1
@@ -493,7 +495,9 @@ class LpjmlConfig(SubConfig):
             else:
                 if os.path.isfile(self.input.soil.name):
                     self.endgrid = (
-                        read_header(self.input.soil.name, return_dict=True)["header"][
+                        read_header(self.input.soil.name, to_dict=True)[
+                            "header"
+                        ][  # noqa
                             "ncell"
                         ]
                         - 1
@@ -501,7 +505,8 @@ class LpjmlConfig(SubConfig):
                 else:
                     self.endgrid = (
                         read_header(
-                            f"{self.inpath}/{self.input.soil.name}", return_dict=True
+                            f"{self.inpath}/{self.input.soil.name}",
+                            to_dict=True,  # noqa
                         )["header"]["ncell"]
                         - 1
                     )
