@@ -690,11 +690,6 @@ class LPJmLCoupler:
 
         sock_inputs = self.config.get_input_sockets()
 
-        if hasattr(sys, "_called_from_test"):
-            sock_inputs["name"] = (
-                f"{os.environ['TEST_PATH']}/data/input/with_tillage.nc"  # noqa
-            )
-
         # utility function to get general temp folder for every system
         temp_dir = tempfile.gettempdir()
 
@@ -716,8 +711,13 @@ class LPJmLCoupler:
             # name tmp file after original name (even though could be random)
             file_name_tmp = f"{file_name_clm.split('.')[0]}_tmp.clm"
 
-            # read meta data of input file
-            meta_data = read_header(sock_inputs[key]["name"])
+            if not hasattr(sys, "_called_from_test"):
+                # read meta data of input file
+                meta_data = read_header(sock_inputs[key]["name"])
+            else:
+                meta_data = read_meta(
+                    f"{os.environ['TEST_PATH']}/data/input/{key}.nc.json"
+                )
 
             # determine start cut off and end cut off year
             if meta_data.firstyear > end_year:
@@ -726,7 +726,7 @@ class LPJmLCoupler:
             elif meta_data.lastyear < start_year:
                 cut_start_year = meta_data.lastyear
                 cut_end_year = meta_data.lastyear
-            elif meta_data.firstyear > start_year:
+            elif meta_data.firstyear >= start_year:
                 cut_start_year = meta_data.firstyear
                 cut_end_year = min(meta_data.lastyear, end_year)
             elif meta_data.lastyear < end_year:
