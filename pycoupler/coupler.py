@@ -687,7 +687,13 @@ class LPJmLCoupler:
         if not os.path.isdir(input_path):
             os.makedirs(input_path)
             print(f"Created input path '{input_path}'")
+
         sock_inputs = self.config.get_input_sockets()
+
+        if hasattr(sys, "_called_from_test"):
+            sock_inputs["name"] = (
+                f"{os.environ['TEST_PATH']}/data/input/with_tillage.nc"  # noqa
+            )
 
         # utility function to get general temp folder for every system
         temp_dir = tempfile.gettempdir()
@@ -746,7 +752,6 @@ class LPJmLCoupler:
                 f"{temp_dir}/2_{file_name_tmp}",
             ]
             if not hasattr(sys, "_called_from_test"):
-
                 run(cut_clm_end, stdout=open(os.devnull, "wb"))
 
             # a flag for multi (categorical) band input - if true, set
