@@ -369,14 +369,18 @@ def read_data(file_name, var_name=None):
     :rtype: LPJmLData
     """
     with xr.open_dataset(file_name, decode_times=False, mask_and_scale=False) as data:
-        units, reference_date = data.time.attrs["units"].split("since")
-        date_time = pd.date_range(
-            start=reference_date, periods=data.sizes["time"], freq="MS"
-        )
-        data["time"] = date_time.year
+        if "time" in data.dims:
+            units, reference_date = data.time.attrs["units"].split("since")
+            date_time = pd.date_range(
+                start=reference_date, periods=data.sizes["time"], freq="MS"
+            )
+            data["time"] = date_time.year
+
         if var_name:
             data = data[var_name]
             data = LPJmLData(data)
+        else:
+            data = LPJmLDataSet(data)
 
         return data
 
@@ -491,41 +495,10 @@ def read_meta(file_name):
     return LPJmLMetaData(read_json(file_name))
 
 
-def project_data(output_path, file_name):
-    """Project tabular data to grid."""
-    grid = read_data(f"{output_path}/grid.nc4").astype("float32")
-
-    all_output = pd.read_csv(f"{output_path}/{file_name}")
-    ts = pd.pivot_table(
-        all_output, values="value", index=["year", "cell"], columns=["variable"]
-    )
-
-    # create xarray dataset
-    ds = xr.Dataset()
-
-    # create time dimension
-    ds["time"] = ts.index.levels[0]
-
-    # create cell dimension
-    ds["cell"] = grid.cellid
-
-    # create data arrays for each variable
-    for var in ts.columns:
-        da = xr.DataArray(
-            ts[var].values.reshape((len(ds["time"]), len(ds["cell"]))),
-            dims=("time", "cell"),
-            coords={"time": ds["time"], "cell": ds["cell"]},
-            name=var,
-        )
-        ds[var] = da
-
-    return ds
-
-
 # Function has been derived from the lpjmlkit R package
 #   https://github.com/PIK-LPJmL/lpjmlkit
 #   Author of original R function: Sebastian Ostberg
-def read_header(filename, return_dict=False, force_version=None, verbose=False):
+def read_header(filename, to_dict=False, force_version=None, verbose=False):
     """
     Read header (any version) from LPJmL input/output file
 
@@ -533,9 +506,9 @@ def read_header(filename, return_dict=False, force_version=None, verbose=False):
     LPJmL input files and can also be used for output files.
     :param filename: Filename to read header from.
     :type filename: str
-    :param return_dict: If True, return header as dictionary. If False, return
+    :param to_dict: If True, return header as dictionary. If False, return
         as LPJmLMetaData object.
-    :type return_dict: bool
+    :type to_dict: bool
     :param force_version: Manually set clm version. The default value `NULL`
         means that the version is determined automatically from the header. Set
         only if the version number in the file header is incorrect.
@@ -691,7 +664,7 @@ def read_header(filename, return_dict=False, force_version=None, verbose=False):
                 + f" header read from {filename}"
             )
 
-    if return_dict:
+    if to_dict:
         return {
             "name": headername,
             "header": {"version": version, **headerdata_dict},
@@ -738,7 +711,7 @@ def get_headersize(filename):
     :return: Size of the header in bytes.
     :rtype: int
     """
-    header = read_header(filename, return_dict=True)
+    header = read_header(filename, to_dict=True)
     version = header["header"]["version"]
     if version < 1 or version > 4:
         raise ValueError("Invalid header version. Expecting value between 1 and 4.")

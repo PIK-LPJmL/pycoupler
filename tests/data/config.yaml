@@ -1,0 +1,5 @@
+# Settings for LPJmL specifically for coupling (pycoupler)
+#   (not covered by LPJmL's direct config)
+lpjml_settings:
+    country_code_to_name: true
+    iso_country_code: true
