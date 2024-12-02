@@ -1,0 +1,30 @@
+{
+  "sim_name" : "coupled_test",
+  "source" : "LPJmL C Version 5.8.1",
+  "history" : "/p/projects/open/Jannes/copan_core/lpjml/LPJmL_internal/bin/lpjml /p/projects/open/Jannes/copan_core/lpjml/config_coupled_test.json",
+  "variable" : "grid",
+  "firstcell" : 27410,
+  "ncell" : 2,
+  "cellsize_lon" : 0.500000,
+  "cellsize_lat" : 0.500000,
+  "nstep" : 1,
+  "timestep" : 1,
+  "nbands" : 2,
+  "long_name" : "tillage",
+  "unit" : "",
+  "firstyear" : 2022,
+  "lastyear" : 2022,
+  "nyear" : 1,
+  "datatype" : "short",
+  "scalar" : 1,
+  "order" : "cellyear",
+  "bigendian" : false,
+  "format" : "cdf",
+  "ref_area" : {"filename" : "with_tillage.nc4.json", "format" : "meta"},
+  "filename" : "with_tillage.nc4",
+  "global_attrs": {
+    "institution":"PIK Potsdam",
+    "contact":"Jane Doe",
+    "comment": "check"
+  }
+}

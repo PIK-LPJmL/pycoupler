@@ -4,7 +4,14 @@ import os
 import numpy as np
 from unittest.mock import patch
 
-from pycoupler.data import read_data, read_meta, read_header, get_headersize
+from pycoupler.data import (
+    read_data,
+    read_meta,
+    read_header,
+    get_headersize,
+    LPJmLInputType,
+    append_to_dict
+)
 from pycoupler.coupler import LPJmLCoupler
 from .conftest import get_test_path
 
@@ -17,11 +24,20 @@ def test_read_data(test_path):
     )
     assert tillage_data.__class__.__name__ == "LPJmLData"
 
-    tillage_data = read_data(file_name=f"{test_path}/data/input/with_tillage.nc")
+    tillage_data.add_meta(
+        read_meta(f"{test_path}/data/input/with_tillage.nc.json")
+    )  # noqa
+    assert tillage_data.attrs["comment"] == "check"
+
+    tillage_data = read_data(
+        file_name=f"{test_path}/data/input/with_tillage.nc"
+    )  # noqa
     assert tillage_data.__class__.__name__ == "LPJmLDataSet"
 
 
-@patch.dict(os.environ, {"TEST_PATH": get_test_path(), "TEST_LINE_COUNTER": "0"})
+@patch.dict(
+    os.environ, {"TEST_PATH": get_test_path(), "TEST_LINE_COUNTER": "0"}
+)  # noqa
 def test_get_neighbourhood(test_path):
 
     config_coupled_fn = f"{test_path}/data/config_coupled_test.json"
@@ -88,7 +104,6 @@ def test_read_header(test_path):
     soil_header = read_header(
         f"{test_path}/data/input/soil_netherlands.clm", to_dict=True
     )
-
     check_soil_header = {
         "name": "LPJSOIL",
         "header": {
@@ -110,7 +125,31 @@ def test_read_header(test_path):
     }
     assert soil_header == check_soil_header
 
-    grid_header = read_header(f"{test_path}/data/input/coord_netherlands.clm")
+    append_to_dict(soil_header, {"test": "check"})
+    assert soil_header["test"] == "check"
 
+    grid_header = read_header(f"{test_path}/data/input/coord_netherlands.clm")
     assert grid_header.__class__.__name__ == "LPJmLMetaData"
     assert get_headersize(f"{test_path}/data/input/coord_netherlands.clm") == 43
+
+
+def test_lpjmlinputtype(test_path):
+
+    landuse = LPJmLInputType(6)
+
+    assert landuse.name == "landuse"
+    assert landuse.nband == 64
+    assert landuse.type == float
+    assert landuse.bands is True
+
+    with_tillage = LPJmLInputType(7)
+
+    assert with_tillage.name == "with_tillage"
+    assert with_tillage.nband == 1
+    assert with_tillage.type == int
+    assert with_tillage.bands is False
+
+    fertilizer_nr = LPJmLInputType(18)
+    assert fertilizer_nr.name == "fertilizer_nr"
+    assert fertilizer_nr.nband == 32
+    assert fertilizer_nr.type == float
