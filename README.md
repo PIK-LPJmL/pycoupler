@@ -6,8 +6,9 @@
 An LPJmL-Python interface for operating [LPJmL](https://github.com/PIK-LPJmL) in
 a Python environment and coupling it with Python models, programmes or simple
 programming scripts.
-*pycoupler* was written with the aim of establishing the coupling of
-[copan:CORE](https://github.com/pik-copan/pycopancore/) with LPJmL.
+*pycoupler* was written to establish a coupled World-Earth
+modeling framework, [copan:LPJmL](https://github.com/pik-copan/pycopanlpjml),
+based on [copan:CORE](https://github.com/pik-copan/pycopancore/) and LPJmL.
 Coupling with LPJmL is possible on an annual basis, i.e. for each year in which
 LPJmL is in coupling mode, the desired inputs must be passed via
 *pycoupler*.
