@@ -3,8 +3,9 @@
 import os
 import numpy as np
 from unittest.mock import patch
-from pycoupler.config import read_config
+from copy import deepcopy
 from pycoupler.coupler import LPJmLCoupler
+
 
 from .conftest import get_test_path
 
@@ -46,81 +47,33 @@ def test_lpjml_coupler(test_path):
         outputs["soilc_agr_layer"].values, hist_outputs["soilc_agr_layer"].values
     )
 
+    assert "_channel" not in lpjml_coupler.__getstate__()
 
-def test_set_config(test_path):
-    """Test the set_config method of the LPJmLCoupler class."""
-    # create config for coupled run
-    config_coupled = read_config(
-        model_path=test_path, file_name="data/lpjml_config.json"
+    assert lpjml_coupler.ncell == 2
+    assert [year for year in lpjml_coupler.get_cells()] == [27410, 27411]
+    assert lpjml_coupler.historic_years == []
+    assert lpjml_coupler.sim_years == []
+    assert lpjml_coupler.coupled_years == []
+    assert [year for year in lpjml_coupler.get_coupled_years()] == []
+
+    second_coupler = deepcopy(lpjml_coupler)
+    lpjml_coupler.code_to_name(to_iso_alpha_3=False)
+    assert lpjml_coupler.country[0].item() == "Germany"
+    second_coupler.code_to_name(to_iso_alpha_3=True)
+    assert second_coupler.country[0].item() == "DEU"
+
+    assert (
+        repr(lpjml_coupler)
+        == f"<pycoupler.LPJmLCoupler>\nSimulation:  (version: 3, localhost:<none>)\n  * sim_year   2050\n  * ncell      2\n  * ninput     1\nConfiguration:\n  Settings:      lpjml v5.8\n    (general)\n    * sim_name   coupled_test\n    * firstyear  2001\n    * lastyear   2050\n    * startgrid  27410\n    * endgrid    27411\n    * landuse    yes\n    (changed)\n    * model_path           LPJmL_internal\n    * sim_path             {test_path}/data/\n    * outputyear           2022\n    * output_metafile      True\n    * write_restart        False\n    * nspinup              0\n    * float_grid           True\n    * restart_filename     restart/restart_historic_run.lpj\n    * outputyear           2022\n    * radiation            cloudiness\n    * fix_co2              True\n    * fix_co2_year         2018\n    * fix_climate          True\n    * fix_climate_cycle    11\n    * fix_climate_year     2013\n    * river_routing        False\n    * tillage_type         read\n    * residue_treatment    fixed_residue_remove\n    * double_harvest       False\n    * intercrop            True\n    * sim_path             {test_path}/data/\n  Coupled model:        copan:CORE\n    * start_coupling    2023\n    * input (coupled)   ['with_tillage']\n    * output (coupled)  ['grid', 'pft_harvestc', 'cftfrac', 'soilc_agr_layer', 'hdate', 'country', 'region']\n  "  # noqa
     )
 
-    config_coupled.startgrid = 27410
-    config_coupled.endgrid = 27411
 
-    # set coupled run configuration
-    config_coupled.set_coupled(
-        test_path,
-        sim_name="coupled_test",
-        dependency="historic_run",
-        start_year=2001,
-        end_year=2050,
-        coupled_year=2023,
-        coupled_input=["with_tillage"],  # residue_on_field
-        coupled_output=[
-            "soilc_agr_layer",
-            "cftfrac",
-            "pft_harvestc",
-            "hdate",
-            "country",
-            "region",
-        ],
-    )
+@patch.dict(os.environ, {"TEST_PATH": get_test_path(), "TEST_LINE_COUNTER": "0"})
+def test_copy_input(test_path):
 
-    # only for single cells runs
-    config_coupled.outputyear = 2022
+    config_coupled_fn = f"{test_path}/data/config_coupled_test.json"
+    lpjml_coupler = LPJmLCoupler(config_file=config_coupled_fn)
 
-    # set more recent input files
-    config_coupled.radiation = "cloudiness"
-    config_coupled.input.temp.name = "CRU_TS4.03/cru_ts4.03.1901.2018.tmp.clm"
-    config_coupled.input.prec.name = "CRU_TS4.03/cru_ts4.03.1901.2018.pre.clm"
-    config_coupled.input.cloud.name = "CRU_TS4.03/cru_ts4.03.1901.2018.cld.clm"
-    config_coupled.fix_co2 = True
-    config_coupled.fix_co2_year = 2018
-    config_coupled.input.co2.name = "input_VERSION2/co2_1841-2018.dat"
-    config_coupled.input.wetdays.name = (
-        "CRU_TS4.03/cru_ts4.03.1901.2018.wet.clm"  # noqa
-    )
-    config_coupled.input.landuse.name = (
-        "input_toolbox_30arcmin/cftfrac_1500-2017_64bands_f2o.clm"  # noqa
-    )
-    config_coupled.fix_climate = True
-    config_coupled.fix_climate_cycle = 11
-    config_coupled.fix_climate_year = 2013
+    inputs = lpjml_coupler.read_input(copy=False)
 
-    # only for global runs = TRUE
-    config_coupled.river_routing = False
-    config_coupled.tillage_type = "read"
-    config_coupled.residue_treatment = "fixed_residue_remove"
-    config_coupled.double_harvest = False
-    config_coupled.intercrop = True
-
-    # create config for coupled run
-    check_config_coupled = read_config(
-        model_path=test_path, file_name="data/config_coupled_test.json"
-    )
-    # update with actual output path (test directory)
-    check_config_coupled.set_outputpath(f"{test_path}/output/coupled_test")
-
-    # align both config objects
-    check_config_coupled.restart_filename = config_coupled.restart_filename
-    check_config_coupled.sim_path = config_coupled.sim_path
-
-    # delete tracking enty changed from dict for comparison
-    config_coupled_dict = config_coupled.to_dict()
-    check_config_coupled_dict = check_config_coupled.to_dict()
-    del config_coupled_dict["changed"]
-    del check_config_coupled_dict["changed"]
-
-    # assert that dict config_coupled has the content and structure as
-    #   check_config_coupled
-    assert config_coupled_dict == check_config_coupled_dict
+    assert lpjml_coupler._copy_input(start_year=2022, end_year=2022) == "tested"

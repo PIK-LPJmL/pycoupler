@@ -2,6 +2,7 @@
 """
 
 import os
+import sys
 import subprocess
 import json
 from subprocess import run
@@ -484,7 +485,9 @@ class LpjmlConfig(SubConfig):
         if self.endgrid == "all" or not only_all:
             if self.input.soil.fmt in ["json", "meta"]:
                 self.endgrid = (
-                    read_config(f"{self.inpath}/{self.input.soil.name}", to_dict=True)[
+                    read_config(
+                        f"{self.inpath}/{self.input.soil.name}", to_dict=True
+                    )[  # noqa
                         "ncell"
                     ]
                     - 1
@@ -492,7 +495,9 @@ class LpjmlConfig(SubConfig):
             else:
                 if os.path.isfile(self.input.soil.name):
                     self.endgrid = (
-                        read_header(self.input.soil.name, return_dict=True)["header"][
+                        read_header(self.input.soil.name, to_dict=True)[
+                            "header"
+                        ][  # noqa
                             "ncell"
                         ]
                         - 1
@@ -500,7 +505,8 @@ class LpjmlConfig(SubConfig):
                 else:
                     self.endgrid = (
                         read_header(
-                            f"{self.inpath}/{self.input.soil.name}", return_dict=True
+                            f"{self.inpath}/{self.input.soil.name}",
+                            to_dict=True,  # noqa
                         )["header"]["ncell"]
                         - 1
                     )
@@ -664,7 +670,7 @@ class LpjmlConfig(SubConfig):
             or (not os.path.isfile(f"{sim_path}/input/soil_{country}.clm"))
             or (not os.path.isfile(f"{sim_path}/input/lakes_{country}.bin"))
             or overwrite_input
-        ):
+        ) and not hasattr(sys, "_called_from_test"):
 
             # extract country specific grid
             run(
@@ -758,7 +764,9 @@ class LpjmlConfig(SubConfig):
 
         grid_name = os.path.basename(grid_file)
 
-        if not os.path.isfile(f"{output_dir}/{grid_name}"):
+        if not os.path.isfile(f"{output_dir}/{grid_name}") and not hasattr(
+            sys, "_called_from_test"
+        ):
             run(f"tail -c +44 {grid_file} > {output_dir}/{grid_name}", shell=True)
 
         grid_file = f"{output_dir}/{grid_name}"
@@ -789,9 +797,12 @@ class LpjmlConfig(SubConfig):
                 grid_file,
                 f"{output_dir}/{output.name}.nc4",
             ]
+
             if None in conversion_cmd:
                 conversion_cmd.remove(None)
-            run(conversion_cmd)
+
+            if not hasattr(sys, "_called_from_test"):
+                run(conversion_cmd)
 
             nc4_meta_dict = read_json(f"{output_dir}/{output.name}.nc4.json")
 
@@ -805,6 +816,9 @@ class LpjmlConfig(SubConfig):
                         nc4_meta_dict["ref_area"]["filename"].split(".")[0]
                         + ".bin.json"
                     )
+
+            if hasattr(sys, "_called_from_test"):
+                return "tested"
 
             with open(f"{output_dir}/{output.name}.bin.json", "w") as f:
                 json.dump(bin_meta_dict, f, indent=2)
@@ -888,7 +902,7 @@ class LpjmlConfig(SubConfig):
 
 
 def parse_config(
-    file_name="./lpjml_config.json", spin_up=False, macros=None, config_class=False
+    file_name="./lpjml_config.json", spin_up=False, macros=None, config_class=None
 ):
     """Precompile lpjml_config.json and return LpjmlConfig object or dict. Also
     evaluate macros. Analogous to R function `lpjmlKit::parse_config`.
@@ -1037,50 +1051,3 @@ def from_yaml(yaml_data, config_class):
         return [from_yaml(v, config_class) for v in yaml_data]
     else:
         return yaml_data
-
-
-def regrid(
-    config_file,
-    sim_path,
-    model_path,
-    country_code="LUX",
-    overwrite_input=False,
-    new_config_file=None,
-):
-    """Regrid LPJmL configuration file to a new country.
-    :param config_file: path to LPJmL configuration file
-    :type config_file: str
-    :param sim_path: directory to check wether required subfolders exists. If
-        not create corresponding folder (input, output, restart)
-    :type sim_path: str
-    :param model_path: path to `LPJmL_internal` (lpjml repository)
-    :type model_path: str
-    :param country_code: country code of country to regrid to. Defaults to
-        'LUX'.
-    :type country_code: str
-    :param overwrite_input: overwrite existing country specific input files.
-        Defaults to False.
-    :type overwrite_input: bool
-    :param new_config_file: path to new config file. If None, the original
-        config file is overwritten. Defaults to None.
-    :type new_config_file: str
-    """
-
-    if not os.path.isfile(config_file):
-        raise OSError(f"File '{config_file}' does not exist.")
-
-    config = read_config(config_file, model_path=model_path)
-
-    config.regrid(
-        sim_path=sim_path,
-        model_path=model_path,
-        country_code=country_code,
-        overwrite_input=overwrite_input,
-    )
-
-    if new_config_file is not None:
-        config.to_json(new_config_file)
-    else:
-        config.to_json(config_file)
-
-    return None

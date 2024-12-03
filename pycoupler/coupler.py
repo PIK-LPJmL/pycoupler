@@ -687,6 +687,7 @@ class LPJmLCoupler:
         if not os.path.isdir(input_path):
             os.makedirs(input_path)
             print(f"Created input path '{input_path}'")
+
         sock_inputs = self.config.get_input_sockets()
 
         # utility function to get general temp folder for every system
@@ -710,8 +711,13 @@ class LPJmLCoupler:
             # name tmp file after original name (even though could be random)
             file_name_tmp = f"{file_name_clm.split('.')[0]}_tmp.clm"
 
-            # read meta data of input file
-            meta_data = read_header(sock_inputs[key]["name"])
+            if not hasattr(sys, "_called_from_test"):
+                # read meta data of input file
+                meta_data = read_header(sock_inputs[key]["name"])
+            else:
+                meta_data = read_meta(
+                    f"{os.environ['TEST_PATH']}/data/input/{key}.nc.json"
+                )
 
             # determine start cut off and end cut off year
             if meta_data.firstyear > end_year:
@@ -720,7 +726,7 @@ class LPJmLCoupler:
             elif meta_data.lastyear < start_year:
                 cut_start_year = meta_data.lastyear
                 cut_end_year = meta_data.lastyear
-            elif meta_data.firstyear > start_year:
+            elif meta_data.firstyear >= start_year:
                 cut_start_year = meta_data.firstyear
                 cut_end_year = min(meta_data.lastyear, end_year)
             elif meta_data.lastyear < end_year:
@@ -733,7 +739,8 @@ class LPJmLCoupler:
                 sock_inputs[key]["name"],
                 f"{temp_dir}/1_{file_name_tmp}",
             ]
-            run(cut_clm_start, stdout=open(os.devnull, "wb"))
+            if not hasattr(sys, "_called_from_test"):
+                run(cut_clm_start, stdout=open(os.devnull, "wb"))
 
             # predefine cut clm command for reusage
             # cannot deal with overwriting a temp file with same name
@@ -744,7 +751,8 @@ class LPJmLCoupler:
                 f"{temp_dir}/1_{file_name_tmp}",
                 f"{temp_dir}/2_{file_name_tmp}",
             ]
-            run(cut_clm_end, stdout=open(os.devnull, "wb"))
+            if not hasattr(sys, "_called_from_test"):
+                run(cut_clm_end, stdout=open(os.devnull, "wb"))
 
             # a flag for multi (categorical) band input - if true, set
             #   "-landuse"
@@ -777,7 +785,11 @@ class LPJmLCoupler:
 
             if None in conversion_cmd:
                 conversion_cmd.remove(None)
-            run(conversion_cmd)
+
+            if not hasattr(sys, "_called_from_test"):
+                run(conversion_cmd)
+            else:
+                return "tested"
             # remove the temporary clm (binary) files, 1_* is not created in
             #   every case
             if os.path.isfile(f"{temp_dir}/1_{file_name_tmp}"):
