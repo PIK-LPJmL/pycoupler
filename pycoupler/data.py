@@ -19,10 +19,12 @@ class LPJmLInputType(Enum):
 
     # input ids
     landuse: int = 6
+    with_tillage: int = 7
+    residue_on_field: int = 8
     fertilizer_nr: int = 18
     manure_nr: int = 19
-    residue_on_field: int = 8
-    with_tillage: int = 7
+    sdate: int = 28
+    crop_phu: int = 45
 
     @property
     def nband(self):
@@ -31,6 +33,8 @@ class LPJmLInputType(Enum):
             return 64
         if self.name in ["fertilizer_nr", "manure_nr"]:
             return 32
+        if self.name in ["sdate", "crop_phu"]:
+            return 24
         if self.name == "residue_on_field":
             return 16
         return 1
@@ -38,7 +42,7 @@ class LPJmLInputType(Enum):
     @property
     def type(self):
         """get amount of bands"""
-        if self.name in ["with_tillage"]:
+        if self.name in ["with_tillage", "sdate"]:
             return int
         else:
             return float
@@ -370,11 +374,12 @@ def read_data(file_name, var_name=None):
     """
     with xr.open_dataset(file_name, decode_times=False, mask_and_scale=False) as data:
         if "time" in data.dims:
-            units, reference_date = data.time.attrs["units"].split("since")
+            unit, reference_date = data.time.attrs["units"].split("since")
             date_time = pd.date_range(
                 start=reference_date, periods=data.sizes["time"], freq="MS"
             )
-            data["time"] = date_time.year
+            data.coords["time"].attrs["units"] = unit
+            data.coords["time"] = date_time.year
 
         if var_name:
             data = data[var_name]

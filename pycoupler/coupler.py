@@ -628,8 +628,10 @@ class LPJmLCoupler:
             year = max(
                 inputs.values(), key=lambda inp: inp.time.item()
             ).time.item()  # noqa
-            for inp in inputs.values():
-                inp.time.values[0] = year
+            for key in inputs.keys():
+                inputs[key] = inputs[key].drop(
+                    "time"
+                ).assign_coords({"time":[year]})
 
         inputs = LPJmLDataSet(inputs)
         # define longitide and latitude DataArray (workaround to reduce dims to
@@ -850,7 +852,8 @@ class LPJmLCoupler:
             )
         else:
             # init lists to be filled with nbands, types per output
-            self.__input_types = [-1] * len(self.config.input.__dict__)
+            # account for not represented input files (+ 42)
+            self.__input_types = [-1] * (len(self.config.input.__dict__) + 42)
 
             # get input indices
             self.__input_ids = {
@@ -1199,9 +1202,9 @@ class LPJmLCoupler:
             for cell in range(cells):
                 # Send the value to the socket
                 if one_band:
-                    send_function(self._channel, data[cell])
+                    send_function(self._channel, data[cell].item())
                 else:
-                    send_function(self._channel, data[cell, band])
+                    send_function(self._channel, data[cell, band].item())
 
     def __read_output_data(self, validate_year, to_xarray=True):
         """Read output data checks supplied year and sets numpy array template

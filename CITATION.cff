@@ -2,8 +2,8 @@ cff-version: 1.2.0
 message: If you use this software, please cite it using the metadata from this file.
 type: software
 title: 'pycoupler: dynamic model coupling of LPJmL'
-version: 1.1.0
-date-released: '2024-12-03'
+version: 1.1.1
+date-released: '2024-12-18'
 abstract: An LPJmL-Python interface for operating LPJmL in a Python environment
   and coupling it with Python models, programmes or simple programming scripts.
   pycoupler was written with the aim of establishing the coupling of copan:CORE
