@@ -170,8 +170,8 @@ class LpjmlConfig(SubConfig):
         end_year,
         sim_name="transient",
         dependency=None,
+        temporal_resolution="annual",
         write_output=[],
-        write_temporal_resolution="annual",
         write_file_format="cdf",
         append_output=True,
     ):
@@ -186,15 +186,15 @@ class LpjmlConfig(SubConfig):
         :type sim_name: str
         :param dependency: sim_name of simulation to depend on
         :type dependency: str
+        :param temporal_resolution: dict of temporal resolutions
+            corresponding to `outputs` or str to set the same resolution for
+            all `outputs`. Choose between "annual", "monthly", "daily".
+            Defaults to "annual" (use default output/outputvar resolution).
+        :type temporal_resolution: dict/str
         :param write_output: output ids of `outputs` to be written by
             LPJmL. Make sure to check if required output is available via
             `get_output_avail`
         :type write_output: list
-        :param write_temporal_resolution: list of temporal resolutions
-            corresponding to `outputs` or str to set the same resolution for
-            all `outputs`. Choose between "annual", "monthly", "daily".
-            Defaults to "annual" (use default output/outputvar resolution).
-        :type write_temporal_resolution: list/str
         :param write_file_format: file format of output files. Choose between
             "raw", "clm" and "cdf". Defaults to "cdf".
         :type write_file_format: str
@@ -214,7 +214,7 @@ class LpjmlConfig(SubConfig):
         self._set_output(
             output_path,
             outputs=write_output,
-            temporal_resolution=write_temporal_resolution,
+            temporal_resolution=temporal_resolution,
             file_format=write_file_format,
             append_output=append_output,
         )
@@ -233,8 +233,8 @@ class LpjmlConfig(SubConfig):
         sim_name="coupled",
         dependency=None,
         coupled_year=None,
+        temporal_resolution="annual",
         write_output=[],
-        write_temporal_resolution="annual",
         write_file_format="cdf",
         append_output=True,
         model_name="copan:CORE",
@@ -258,15 +258,15 @@ class LpjmlConfig(SubConfig):
         :type dependency: str
         :param coupled_year: start year of coupled simulation
         :type coupled_year: int/None
+        :param temporal_resolution: dict of temporal resolutions
+            corresponding to `outputs` or str to set the same resolution for
+            all `outputs`. Choose between "annual", "monthly", "daily".
+            Defaults to "annual" (use default output/outputvar resolution).
+        :type temporal_resolution: dict/str
         :param write_output: output ids of `outputs` to be written by
             LPJmL. Make sure to check if required output is available via
             `get_output_avail`
         :type write_output: list
-        :param write_temporal_resolution: list of temporal resolutions
-            corresponding to `outputs` or str to set the same resolution for
-            all `outputs`. Choose between "annual", "monthly", "daily".
-            Defaults to "annual" (use default output/outputvar resolution).
-        :type write_temporal_resolution: list/str
         :param write_file_format: file format of output files. Choose between
             "raw", "clm" and "cdf". Defaults to "cdf".
         :type write_file_format: str
@@ -294,7 +294,7 @@ class LpjmlConfig(SubConfig):
         self._set_output(
             output_path,
             outputs=write_output,
-            temporal_resolution=write_temporal_resolution,
+            temporal_resolution=temporal_resolution,
             file_format=write_file_format,
             append_output=append_output,
         )
@@ -329,10 +329,10 @@ class LpjmlConfig(SubConfig):
             sockets!). "raw" (binary), "clm" (binary with header) and "cdf"
             (NetCDF) are availble. Defaults to "raw".
         :type file_format: str
-        :param temporal_resolution: list of temporal resolutions corresponding
+        :param temporal_resolution: dict of temporal resolutions corresponding
             to `outputs` or str to set the same resolution for all `outputs`.
             Defaults to "annual" (for all `outputs`).
-        :type temporal_resolution: list/str
+        :type temporal_resolution: dict/str
         :param append_output: if True defined output entries are appended by
             defined `outputs`. Please mind that the existing ones are not
             altered.
@@ -349,28 +349,6 @@ class LpjmlConfig(SubConfig):
         # add grid output if not already defined
         if "grid" not in outputs:
             outputs.append("grid")
-            if isinstance(temporal_resolution, list) > 1:
-                temporal_resolution.append("annual")
-
-        if temporal_resolution:
-            # check if temporal resolution is of length one
-            if isinstance(temporal_resolution, list):
-                temp_res = temporal_resolution
-                if len(outputs) != len(temporal_resolution):
-                    raise ValueError(
-                        "outputs and temporal_resolution have a"
-                        + " different length. Please adjust."
-                    )
-            else:
-                temp_res = [temporal_resolution]
-
-            # check if temporal resolution is available
-            if any(res not in available_res for res in temp_res):
-                raise ValueError(
-                    "Temporal resolution not available for "
-                    + "LPJmL. Choose from 'annual', 'monthly' "
-                    + "and 'daily'."
-                )
 
         # create dict of outputvar names with indexes for iteration
         outputvar_names = {ov.name: pos for pos, ov in enumerate(self.outputvar)}
@@ -384,12 +362,19 @@ class LpjmlConfig(SubConfig):
             output_names = list()
             # modify existing output entries
             for pos, out in enumerate(self.output):
+
                 output_names.append(out.id)
                 # self.output[pos].file.socket = False
                 # Only change temporal_resolution if string, so not
                 # specifically for each output
                 if isinstance(temporal_resolution, str):
                     self.output[pos].file.timestep = temporal_resolution
+                elif (
+                    isinstance(temporal_resolution, dict)
+                    and out.id in temporal_resolution.keys()
+                ):
+                    self.output[pos].file.timestep = temporal_resolution[out.id]
+
                 if out.id not in nonvariable_outputs:
                     self.output[pos].file.fmt = file_format
                     self.output[pos].file.name = (
@@ -406,12 +391,15 @@ class LpjmlConfig(SubConfig):
             if out in outputvar_names and out not in output_names:
 
                 # check if temporal resolution is defined for output
-                if not temporal_resolution:
-                    timestep = outputvars[outputvar_names[out]]["timestep"]
-                elif isinstance(temporal_resolution, list):
-                    timestep = temporal_resolution[pos]
-                else:
+                if isinstance(temporal_resolution, str):
                     timestep = temporal_resolution
+                elif (
+                    isinstance(temporal_resolution, dict)
+                    and out in temporal_resolution.keys()
+                ):
+                    timestep = temporal_resolution[out]
+                else:
+                    timestep = outputvars[outputvar_names[out]]["timestep"]
 
                 # create new output entry
                 new_out = SubConfig(
@@ -578,7 +566,6 @@ class LpjmlConfig(SubConfig):
         for pos in output_pos:
             if self.output[pos].id in valid_outs:
                 self.output[pos].file.socket = True
-                self.output[pos].file.timestep = "annual"
 
     def get_input_sockets(self, id_only=False):
         """get defined socket inputs as dict"""

@@ -24,6 +24,7 @@ from pycoupler.data import (
 from pycoupler.utils import get_countries
 
 
+# class for testing purposes
 class test_channel:
     """Test channel class for testing purposes"""
 
@@ -263,39 +264,39 @@ class LPJmLCoupler:
         """Constructor method"""
 
         # initiate socket connection to LPJmL
-        self.__init_channel(version, host, port)
+        self._init_channel(version, host, port)
 
         # read configuration file
-        self.__config = read_config(config_file)
+        self._config = read_config(config_file)
 
         if hasattr(sys, "_called_from_test"):
-            self.__config.set_outputpath(
+            self._config.set_outputpath(
                 f"{os.environ['TEST_PATH']}/data/output/coupled_test"
             )
-            self.__config.sim_path = os.path.join(f"{os.environ['TEST_PATH']}/data/")
+            self._config.sim_path = os.path.join(f"{os.environ['TEST_PATH']}/data/")
 
         # initiate coupling, get number of cells, inputs and outputs and verify
-        self.__init_coupling()
+        self._init_coupling()
 
         # communicate status, if valid start LPJmL simulation
-        self.__communicate_status()
+        self._communicate_status()
 
         # create templates for static output data
-        self.__init_static_data()
+        self._init_static_data()
 
         # Read static outputs
-        self.__iterate_operation(
-            length=len(self.__static_ids),
-            fun=self.__read_static_data,
+        self._iterate_operation(
+            length=len(self._static_ids),
+            fun=self._read_static_data,
             token=LPJmLToken.READ_OUTPUT,
         )
         # Subtract static inputs from the ones that are read within simulation
-        self.__noutput_sim -= len(self.__static_ids)
+        self._noutput_sim -= len(self._static_ids)
 
         # Create output templates
-        self.__output_templates = {
+        self._output_templates = {
             output_key: self._create_xarray_template(int(output_key))
-            for output_key in self.__output_ids
+            for output_key in self._output_ids
         }
 
     # callled when writing class as pickle - exclude channel (socket) attribute
@@ -312,7 +313,7 @@ class LPJmLCoupler:
         :getter: LpjmLConfig object
         :type: LpjmLConfig
         """
-        return self.__config
+        return self._config
 
     @property
     def ncell(self):
@@ -320,7 +321,7 @@ class LPJmLCoupler:
         :getter: Number of LPJmL cells
         :type: int
         """
-        return self.__ncell
+        return self._ncell
 
     @property
     def operations_left(self):
@@ -329,11 +330,11 @@ class LPJmLCoupler:
         :type: list
         """
         operations = []
-        if self.__sim_year >= self.__config.start_coupling:
-            if self.__sim_year != self.__year_send_input:
+        if self._sim_year >= self._config.start_coupling:
+            if self._sim_year != self._year_send_input:
                 operations.append(LPJmLToken.SEND_INPUT)
-        if self.__sim_year >= self.__config.outputyear:
-            if self.__sim_year != self.__year_read_output:
+        if self._sim_year >= self._config.outputyear:
+            if self._sim_year != self._year_read_output:
                 operations.append(LPJmLToken.READ_OUTPUT)
         return operations
 
@@ -343,7 +344,7 @@ class LPJmLCoupler:
         :getter: Current simulation year
         :type: int
         """
-        return self.__sim_year
+        return self._sim_year
 
     @property
     def sim_years(self):
@@ -374,8 +375,8 @@ class LPJmLCoupler:
         :return: Generator for all simulation years
         :rtype: generator
         """
-        start_year = self.__sim_year
-        end_year = self.__config.lastyear
+        start_year = self._sim_year
+        end_year = self._config.lastyear
         current_year = start_year
         while current_year <= end_year:
             yield current_year
@@ -386,7 +387,7 @@ class LPJmLCoupler:
         :return: Generator for all historic years
         :rtype: generator
         """
-        start_year = self.__sim_year
+        start_year = self._sim_year
         end_year = self.config.start_coupling
         if match_period and start_year >= end_year:
             raise ValueError(
@@ -403,7 +404,7 @@ class LPJmLCoupler:
         :return: Generator for all coupled years
         :rtype: generator
         """
-        start_year = self.__sim_year
+        start_year = self._sim_year
         end_year = self.config.lastyear
         if match_period and (start_year < self.config.start_coupling):
             raise ValueError(
@@ -422,8 +423,8 @@ class LPJmLCoupler:
         :return: Generator for all cells
         :rtype: generator
         """
-        start_cell = self.__config.startgrid
-        end_cell = self.__config.endgrid
+        start_cell = self._config.startgrid
+        end_cell = self._config.endgrid
         if id:
             current_cell = start_cell
         else:
@@ -435,7 +436,7 @@ class LPJmLCoupler:
 
     def code_to_name(self, to_iso_alpha_3=False):
         """Convert the cell indices to cell names"""
-        for static_output in self.__static_ids.values():
+        for static_output in self._static_ids.values():
 
             if static_output not in ["country", "region"]:
                 continue
@@ -445,7 +446,7 @@ class LPJmLCoupler:
             ).values.astype(str)
             name_dict = {
                 str(reg["id"]): reg["name"]
-                for reg in self.__config.to_dict()[f"{static_output}par"]
+                for reg in self._config.to_dict()[f"{static_output}par"]
             }
             if static_output == "country" and to_iso_alpha_3:
                 country_dict = get_countries()
@@ -479,9 +480,9 @@ class LPJmLCoupler:
         hist_years = list()
         for year in self.get_historic_years():
             hist_years.append(year)
-            if year == self.__config.outputyear:
+            if year == self._config.outputyear:
                 output_dict = self.read_output(year=year, to_xarray=False)
-            elif year > self.__config.outputyear:
+            elif year > self._config.outputyear:
                 output_dict = append_to_dict(
                     output_dict, self.read_output(year=year, to_xarray=False)
                 )
@@ -489,7 +490,7 @@ class LPJmLCoupler:
         for key in output_dict:
             if key in output_dict:
                 index = [
-                    item[0] for item in self.__output_ids.items() if item[1] == key
+                    item[0] for item in self._output_ids.items() if item[1] == key
                 ][0]
                 lpjml_output = self._create_xarray_template(
                     index, time_length=len(hist_years)
@@ -530,10 +531,8 @@ class LPJmLCoupler:
         # iteration step check - if number of iterations left exceed simulation
         #   steps (analogous to years left)
         # Year check - if procvided year matches internal simulation year
-        if year != self.__sim_year:
-            raise ValueError(
-                f"Year {year} not matches simulated year {self.__sim_year}"
-            )
+        if year != self._sim_year:
+            raise ValueError(f"Year {year} not matches simulated year {self._sim_year}")
         operations = self.operations_left
 
         # Check if read_output operation valid
@@ -543,18 +542,18 @@ class LPJmLCoupler:
             raise IndexError(f"Invalid operation order. Expected read_output")
 
         # iterate over outputs for private send_input_data
-        self.__iterate_operation(
-            length=self.__ninput,
-            fun=self.__send_input_data,
+        self._iterate_operation(
+            length=self._ninput,
+            fun=self._send_input_data,
             token=LPJmLToken.SEND_INPUT,
             args={"data": input_dict, "validate_year": year},
         )
 
-        self.__year_send_input = year
+        self._year_send_input = year
 
         # check if all operations have been performed and increase sim_year
         if not self.operations_left:
-            self.__sim_year += 1
+            self._sim_year += 1
 
     def read_output(self, year, to_xarray=True):
         """Read LPJmL output data of the specified year.
@@ -568,9 +567,9 @@ class LPJmLCoupler:
         :rtype: dict or xarray.DataArray
         """
         # Validate the year
-        if year != self.__sim_year:
+        if year != self._sim_year:
             raise ValueError(
-                f"Year {year} does not match simulated year {self.__sim_year}"
+                f"Year {year} does not match simulated year {self._sim_year}"
             )
 
         # Check if read_output operation is valid
@@ -581,9 +580,9 @@ class LPJmLCoupler:
             raise IndexError(f"No read_output operation left for year {year}")
 
         # Perform read_output operation
-        lpjml_output = self.__iterate_operation(
-            length=self.__noutput_sim,
-            fun=self.__read_output_data,
+        lpjml_output = self._iterate_operation(
+            length=self._noutput_sim,
+            fun=self._read_output_data,
             token=LPJmLToken.READ_OUTPUT,
             args={"validate_year": year, "to_xarray": to_xarray},
             appendix=True,
@@ -591,11 +590,11 @@ class LPJmLCoupler:
         if to_xarray:
             lpjml_output = LPJmLDataSet(lpjml_output)
 
-        self.__year_read_output = year
+        self._year_read_output = year
 
         # If all operations have been performed, increase sim_year
         if not self.operations_left:
-            self.__sim_year += 1
+            self._sim_year += 1
 
         return lpjml_output
 
@@ -617,7 +616,7 @@ class LPJmLCoupler:
             self._copy_input(start_year=start_year, end_year=end_year)
         # read coupled input data from netcdf files (as xarray.DataArray)
         inputs = {
-            key: read_data(f"{self.__config.sim_path}/input/{key}.nc", var_name=key)
+            key: read_data(f"{self._config.sim_path}/input/{key}.nc", var_name=key)
             for key in self.config.get_input_sockets(id_only=True)
         }
 
@@ -629,9 +628,7 @@ class LPJmLCoupler:
                 inputs.values(), key=lambda inp: inp.time.item()
             ).time.item()  # noqa
             for key in inputs.keys():
-                inputs[key] = inputs[key].drop(
-                    "time"
-                ).assign_coords({"time":[year]})
+                inputs[key] = inputs[key].drop("time").assign_coords({"time": [year]})
 
         inputs = LPJmLDataSet(inputs)
         # define longitide and latitude DataArray (workaround to reduce dims to
@@ -684,7 +681,7 @@ class LPJmLCoupler:
         directory for selected years to make them easily readable as well as to
         avoid large file sizes.
         """
-        input_path = f"{self.__config.sim_path}/input"
+        input_path = f"{self._config.sim_path}/input"
         # get defined input sockets
         if not os.path.isdir(input_path):
             os.makedirs(input_path)
@@ -736,7 +733,7 @@ class LPJmLCoupler:
                 cut_end_year = meta_data.lastyear
 
             cut_clm_start = [
-                f"{self.__config.model_path}/bin/cutclm",
+                f"{self._config.model_path}/bin/cutclm",
                 str(cut_start_year),
                 sock_inputs[key]["name"],
                 f"{temp_dir}/1_{file_name_tmp}",
@@ -747,7 +744,7 @@ class LPJmLCoupler:
             # predefine cut clm command for reusage
             # cannot deal with overwriting a temp file with same name
             cut_clm_end = [
-                f"{self.__config.model_path}/bin/cutclm",
+                f"{self._config.model_path}/bin/cutclm",
                 "-end",
                 str(cut_end_year),
                 f"{temp_dir}/1_{file_name_tmp}",
@@ -776,7 +773,7 @@ class LPJmLCoupler:
                 grid_file = f"{self.config.inpath}/{self.config.input.coord.name}"
             # convert clm input to netcdf files
             conversion_cmd = [
-                f"{self.__config.model_path}/bin/clm2cdf",
+                f"{self._config.model_path}/bin/clm2cdf",
                 is_int,
                 is_multiband,
                 key,
@@ -799,7 +796,7 @@ class LPJmLCoupler:
             if os.path.isfile(f"{temp_dir}/2_{file_name_tmp}"):
                 os.remove(f"{temp_dir}/2_{file_name_tmp}")
 
-    def __init_channel(self, version, host, port):
+    def _init_channel(self, version, host, port):
         # open/initialize socket channel
         self._channel = opentdt(host, port)
         # Check coupler protocol version
@@ -810,73 +807,71 @@ class LPJmLCoupler:
                 f"Invalid coupler version {version}, must be {self.version}"
             )
 
-    def __init_coupling(self):
+    def _init_coupling(self):
         # initiate simulation time
-        self.__sim_year = min(self.__config.outputyear, self.__config.start_coupling)
-        self.__year_read_output = None
-        self.__year_send_input = None
+        self._sim_year = min(self._config.outputyear, self._config.start_coupling)
+        self._year_read_output = None
+        self._year_send_input = None
 
         # read amount of LPJml cells
-        self.__ncell = read_int(self._channel)
-        if self.__ncell != len(
-            range(self.__config.startgrid, self.__config.endgrid + 1)
-        ):
+        self._ncell = read_int(self._channel)
+        if self._ncell != len(range(self._config.startgrid, self._config.endgrid + 1)):
             self.close()
             raise ValueError(
-                f"Invalid number of cells received ({self.__ncell}), must be"
-                f" {self.__config.ncell} according to configuration."
+                f"Invalid number of cells received ({self._ncell}), must be"
+                f" {self._config.ncell} according to configuration."
             )
 
         # read amount of input streams
-        self.__ninput = read_int(self._channel)
+        self._ninput = read_int(self._channel)
 
         # read amount of output streams
-        self.__noutput = self.__noutput_sim = read_int(self._channel)
+        self._noutput = self._noutput_sim = read_int(self._channel)
 
         # verify and initialize input attributes and send input information
-        self.__init_input()
+        self._init_input()
 
         # verify and initialize output attributes and read output information
-        self.__init_output()
+        self._init_output()
 
-    def __init_input(self):
+    def _init_input(self):
 
-        input_sockets = self.__config.get_input_sockets()
+        input_sockets = self._config.get_input_sockets()
 
-        if self.__ninput != len(input_sockets):
+        if self._ninput != len(input_sockets):
             self.close()
             raise ValueError(
-                f"Invalid number of input streams received ({self.__ninput}),"
+                f"Invalid number of input streams received ({self._ninput}),"
                 f" must be {len(input_sockets)} according to"
                 f" configuration."
             )
         else:
             # init lists to be filled with nbands, types per output
             # account for not represented input files (+ 42)
-            self.__input_types = [-1] * (len(self.config.input.__dict__) + 42)
+            self._input_types = [-1] * (len(self.config.input.__dict__) + 42)
 
             # get input indices
-            self.__input_ids = {
+            self._input_ids = {
                 input_sockets[inp]["id"]: inp
                 for inp in input_sockets
                 if inp in LPJmLInputType.__members__
             }
 
             # send number of bands for each output data stream
-            self.__iterate_operation(
-                length=self.__ninput,
-                fun=self.__send_band_size,
+            self._iterate_operation(
+                length=self._ninput,
+                fun=self._send_band_size,
                 token=LPJmLToken.SEND_INPUT_SIZE,
-                args={"input_bands": self.__get_config_input_sockets()},
+                args={"input_bands": self._get_config_input_sockets()},
             )
 
-    def __init_output(self):
-        output_sockets = self.__config.get_output_sockets()
+    def _init_output(self):
+        output_sockets = self._config.get_output_sockets()
 
-        if self.__noutput != len(output_sockets):
+        if self._noutput != len(output_sockets):
             self.close()
             raise ValueError(
-                f"Invalid number of output streams received ({self.__noutput})"
+                f"Invalid number of output streams received ({self._noutput})"
                 f", must be {len(output_sockets)} according to"
                 f" configuration."
             )
@@ -884,15 +879,15 @@ class LPJmLCoupler:
         else:
             # init lists to be filled with nbands, nsteps per output
             len_outputvar = len(self.config.outputvar)
-            self.__output_bands = [-1] * len_outputvar
-            self.__output_steps = [-1] * len_outputvar
-            self.__output_types = [-1] * len_outputvar
+            self._output_bands = [-1] * len_outputvar
+            self._output_steps = [-1] * len_outputvar
+            self._output_types = [-1] * len_outputvar
 
             # Get output indices
-            self.__output_ids = {}
-            self.__static_ids = {}
+            self._output_ids = {}
+            self._static_ids = {}
             for out in output_sockets:
-                self.__output_ids[output_sockets[out]["index"]] = out
+                self._output_ids[output_sockets[out]["index"]] = out
                 if output_sockets[out]["id"] in [
                     "grid",
                     "country",
@@ -900,26 +895,21 @@ class LPJmLCoupler:
                     "terr_area",
                     "lake_area",
                 ]:
-                    self.__static_ids[output_sockets[out]["index"]] = out
+                    self._static_ids[output_sockets[out]["index"]] = out
 
             # Get number of bands per cell for each output data stream
-            self.__iterate_operation(
-                length=self.__noutput,
-                fun=self.__read_output_details,
+            self._iterate_operation(
+                length=self._noutput,
+                fun=self._read_output_details,
                 token=LPJmLToken.READ_OUTPUT_SIZE,
             )
 
-    def __iterate_operation(self, length, fun, token, args=None, appendix=False):
+    def _iterate_operation(self, length, fun, token, args=None, appendix=False):
         """Iterate reading/sending operation for sequence of inputs and/or outputs"""
         results = {}
         for _ in range(length):
-            # check if read token matches expected token and return read token
-            token_check, received_token = self.__check_token(token)
-            if not token_check:
-                self.close()
-                raise ValueError(
-                    f"Received LPJmLToken {received_token.name} is not {token.name}"
-                )  # noqa
+            # check token
+            self._check_token(token=token)
 
             # execute method on channel and if supplied further method arguments
             result = fun(**args) if args else fun()
@@ -930,19 +920,45 @@ class LPJmLCoupler:
 
         return results if appendix else None
 
-    def __check_token(self, token):
+    def _check_token(self, token):
         """check if read token matches the expected token"""
-        received_token = read_token(self._channel)
-        if received_token == token:
-            return True, received_token
-        else:
-            return False, received_token
 
-    def __send_band_size(self, input_bands):
+        # check if read token matches expected token and return read token
+        received_token = read_token(self._channel)
+
+        if received_token is not token:
+            self.close()
+            raise ValueError(
+                f"Received LPJmLToken {received_token.name} is not {token.name}"
+            )  # noqa
+
+    def _check_index(self, index):
+        """check if read index matches the expected token"""
+
+        received_index = read_int(self._channel)
+        if received_index != index:
+            self.close()
+            raise ValueError(
+                f"The expected index: {index} does not "
+                + f"match the received index: {received_index}"
+            )
+
+    def _check_year(self, year):
+        """check if read year matches the expected token"""
+
+        received_year = read_int(self._channel)
+        if received_year != year:
+            self.close()
+            raise ValueError(
+                f"The expected year: {year} does not "
+                + f"match the received year: {received_year}"
+            )
+
+    def _send_band_size(self, input_bands):
         """Send input band size for read index to socket"""
         index = read_int(self._channel)
         # convert received LPJmL data types into Python compatible types
-        self.__set_input_types(index)
+        self._set_input_types(index)
         if index in input_bands.keys():
             # Send number of bands
             send_int(self._channel, val=input_bands[index])
@@ -950,16 +966,16 @@ class LPJmLCoupler:
             self.close()
             raise ValueError(f"Input of input ID {index} not supported.")
 
-    def __set_input_types(self, index):
+    def _set_input_types(self, index):
         """Convert received LPJmL data types into Python compatible types"""
-        self.__input_types[index] = LPJmlValueType(read_int(self._channel))
+        self._input_types[index] = LPJmlValueType(read_int(self._channel))
 
-    def __get_config_input_sockets(self):
+    def _get_config_input_sockets(self):
         """Get and validate input sockets, check if defined in LPJmLInputType
         class. If not add to LPJmLInputType.
         """
         # get defined input sockets
-        sockets = self.__config.get_input_sockets()
+        sockets = self._config.get_input_sockets()
         # filter input names
         input_names = [inp.name for inp in LPJmLInputType]
         # check if input is defined in LPJmLInputType (band size required)
@@ -976,34 +992,25 @@ class LPJmLCoupler:
             )
         return valid_inputs
 
-    def __read_output_details(self):
+    def _read_output_details(self):
         """Read output details per output index (timesteps, number of bands,
         data types) from socket
         """
         index = read_int(self._channel)
         # Get number of steps for output
-        self.__output_steps[index] = read_int(self._channel)
+        self._output_steps[index] = read_int(self._channel)
         # Get number of bands for output
-        self.__output_bands[index] = read_int(self._channel)
+        self._output_bands[index] = read_int(self._channel)
         # Get datatype for output
-        self.__output_types[index] = LPJmlValueType(read_int(self._channel))
+        self._output_types[index] = LPJmlValueType(read_int(self._channel))
 
-        # check if only annual timesteps were set
-        if self.__output_steps[index] > 1:
-            send_int(self._channel, CopanStatus.COPAN_ERR.value)
-            self.close()
-            raise ValueError(
-                f"Time step {self.__output_steps[index]} "
-                + f" for output ID {index} invalid."
-            )
-        else:
-            send_int(self._channel, CopanStatus.COPAN_OK.value)
+        send_int(self._channel, CopanStatus.COPAN_OK.value)
 
-    def __communicate_status(self):
+    def _communicate_status(self):
         """Check if LPJmL token equals GET_STATUS, send OK or ERROR"""
         check_token = LPJmLToken(read_int(self._channel))
         if check_token == LPJmLToken.GET_STATUS:
-            if self.__ninput != 0 and self.__noutput != 0:
+            if self._ninput != 0 and self._noutput != 0:
                 send_int(self._channel, CopanStatus.COPAN_OK.value)
             else:
                 self.close()
@@ -1015,30 +1022,30 @@ class LPJmLCoupler:
                 + f"LPJmLToken {LPJmLToken.GET_STATUS} expected."
             )
 
-    def __init_static_data(self):
+    def _init_static_data(self):
 
-        for static_id in self.__static_ids:
+        for static_id in self._static_ids:
 
             # Create empty array for of corresponding type
             tmp_static = np.zeros(
-                shape=(self.__ncell, self.__output_bands[static_id]),
-                dtype=self.__output_types[static_id].type,
+                shape=(self._ncell, self._output_bands[static_id]),
+                dtype=self._output_types[static_id].type,
             )
 
             # Fill array with missing values
-            if self.__output_types[static_id].type == int:
+            if self._output_types[static_id].type == int:
                 tmp_static[:] = -9999
             else:
                 tmp_static[:] = np.nan
 
             # grid data is handled differently with coords being assigned
-            if self.__static_ids[static_id] == "grid":
+            if self._static_ids[static_id] == "grid":
                 tmp_static = LPJmLData(
                     data=tmp_static,
                     dims=("cell", "coord"),
                     coords=dict(
                         cell=np.arange(
-                            self.__config.startgrid, self.__config.endgrid + 1
+                            self._config.startgrid, self._config.endgrid + 1
                         ),
                         coord=["lon", "lat"],
                     ),
@@ -1052,56 +1059,61 @@ class LPJmLCoupler:
                     dims=("cell", "band"),
                     coords=dict(
                         cell=np.arange(
-                            self.__config.startgrid, self.__config.endgrid + 1
+                            self._config.startgrid, self._config.endgrid + 1
                         ),
-                        band=np.arange(self.__output_bands[static_id]),
+                        band=np.arange(self._output_bands[static_id]),
                     ),
-                    name=self.__static_ids[static_id],
+                    name=self._static_ids[static_id],
                 )
 
-            setattr(self, f"{self.__static_ids[static_id]}", tmp_static)
+            setattr(self, f"{self._static_ids[static_id]}", tmp_static)
 
-    def __read_static_data(self):
+    def _read_static_data(self):
         """Read static data to be called within initialization of coupler.
         Currently only grid data supported
         """
         index = read_int(self._channel)
 
-        read_fun = self.__output_types[index].read_fun
-        meta_data = self.__read_meta_output(index)
+        read_fun = self._output_types[index].read_fun
+        meta_data = self._read_meta_output(index)
 
         # iterate over ncell and read + assign lon and lat values
-        for cell in range(0, self.__ncell):
-            for band in range(0, self.__output_bands[index]):
-                getattr(self, f"{self.__static_ids[index]}")[cell, band] = (
+        for cell in range(0, self._ncell):
+            for band in range(0, self._output_bands[index]):
+                getattr(self, f"{self._static_ids[index]}")[cell, band] = (
                     read_fun(self._channel) * meta_data.scalar
                 )
 
         # add meta data to xarray
-        getattr(self, f"{self.__static_ids[index]}").add_meta(meta_data)
+        getattr(self, f"{self._static_ids[index]}").add_meta(meta_data)
 
         # add longitude and latitude coodinates to xarray
-        getattr(self, f"{self.__static_ids[index]}").coords["lon"] = (
+        getattr(self, f"{self._static_ids[index]}").coords["lon"] = (
             ("cell",),
             self.grid.data[:, 0],
         )
-        getattr(self, f"{self.__static_ids[index]}").coords["lat"] = (
+        getattr(self, f"{self._static_ids[index]}").coords["lat"] = (
             ("cell",),
             self.grid.data[:, 1],
         )
 
     def _create_xarray_template(self, index, time_length=1):
         """Create xarray template for output data"""
-        bands = self.__output_bands[index]
+        bands = self._output_bands[index]
+        steps_as_bands = False
+        if bands == 1:
+            if self._output_steps[index] > 1:
+                bands = self._output_steps[index]
+                steps_as_bands = True
 
         # create output numpy array template to be filled with output
         output_tmpl = np.zeros(
-            shape=(self.__ncell, bands, time_length),  # time = 1
-            dtype=self.__output_types[index].type,
+            shape=(self._ncell, bands, time_length),  # time = 1
+            dtype=self._output_types[index].type,
         )
 
         # Check if data array is of type integer, use -9999 for nan
-        if self.__output_types[index].type == int:
+        if self._output_types[index].type == int:
             output_tmpl[:] = -9999
         else:
             output_tmpl[:] = np.nan
@@ -1111,29 +1123,33 @@ class LPJmLCoupler:
             data=output_tmpl,
             dims=("cell", "band", "time"),
             coords=dict(
-                cell=np.arange(self.__config.startgrid, self.__config.endgrid + 1),
+                cell=np.arange(self._config.startgrid, self._config.endgrid + 1),
                 lon=(["cell"], self.grid.coords["lon"].values),
                 lat=(["cell"], self.grid.coords["lat"].values),
                 band=np.arange(bands),  # [str(i) for i in range(bands)],
                 time=np.arange(time_length),
             ),
-            name=self.__output_ids[index],
+            name=self._output_ids[index],
         )
         # read output values
-        if self.__config.output_metafile:
-            meta_output = self.__read_meta_output(index=index)
+        if self._config.output_metafile:
+            meta_output = self._read_meta_output(index=index)
         else:
             meta_output = None
 
         if meta_output:
-            # add band names to output
-            output_tmpl.coords["band"] = meta_output.band_names
-            output_tmpl = output_tmpl.rename(band=f"band ({self.__output_ids[index]})")
-            # add meta data to output
+            # add meta information to output
             output_tmpl.add_meta(meta_output)
+            # add band names to output
+            if steps_as_bands:
+                output_tmpl.coords["band"] = [step + 1 for step in range(bands)]
+            else:
+                output_tmpl.coords["band"] = meta_output.band_names
+            output_tmpl = output_tmpl.rename(band=f"band ({self._output_ids[index]})")
+            # add meta data to output
         return output_tmpl
 
-    def __send_input_data(self, data, validate_year):
+    def _send_input_data(self, data, validate_year):
         """Send input data checks supplied object type, object dimensions data
         format and year for input index. If set correct executes private
         send_input_values method that does the sending.
@@ -1141,7 +1157,7 @@ class LPJmLCoupler:
         index = read_int(self._channel)
         if isinstance(data, LPJmLDataSet):
             data = data.to_numpy()
-        elif not isinstance(data[self.__input_ids[index]], np.ndarray):
+        elif not isinstance(data[self._input_ids[index]], np.ndarray):
             self.close()
             raise TypeError(
                 "Unsupported object type. Please supply a numpy "
@@ -1149,44 +1165,41 @@ class LPJmLCoupler:
             )
 
         # type check conversion
-        if self.__input_types[index].type == float:
+        if self._input_types[index].type == float:
             type_check = np.floating
-        elif self.__input_types[index].type == int:
+        elif self._input_types[index].type == int:
             type_check = np.integer
 
-        if not np.issubdtype(data[self.__input_ids[index]].dtype, type_check):
+        if not np.issubdtype(data[self._input_ids[index]].dtype, type_check):
             self.close()
             raise TypeError(
-                f"Unsupported type: {data[self.__input_ids[index]].dtype} "
+                f"Unsupported type: {data[self._input_ids[index]].dtype} "
                 + "Please supply a numpy array with data type: "
-                + f"{np.dtype(self.__input_types[index].type)}."
+                + f"{np.dtype(self._input_types[index].type)}."
             )
-        year = read_int(self._channel)
-        if not validate_year == year:
-            self.close()
-            raise ValueError(
-                f"The expected year: {validate_year} does not "
-                + f"match the received year: {year}"
-            )
-        if index in self.__input_ids.keys():
+
+        # check received year
+        self._check_year(validate_year)
+
+        if index in self._input_ids.keys():
             # get corresponding number of bands from LPJmLInputType class
             bands = LPJmLInputType(index).nband
-            if not np.shape(data[self.__input_ids[index]]) == (self.__ncell, bands):
-                if bands == 1 and not np.shape(data[self.__input_ids[index]]) == (
-                    self.__ncell,
+            if not np.shape(data[self._input_ids[index]]) == (self._ncell, bands):
+                if bands == 1 and not np.shape(data[self._input_ids[index]]) == (
+                    self._ncell,
                 ):
                     self.close()
                     raise ValueError(
                         "The dimensions of the supplied data: "
-                        + f"{(self.__ncell, bands)} does not match the "
-                        + f"needed dimensions for {self.__input_ids[index]}"
-                        + f": {(self.__ncell, bands)}."
+                        + f"{(self._ncell, bands)} does not match the "
+                        + f"needed dimensions for {self._input_ids[index]}"
+                        + f": {(self._ncell, bands)}."
                     )
             # execute sending values method to actually send the input to
             #   socket
-            self.__send_input_values(data[self.__input_ids[index]])
+            self._send_input_values(data[self._input_ids[index]])
 
-    def __send_input_values(self, data):
+    def _send_input_values(self, data):
         """Iterate over all values to be sent to the socket. Recursive iteration
         with the correct order of bands and cells for inputs.
         """
@@ -1206,42 +1219,46 @@ class LPJmLCoupler:
                 else:
                     send_function(self._channel, data[cell, band].item())
 
-    def __read_output_data(self, validate_year, to_xarray=True):
+    def _read_output_data(self, validate_year, to_xarray=True):
         """Read output data checks supplied year and sets numpy array template
         for corresponding output (index). If set correct executes
         private read_output_values method to read the corresponding output.
         """
         index = read_int(self._channel)
-        year = read_int(self._channel)
-        if not validate_year == year:
-            self.close()
-            raise ValueError(
-                f"The expected year: {validate_year} does not "
-                + f"match the received year: {year}"
-            )
-        if index in self.__output_ids:
-            output = self.__output_templates[index]
+        self._check_year(validate_year)
+
+        steps_as_bands = False
+        if self._output_bands[index] == 1:
+            if self._output_steps[index] > 1:
+                steps_as_bands = True
+
+        if index in self._output_ids:
+            output = self._output_templates[index]
             if not to_xarray:
                 # read and assign corresponding values from socket to numpy array
-                output = self.__read_output_values(
+                output = self._read_output_values(
                     output=output.values.copy(),
+                    index=index,
                     dims=list(np.shape(output)),
-                    lpjml_type=self.__output_types[index],
+                    steps_as_bands=steps_as_bands,
                 )
             else:
 
-                output.coords["time"] = pd.date_range(str(year), periods=1, freq="YE")
+                output.coords["time"] = pd.date_range(
+                    str(validate_year), periods=1, freq="YE"
+                )
 
                 # read and assign corresponding values from socket to numpy array
-                output.values = self.__read_output_values(
+                output.values = self._read_output_values(
                     output=output.values,
+                    index=index,
                     dims=list(np.shape(output)),
-                    lpjml_type=self.__output_types[index],
+                    steps_as_bands=steps_as_bands,
                 )
             # as list for appending/extending as list
-            return {self.__output_ids[index]: output}
+            return {self._output_ids[index]: output}
 
-    def __read_output_values(self, output, dims=None, lpjml_type=LPJmlValueType(3)):
+    def _read_output_values(self, output, index, dims=None, steps_as_bands=False):
         """Iterate over all values to be read from the socket. Recursive iteration
         with the correct order of cells and bands for outputs.
         """
@@ -1254,23 +1271,27 @@ class LPJmLCoupler:
             for cell in range(cells):
                 # Read the value from the socket
                 if one_band:
-                    output[cell] = lpjml_type.read_fun(self._channel)
+                    output[cell] = self._output_types[index].read_fun(self._channel)
                 else:
-                    output[cell, band] = lpjml_type.read_fun(self._channel)
+                    output[cell, band] = self._output_types[index].read_fun(
+                        self._channel
+                    )
+            if steps_as_bands and band < bands - 1:
+                self._check_token(LPJmLToken.READ_OUTPUT)
+                self._check_index(index)
+                self._check_year(self._sim_year)
 
         return output
 
-    def __read_meta_output(self, index=None, output_id=None):
+    def _read_meta_output(self, index=None, output_id=None):
         """Read meta output data from socket. Returns dictionary with
         corresponding meta output id and value.
         """
         if output_id is not None:
-            output = self.__config.output[output_id]
+            output = self._config.output[output_id]
         elif index is not None:
             output = [
-                out
-                for out in self.__config.output
-                if out.id == self.__output_ids[index]
+                out for out in self._config.output if out.id == self._output_ids[index]
             ][0]
         else:
             raise ValueError("Either index or output_id must be supplied")
@@ -1279,7 +1300,6 @@ class LPJmLCoupler:
         lpjml_meta = read_meta(f"{output.file.name}.json")
 
         # Set meta data correct for coupling format
-        lpjml_meta.nstep = 1
         lpjml_meta.timestep = 1
         lpjml_meta.format = "sock"
 
@@ -1304,11 +1324,11 @@ class LPJmLCoupler:
             [
                 summary,
                 f"Simulation:  (version: {self.version}, localhost:{port})",
-                f"  * sim_year   {min(self.__sim_year, self.__config.lastyear)}",
-                f"  * ncell      {self.__ncell}",
-                f"  * ninput     {self.__ninput}",
+                f"  * sim_year   {min(self._sim_year, self._config.lastyear)}",
+                f"  * ncell      {self._ncell}",
+                f"  * ninput     {self._ninput}",
             ]
         )
-        summary = "\n".join([summary, self.__config.__repr__(sub_repr=1)])
+        summary = "\n".join([summary, self._config.__repr__(sub_repr=1)])
 
         return summary
