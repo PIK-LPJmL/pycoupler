@@ -3,6 +3,7 @@ import sys
 import socket
 import struct
 import tempfile
+import copy
 
 import numpy as np
 import pandas as pd
@@ -546,7 +547,7 @@ class LPJmLCoupler:
             length=self._ninput,
             fun=self._send_input_data,
             token=LPJmLToken.SEND_INPUT,
-            args={"data": input_dict, "validate_year": year},
+            args={"data": input_dict, "year": year},
         )
 
         self._year_send_input = year
@@ -579,24 +580,48 @@ class LPJmLCoupler:
         ):
             raise IndexError(f"No read_output operation left for year {year}")
 
-        # Perform read_output operation
-        lpjml_output = self._iterate_operation(
-            length=self._noutput_sim,
+        all_output = copy.deepcopy(self._output_templates)
+        if to_xarray:
+            output = {
+                key: all_output[key]
+                for key in all_output.keys()
+                if key not in self._static_ids
+            }  # noqa
+            time = pd.date_range(str(year), periods=1, freq="YE")
+            for value in output.values():
+                value.coords["time"] = time
+        else:
+            output = {
+                key: all_output[key].values
+                for key in all_output.keys()
+                if key not in self._static_ids
+            }  # noqa
+
+        output_iterations = sum(steps for steps in self._output_steps if steps > 0)
+
+        # Perform subannual (monthly, daily) read_output operation
+        output = self._iterate_operation(
+            length=output_iterations,
             fun=self._read_output_data,
             token=LPJmLToken.READ_OUTPUT,
-            args={"validate_year": year, "to_xarray": to_xarray},
-            appendix=True,
+            args={"output": output, "year": year, "to_xarray": to_xarray},
         )
+
+        # Update the dictionary keys
+        for old_key, new_key in self._output_ids.items():
+            if old_key in output:
+                output[new_key] = output.pop(old_key)
+
         if to_xarray:
-            lpjml_output = LPJmLDataSet(lpjml_output)
+            output = LPJmLDataSet(output)
 
         self._year_read_output = year
-
+        self._output_count_steps = [0] * len(self._output_count_steps)
         # If all operations have been performed, increase sim_year
         if not self.operations_left:
             self._sim_year += 1
 
-        return lpjml_output
+        return output
 
     def read_input(self, start_year=None, end_year=None, copy=True):
         """Read coupled input data from netcdf files and copy them to the
@@ -881,6 +906,7 @@ class LPJmLCoupler:
             len_outputvar = len(self.config.outputvar)
             self._output_bands = [-1] * len_outputvar
             self._output_steps = [-1] * len_outputvar
+            self._output_count_steps = [0] * len_outputvar
             self._output_types = [-1] * len_outputvar
 
             # Get output indices
@@ -904,21 +930,22 @@ class LPJmLCoupler:
                 token=LPJmLToken.READ_OUTPUT_SIZE,
             )
 
-    def _iterate_operation(self, length, fun, token, args=None, appendix=False):
+    def _iterate_operation(self, length, fun, token, args=None):
         """Iterate reading/sending operation for sequence of inputs and/or outputs"""
-        results = {}
+
         for _ in range(length):
             # check token
             self._check_token(token=token)
 
             # execute method on channel and if supplied further method arguments
-            result = fun(**args) if args else fun()
+            output = fun(**args) if args else fun()
+            if args is not None and "output" in args.keys():
+                args["output"] = output
 
-            # if appendix results are appended/extended and returned as list
-            if appendix:
-                results.update(result)
-
-        return results if appendix else None
+        if args is not None and "output" in args.keys():
+            return output
+        else:
+            None
 
     def _check_token(self, token):
         """check if read token matches the expected token"""
@@ -1149,7 +1176,7 @@ class LPJmLCoupler:
             # add meta data to output
         return output_tmpl
 
-    def _send_input_data(self, data, validate_year):
+    def _send_input_data(self, data, year):
         """Send input data checks supplied object type, object dimensions data
         format and year for input index. If set correct executes private
         send_input_values method that does the sending.
@@ -1179,7 +1206,7 @@ class LPJmLCoupler:
             )
 
         # check received year
-        self._check_year(validate_year)
+        self._check_year(year)
 
         if index in self._input_ids.keys():
             # get corresponding number of bands from LPJmLInputType class
@@ -1219,44 +1246,38 @@ class LPJmLCoupler:
                 else:
                     send_function(self._channel, data[cell, band].item())
 
-    def _read_output_data(self, validate_year, to_xarray=True):
-        """Read output data checks supplied year and sets numpy array template
-        for corresponding output (index). If set correct executes
-        private read_output_values method to read the corresponding output.
-        """
+    def _read_output_data(self, output, year, to_xarray=True):
         index = read_int(self._channel)
-        self._check_year(validate_year)
+        self._check_year(year)
 
         steps_as_bands = False
-        if self._output_bands[index] == 1:
-            if self._output_steps[index] > 1:
+        if self._output_steps[index] > 1:
+            if self._output_bands[index] == 1:
+                bands = self._output_steps[index]
                 steps_as_bands = True
-
-        if index in self._output_ids:
-            output = self._output_templates[index]
-            if not to_xarray:
-                # read and assign corresponding values from socket to numpy array
-                output = self._read_output_values(
-                    output=output.values.copy(),
-                    index=index,
-                    dims=list(np.shape(output)),
-                    steps_as_bands=steps_as_bands,
-                )
             else:
-
-                output.coords["time"] = pd.date_range(
-                    str(validate_year), periods=1, freq="YE"
+                raise ValueError(
+                    "Subannual output data with more than one band not supported."
                 )
+        if not to_xarray:
+            # read and assign corresponding values from socket to numpy array
+            output[index] = self._read_output_values(
+                output=output[index],
+                index=index,
+                dims=list(np.shape(output[index])),
+                steps_as_bands=steps_as_bands,
+            )
+        else:
+            # read and assign corresponding values from socket to numpy array
+            output[index].values = self._read_output_values(
+                output=output[index].values,
+                index=index,
+                dims=list(np.shape(output[index])),
+                steps_as_bands=steps_as_bands,
+            )
 
-                # read and assign corresponding values from socket to numpy array
-                output.values = self._read_output_values(
-                    output=output.values,
-                    index=index,
-                    dims=list(np.shape(output)),
-                    steps_as_bands=steps_as_bands,
-                )
-            # as list for appending/extending as list
-            return {self._output_ids[index]: output}
+        # as list for appending/extending as list
+        return output
 
     def _read_output_values(self, output, index, dims=None, steps_as_bands=False):
         """Iterate over all values to be read from the socket. Recursive iteration
@@ -1272,14 +1293,17 @@ class LPJmLCoupler:
                 # Read the value from the socket
                 if one_band:
                     output[cell] = self._output_types[index].read_fun(self._channel)
+                elif steps_as_bands:
+                    output[cell, self._output_count_steps[index]] = self._output_types[
+                        index
+                    ].read_fun(self._channel)
                 else:
                     output[cell, band] = self._output_types[index].read_fun(
                         self._channel
                     )
-            if steps_as_bands and band < bands - 1:
-                self._check_token(LPJmLToken.READ_OUTPUT)
-                self._check_index(index)
-                self._check_year(self._sim_year)
+            if steps_as_bands:
+                self._output_count_steps[index] += 1
+                break
 
         return output
 
