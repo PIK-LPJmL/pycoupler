@@ -35,6 +35,15 @@ def test_read_data(test_path):
     assert tillage_data.__class__.__name__ == "LPJmLDataSet"
 
 
+def test_dataset(test_path):
+    """Test the set_config method of the LPJmLCoupler class."""
+    tillage_data = read_data(
+        file_name=f"{test_path}/data/input/with_tillage.nc"
+    )  # noqa
+    data_dict = tillage_data.to_dict("lpjmldata")
+    assert list(data_dict.keys()) == ["with_tillage"]
+
+
 @patch.dict(
     os.environ, {"TEST_PATH": get_test_path(), "TEST_LINE_COUNTER": "0"}
 )  # noqa
@@ -140,14 +149,14 @@ def test_lpjmlinputtype(test_path):
     assert landuse.name == "landuse"
     assert landuse.nband == 64
     assert landuse.type == float
-    assert landuse.bands is True
+    assert landuse.has_bands is True
 
     with_tillage = LPJmLInputType(7)
 
     assert with_tillage.name == "with_tillage"
     assert with_tillage.nband == 1
     assert with_tillage.type == int
-    assert with_tillage.bands is False
+    assert with_tillage.has_bands is False
 
     fertilizer_nr = LPJmLInputType(18)
     assert fertilizer_nr.name == "fertilizer_nr"

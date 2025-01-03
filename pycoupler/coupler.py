@@ -270,6 +270,9 @@ class LPJmLCoupler:
         # read configuration file
         self._config = read_config(config_file)
 
+        # get input ids based on configuration
+        LPJmLInputType.load_config(self._config)
+
         if hasattr(sys, "_called_from_test"):
             self._config.set_outputpath(
                 f"{os.environ['TEST_PATH']}/data/output/coupled_test"
@@ -780,13 +783,13 @@ class LPJmLCoupler:
 
             # a flag for multi (categorical) band input - if true, set
             #   "-landuse"
-            if getattr(LPJmLInputType, key).bands:
+            if LPJmLInputType(name=key).has_bands:
                 is_multiband = "-landuse"
             else:
                 is_multiband = None
 
             # a flag for integer input - if true, set "-int"
-            if getattr(LPJmLInputType, key).type == int:
+            if LPJmLInputType(name=key).type == int:
                 is_int = "-intnetcdf"
             else:
                 is_int = None
@@ -879,7 +882,7 @@ class LPJmLCoupler:
             self._input_ids = {
                 input_sockets[inp]["id"]: inp
                 for inp in input_sockets
-                if inp in LPJmLInputType.__members__
+                if input_sockets[inp]["id"] in LPJmLInputType.ids
             }
 
             # send number of bands for each output data stream
@@ -1003,19 +1006,21 @@ class LPJmLCoupler:
         """
         # get defined input sockets
         sockets = self._config.get_input_sockets()
+        socket_ids = [sock_id["id"] for sock_id in sockets.values()]
         # filter input names
-        input_names = [inp.name for inp in LPJmLInputType]
+        input_ids = [inp for inp in LPJmLInputType.ids]
+
         # check if input is defined in LPJmLInputType (band size required)
         valid_inputs = {
-            getattr(LPJmLInputType, sock).value: getattr(LPJmLInputType, sock).nband
-            for sock in sockets
-            if sock in input_names
+            LPJmLInputType(id=sock_id).id: LPJmLInputType(id=sock_id).nband  # noqa
+            for sock_id in socket_ids
+            if sock_id in input_ids
         }
-        if len(sockets) != len(valid_inputs):
+        if len(socket_ids) != len(valid_inputs):
             self.close()
             raise ValueError(
-                f"Configurated sockets {list(sockets.keys())} not defined in"
-                + f" {input_names}!"
+                f"Configurated sockets {sockets.keys()} not defined in"
+                + f" {LPJmLInputType.names}!"
             )
         return valid_inputs
 
@@ -1172,6 +1177,7 @@ class LPJmLCoupler:
                 output_tmpl.coords["band"] = [step + 1 for step in range(bands)]
             else:
                 output_tmpl.coords["band"] = meta_output.band_names
+
             output_tmpl = output_tmpl.rename(band=f"band ({self._output_ids[index]})")
             # add meta data to output
         return output_tmpl
@@ -1210,7 +1216,7 @@ class LPJmLCoupler:
 
         if index in self._input_ids.keys():
             # get corresponding number of bands from LPJmLInputType class
-            bands = LPJmLInputType(index).nband
+            bands = LPJmLInputType(id=index).nband
             if not np.shape(data[self._input_ids[index]]) == (self._ncell, bands):
                 if bands == 1 and not np.shape(data[self._input_ids[index]]) == (
                     self._ncell,

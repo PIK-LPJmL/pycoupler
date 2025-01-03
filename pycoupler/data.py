@@ -1,8 +1,6 @@
 import os
 import struct
-from enum import Enum
 from collections.abc import Hashable
-
 import numpy as np
 import pandas as pd
 import xarray as xr
@@ -14,21 +12,49 @@ from xarray.core.indexes import isel_indexes
 from pycoupler.utils import read_json
 
 
-class LPJmLInputType(Enum):
-    """Available Input types"""
+class LPJmLInputType:
+    """Available Input types loaded from config."""
 
-    # input ids
-    landuse: int = 6
-    with_tillage: int = 7
-    residue_on_field: int = 8
-    fertilizer_nr: int = 18
-    manure_nr: int = 19
-    sdate: int = 28
-    crop_phu: int = 45
+    __input_types__ = None  # This will hold the configuration data
+
+    def __init__(self, id=None, name=None):
+        """Initialize the instance with an id (index)."""
+        if not LPJmLInputType.__input_types__:
+            raise RuntimeError(
+                "LPJmLInputType has not been initialized. Call 'load_config' first."
+            )
+
+        if id is not None:
+            # Find the corresponding input id from the provided id
+            self.__dict__.update(
+                next(
+                    value.update({"name": key}) or value
+                    for key, value in LPJmLInputType.__input_types__.items()
+                    if value["id"] == id
+                )
+            )
+        elif name is not None:
+            # Find the corresponding input name from the provided name
+            self.__dict__.update(
+                next(
+                    value.update({"name": key}) or value
+                    for key, value in LPJmLInputType.__input_types__.items()
+                    if key == name
+                )
+            )
+        else:
+            raise ValueError("Either 'id' or 'name' must be provided.")
+
+    @classmethod
+    def load_config(cls, config):
+        """Load input types from the provided config."""
+        cls.__input_types__ = config.input.to_dict()
+        cls.names = list(cls.__input_types__.keys())
+        cls.ids = [value["id"] for value in cls.__input_types__.values()]
 
     @property
     def nband(self):
-        """get amount of bands"""
+        """Get amount of bands"""
         if self.name == "landuse":
             return 64
         if self.name in ["fertilizer_nr", "manure_nr"]:
@@ -41,17 +67,15 @@ class LPJmLInputType(Enum):
 
     @property
     def type(self):
-        """get amount of bands"""
+        """Get the data type for the specific input"""
         if self.name in ["with_tillage", "sdate"]:
             return int
         else:
             return float
 
     @property
-    def bands(self):
-        """check if multiple bands - better check for categorical bands
-        (ADJUST WHEN REQUIRED)
-        """
+    def has_bands(self):
+        """Check if multiple bands exist (better check for categorical bands)"""
         return bool(self.nband > 1)
 
 
@@ -99,6 +123,8 @@ class LPJmLData(xr.DataArray):
         Return a new DataArray whose data is given by selecting indexes
         along the specified dimension(s).
 
+        :seealso: xarray.DataArray.isel
+
         :param indexers: A dict with keys matching dimensions and values given
             by integers, slice objects or arrays.
             indexer can be a integer, slice, array-like or DataArray.
@@ -123,28 +149,6 @@ class LPJmLData(xr.DataArray):
 
         :return: indexed
         :rtype: xarray.DataArray
-
-        :seealso: Dataset.isel, DataArray.sel
-
-        :Example:
-
-        >>> da = xr.DataArray(np.arange(25).reshape(5, 5), dims=("x", "y"))
-        >>> da
-        <xarray.DataArray (x: 5, y: 5)>
-        array([[ 0,  1,  2,  3,  4],
-            [ 5,  6,  7,  8,  9],
-            [10, 11, 12, 13, 14],
-            [15, 16, 17, 18, 19],
-            [20, 21, 22, 23, 24]])
-        Dimensions without coordinates: x, y
-
-        >>> tgt_x = xr.DataArray(np.arange(0, 5), dims="points")
-        >>> tgt_y = xr.DataArray(np.arange(0, 5), dims="points")
-        >>> da = da.isel(x=tgt_x, y=tgt_y)
-        >>> da
-        <xarray.DataArray (points: 5)>
-        array([ 0,  6, 12, 18, 24])
-        Dimensions without coordinates: points
         """
         indexers = either_dict_or_kwargs(indexers, indexers_kwargs, "isel")
 
@@ -362,6 +366,107 @@ class LPJmLDataSet(xr.Dataset):
 
         return LPJmLData(variable, coords, name=name, indexes=indexes, fastpath=True)
 
+    def sel(
+        self,
+        indexers=None,
+        method=None,
+        tolerance=None,
+        drop=False,
+        **indexers_kwargs,
+    ):
+        """
+        Returns a new dataset with each array indexed by tick labels
+        along the specified dimension(s).
+
+        :seealso: xarray.Dataset.sel
+
+        :param indexers: A dict with keys matching variables,
+            dimensions and values given by scalars, slices or arrays of tick
+            labels. For dimensions with multi-index, the indexer may also be a
+            dict-like object with keys matching index level names.
+            If variables should be selected, select them by using the key
+            "variable" in the indexers dictionary.
+        :type indexers: dict, optional
+        :param method: Method to use for inexact matches:
+            - None (default): only exact matches
+            - pad / ffill: propagate last valid index value forward
+            - backfill / bfill: propagate next valid index value backward
+            - nearest: use nearest valid index value
+        :type method: {None, "nearest", "pad", "ffill", "backfill", "bfill"}, optional
+        :param tolerance: Maximum distance between original and new labels for
+            inexact matches. The values of the index at the matching locations
+            must satisfy the equation
+            ``abs(index[indexer] - target) <= tolerance``.
+        :type tolerance: optional
+        :param drop: If ``drop=True``, drop coordinates variables in `indexers`
+            instead of making them scalar.
+        :type drop: bool, optional
+        :param indexers_kwargs: The keyword arguments form of ``indexers``.
+        :type indexers_kwargs: {dim: indexer, ...}, optional
+
+        :return: A new Dataset with the same contents as this dataset, except
+            each variable and dimension is indexed by the appropriate indexers.
+            If indexer DataArrays have coordinates that do not conflict with
+            this object, then these coordinates will be attached.
+            In general, each array's data will be a view of the array's data
+            in this dataset, unless vectorized indexing was triggered by using
+            an array indexer, in which case the data will be a copy.
+        :rtype: xarray.Dataset
+        """
+        indexers = either_dict_or_kwargs(indexers, indexers_kwargs, "sel")
+
+        if "variable" in indexers.keys():
+            result = LPJmLDataSet(
+                {
+                    key: value
+                    for key, value in self.to_dict(data="lpjmldata").items()
+                    if key in indexers["variable"]
+                }  # noqa
+            )
+            del indexers["variable"]
+            if bool(indexers):
+                result = result.sel(
+                    indexers=indexers, method=method, tolerance=tolerance, drop=drop
+                )
+            return result
+        else:
+            return super().sel(
+                indexers=indexers, method=method, tolerance=tolerance, drop=drop
+            )
+
+    def to_dict(self, data="list", encoding=False):
+        """
+        Convert this dataset to a dictionary following xarray naming conventions.
+
+        Converts all variables and attributes to native Python objects.
+        Useful for converting to JSON. To avoid datetime incompatibility,
+        use the ``decode_times=False`` argument in ``xarray.open_dataset``.
+
+        :param data: Whether to include the actual data in the dictionary.
+            - If set to ``False``, returns just the schema.
+            - If set to ``"array"``, returns data as the underlying array type.
+            - If set to ``"list"`` (or ``True`` for backwards compatibility),
+              returns data in lists of Python data types. For efficient "list" output,
+              use ``ds.compute().to_dict(data="list")``.
+            :type data: bool or {"list", "array", "lpjmldata"}, optional,
+                default: "list"
+
+        :param encoding: Whether to include the Dataset's encoding in the dictionary.
+            :type encoding: bool, optional, default: False
+
+        :return: A dictionary with keys: ``"coords"``, ``"attrs"``, ``"dims"``,
+            ``"data_vars"``, and optionally ``"encoding"``.
+        :rtype: dict
+
+        :seealso:
+            - :meth:`xarray.Dataset.from_dict`
+            - :meth:`xarray.DataArray.to_dict`
+        """
+        if data == "lpjmldata":
+            return {var_name: self[var_name] for var_name in self.data_vars}
+
+        return super().to_dict(data=data, encoding=encoding)
+
 
 def read_data(file_name, var_name=None):
     """Read netcdf file and return data as numpy array or xarray.DataArray.
@@ -372,7 +477,9 @@ def read_data(file_name, var_name=None):
     :return: data as LPJmLData (xarray.DataArray)
     :rtype: LPJmLData
     """
-    with xr.open_dataset(file_name, decode_times=False, mask_and_scale=False) as data:
+    with xr.open_dataset(
+        file_name, decode_times=False, mask_and_scale=False
+    ) as data:  # noqa
         if "time" in data.dims:
             unit, reference_date = data.time.attrs["units"].split("since")
             date_time = pd.date_range(
