@@ -1,4 +1,4 @@
-ame: check
+name: check
 
 on:
   push:
