@@ -82,5 +82,4 @@ def test_copy_input(test_path):
     lpjml_coupler = LPJmLCoupler(config_file=config_coupled_fn)
 
     inputs = lpjml_coupler.read_input(copy=False)
-
     assert lpjml_coupler._copy_input(start_year=2022, end_year=2022) == "tested"

@@ -7,6 +7,7 @@ import xarray as xr
 from scipy.spatial import KDTree
 from xarray.core.utils import either_dict_or_kwargs
 from xarray.core.indexing import is_fancy_indexer
+from xarray.core.variable import Variable
 from xarray.core.indexes import isel_indexes
 
 from pycoupler.utils import read_json
@@ -204,6 +205,16 @@ class LPJmLData(xr.DataArray):
             else:
                 self.attrs["cellsize"] = meta_data.cellsize_lon
 
+            band_dim = next((dim for dim in self.dims if dim.startswith("band")), None)
+            # TODO assign lat lon to grid object
+            if band_dim is not None and len(self.coords[band_dim]) > 1:
+                if meta_data.variable == "grid":
+                    self.coords[band_dim] = ["lon", "lat"]
+                elif len(self.coords[band_dim]) == len(meta_data.band_names):
+                    self.coords[band_dim] = meta_data.band_names
+                else:
+                    self.coords[band_dim] = np.arange(1, len(self.coords[band_dim]) + 1)
+
             if hasattr(meta_data, "global_attrs"):
                 self.attrs["institution"] = meta_data.global_attrs["institution"]
                 self.attrs["contact"] = meta_data.global_attrs["contact"]
@@ -313,7 +324,7 @@ class LPJmLDataSet(xr.Dataset):
 
         needed_dims = set(variable.dims)
 
-        coords: dict[Hashable, xr.core.variable.Variable] = {}
+        coords: dict[Hashable, Variable] = {}
         # preserve ordering
         for k in self._variables:
             if k in self._coord_names and (set(self.variables[k].dims) <= needed_dims):
@@ -468,7 +479,7 @@ class LPJmLDataSet(xr.Dataset):
         return super().to_dict(data=data, encoding=encoding)
 
 
-def read_data(file_name, var_name=None):
+def read_data(file_name, var_name=None, multiple_bands=False):
     """Read netcdf file and return data as numpy array or xarray.DataArray.
     :param file_name: path to netcdf file
     :type file_name: str
@@ -487,6 +498,25 @@ def read_data(file_name, var_name=None):
             )
             data.coords["time"].attrs["units"] = unit
             data.coords["time"] = date_time.year
+
+        other_dims = [dim for dim in data.dims if dim not in ["lat", "lon", "time"]]
+
+        # handle multiple bands
+        if var_name and multiple_bands:
+            band_dim = f"band ({var_name})"
+        else:
+            band_dim = "band"
+
+        if other_dims:
+            if len(other_dims) == 1:
+                data = data.rename({other_dims[0]: band_dim})
+            elif len(other_dims) > 1:
+                raise ValueError("Unexpected multiple dimensions in data.")
+
+        else:
+            data = data.expand_dims(band_dim).assign_coords({band_dim: [0]})
+
+        data.coords[band_dim] = np.arange(data.sizes[band_dim])
 
         if var_name:
             data = data[var_name]

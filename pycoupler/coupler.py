@@ -188,7 +188,7 @@ def read_token(channel):
 
 
 class CopanStatus(Enum):
-    """Status of copan:CORE"""
+    """Status of coupled model"""
 
     COPAN_OK: int = 0
     COPAN_ERR: int = -1
@@ -643,10 +643,15 @@ class LPJmLCoupler:
         if copy:
             self._copy_input(start_year=start_year, end_year=end_year)
         # read coupled input data from netcdf files (as xarray.DataArray)
-        inputs = {
-            key: read_data(f"{self._config.sim_path}/input/{key}.nc", var_name=key)
-            for key in self.config.get_input_sockets(id_only=True)
-        }
+        inputs = {}
+        for key in self.config.get_input_sockets(id_only=True):
+            inputs[key] = read_data(
+                f"{self._config.sim_path}/input/{key}.nc",
+                var_name=key,
+                multiple_bands=True,
+            )
+            # TODO: add support for input meta data file (if available)
+            # inputs[key].add_meta()
 
         # if no start_year and end_year provided and only one year is supplied
         #   ensure years are the same (although they are not - but to avoid
@@ -669,10 +674,6 @@ class LPJmLCoupler:
 
         lons = self._cached_grid["lons"]
         lats = self._cached_grid["lats"]
-
-        other_dim = [dim for dim in inputs.dims if dim not in ["time", "lon", "lat"]]
-        if other_dim:
-            inputs = inputs.rename_dims({other_dim[0]: "band"})
 
         if start_year and end_year:
             kwargs = {"time": [year for year in range(start_year, end_year + 1)]}
@@ -1074,12 +1075,12 @@ class LPJmLCoupler:
             if self._static_ids[static_id] == "grid":
                 tmp_static = LPJmLData(
                     data=tmp_static,
-                    dims=("cell", "coord"),
+                    dims=("cell", "band"),
                     coords=dict(
                         cell=np.arange(
                             self._config.startgrid, self._config.endgrid + 1
                         ),
-                        coord=["lon", "lat"],
+                        band=["lon", "lat"],
                     ),
                     name="grid",
                 )
@@ -1172,11 +1173,6 @@ class LPJmLCoupler:
         if meta_output:
             # add meta information to output
             output_tmpl.add_meta(meta_output)
-            # add band names to output
-            if steps_as_bands:
-                output_tmpl.coords["band"] = [step + 1 for step in range(bands)]
-            else:
-                output_tmpl.coords["band"] = meta_output.band_names
 
             output_tmpl = output_tmpl.rename(band=f"band ({self._output_ids[index]})")
             # add meta data to output
@@ -1218,9 +1214,10 @@ class LPJmLCoupler:
             # get corresponding number of bands from LPJmLInputType class
             bands = LPJmLInputType(id=index).nband
             if not np.shape(data[self._input_ids[index]]) == (self._ncell, bands):
-                if bands == 1 and not np.shape(data[self._input_ids[index]]) == (
-                    self._ncell,
-                ):
+                if (
+                    bands == 1
+                    and not np.shape(data[self._input_ids[index]])[0] == self._ncell
+                ):  # noqa
                     self.close()
                     raise ValueError(
                         "The dimensions of the supplied data: "
@@ -1244,8 +1241,8 @@ class LPJmLCoupler:
         send_function = send_int if "int" in str(data.dtype) else send_float
 
         # Iterate over bands (outer loop) and cells (inner loop)
-        for band in range(bands):
-            for cell in range(cells):
+        for cell in range(cells):
+            for band in range(bands):
                 # Send the value to the socket
                 if one_band:
                     send_function(self._channel, data[cell].item())
