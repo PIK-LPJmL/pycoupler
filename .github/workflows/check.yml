@@ -11,34 +11,50 @@ jobs:
     runs-on: ubuntu-latest
 
     steps:
-    - name: Checkout code
+    # Step 1: Checkout pycoupler repository
+    - name: Checkout pycoupler repository
       uses: actions/checkout@v3
 
+    # Step 2: Set up Python
     - name: Set up Python
       uses: actions/setup-python@v4
       with:
         python-version: '3.12'
 
-    - name: Install dependencies
+    # Step 3: Install dependencies for pycoupler
+    - name: Install dependencies for pycoupler
       run: |
         python -m pip install --upgrade pip
         pip install setuptools wheel
-        pip install .
         pip install -e .[dev]
 
-    - name: Run tests
+    # Step 4: Run pycoupler tests
+    - name: Run pycoupler tests
       run: |
         pytest --cov --cov-report=xml
 
+    # Step 5: Clone and test pycopanlpjml
+    - name: Clone pycopanlpjml repository
+      run: |
+        git clone git@github.com:pik-copan/pycopanlpjml.git
+        cd pycopanlpjml
+        python -m pip install -e .[dev]
+        # Ensure pycoupler is installed as a dependency for pycopanlpjml
+        pip install ../  # This installs the local version of pycoupler
+        pytest
+
+    # Step 6: Upload coverage reports to Codecov
     - name: Upload coverage reports to Codecov
       uses: codecov/codecov-action@v5
       with:
         token: ${{ secrets.CODECOV_TOKEN }}
 
+    # Step 7: Check code formatting with Black
     - name: Check code formatting with Black
       run: |
         black --check .
 
+    # Step 8: Lint code with Flake8
     - name: Lint code with Flake8
       run: |
         flake8 .
