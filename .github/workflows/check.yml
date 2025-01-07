@@ -34,9 +34,9 @@ jobs:
         pytest --cov --cov-report=xml
 
     # Step 5: Clone and test pycopanlpjml
-    - name: Clone pycopanlpjml repository
+    - name: Clone and test pycopanlpjml
       run: |
-        git clone git@github.com:pik-copan/pycopanlpjml.git
+        git clone https://github.com/pik-copan/pycopanlpjml.git
         cd pycopanlpjml
         python -m pip install -e .[dev]
         # Ensure pycoupler is installed as a dependency for pycopanlpjml
