@@ -645,13 +645,16 @@ class LPJmLCoupler:
         # read coupled input data from netcdf files (as xarray.DataArray)
         inputs = {}
         for key in self.config.get_input_sockets(id_only=True):
-            inputs[key] = read_data(
-                f"{self._config.sim_path}/input/{key}.nc",
-                var_name=key,
-                multiple_bands=True,
+            inputs[key] = self.assign_config_band_names(
+                read_data(
+                    f"{self._config.sim_path}/input/{key}.nc",
+                    var_name=key,
+                    multiple_bands=True,
+                ),
+                key=key,
             )
             # TODO: add support for input meta data file (if available)
-            # inputs[key].add_meta()
+            # inputs[key].add_meta() to replace workaround with assign_band_names
 
         # if no start_year and end_year provided and only one year is supplied
         #   ensure years are the same (although they are not - but to avoid
@@ -704,6 +707,57 @@ class LPJmLCoupler:
         )
 
         return inputs
+
+    def assign_config_band_names(self, x, key):
+        irr_systems_short = ["rainfed", "irrigated"]
+        irr_systems_long = [
+            "rainfed",
+            "surface irrigated",
+            "sprinkler irrigated",
+            "drip irrigated",
+        ]
+
+        if "band" in x.dims:
+            band_dim = "band"
+        else:
+            band_dim = f"band ({key})"
+
+        band_names = x[band_dim]
+        if len(band_names) in [1, 12, 365]:
+            y = x.assign_coords(
+                {band_dim: [str(i + 1) for i in range(len(band_names))]}
+            )
+        elif (
+            len(band_names) % len(self.config.cftmap) == 0
+            or len(band_names) % len(self.config.landusemap) == 0
+        ):
+            if len(band_names) % len(self.config.cftmap) == 0:
+                len_irr_systems = len(band_names) // len(self.config.cftmap)
+            else:
+                len_irr_systems = len(band_names) // len(self.config.landusemap)
+
+            if len_irr_systems == 2:
+                irr_systems = irr_systems_short
+            elif len_irr_systems == 4:
+                irr_systems = irr_systems_long
+            else:
+                return x
+
+            if len(band_names) % len(self.config.cftmap) == 0:
+                combined_list = [
+                    f"{irr} {crop}"
+                    for irr in irr_systems
+                    for crop in self.config.cftmap
+                ]
+            else:
+                combined_list = [
+                    f"{irr} {crop}"
+                    for irr in irr_systems
+                    for crop in self.config.landusemap
+                ]  # {irr}
+
+            y = x.assign_coords({band_dim: combined_list})
+        return y
 
     def _copy_input(self, start_year, end_year):
         """Copy and convert and save input files as NetCDF4 files to input

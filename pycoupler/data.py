@@ -1,14 +1,12 @@
 import os
 import struct
+import re
 from collections.abc import Hashable
 import numpy as np
 import pandas as pd
 import xarray as xr
 from scipy.spatial import KDTree
-from xarray.core.utils import either_dict_or_kwargs
-from xarray.core.indexing import is_fancy_indexer
 from xarray.core.variable import Variable
-from xarray.core.indexes import isel_indexes
 
 from pycoupler.utils import read_json
 
@@ -112,77 +110,6 @@ class LPJmLData(xr.DataArray):
 
     def __init__(self, *args, **kwargs):
         super(LPJmLData, self).__init__(*args, **kwargs)
-
-    def isel(
-        self,
-        indexers=None,
-        drop=False,
-        missing_dims="raise",
-        **indexers_kwargs,
-    ):
-        """
-        Return a new DataArray whose data is given by selecting indexes
-        along the specified dimension(s).
-
-        :seealso: xarray.DataArray.isel
-
-        :param indexers: A dict with keys matching dimensions and values given
-            by integers, slice objects or arrays.
-            indexer can be a integer, slice, array-like or DataArray.
-            If DataArrays are passed as indexers, xarray-style indexing will be
-            carried out. See :ref:`indexing` for the details.
-            One of indexers or indexers_kwargs must be provided.
-        :type indexers: dict, optional
-
-        :param drop: If ``drop=True``, drop coordinates variables indexed by integers
-            instead of making them scalar.
-        :type drop: bool, default: False
-
-        :param missing_dims: What to do if dimensions that should be selected
-            from are not present in the DataArray:
-            - "raise": raise an exception
-            - "warn": raise a warning, and ignore the missing dimensions
-            - "ignore": ignore the missing dimensions
-        :type missing_dims: {"raise", "warn", "ignore"}, default: "raise"
-
-        :param indexers_kwargs: The keyword arguments form of ``indexers``.
-        :type indexers_kwargs: {dim: indexer, ...}, optional
-
-        :return: indexed
-        :rtype: xarray.DataArray
-        """
-        indexers = either_dict_or_kwargs(indexers, indexers_kwargs, "isel")
-
-        if any(is_fancy_indexer(idx) for idx in indexers.values()):
-            ds = self._to_temp_dataset()._isel_fancy(
-                indexers, drop=drop, missing_dims=missing_dims
-            )
-            return self._from_temp_dataset(ds)
-
-        # Much faster algorithm for when all indexers are ints, slices,
-        # one-dimensional lists, or zero or one-dimensional np.ndarray's
-
-        variable = self._variable.isel(indexers, missing_dims=missing_dims)
-        indexes, index_variables = isel_indexes(
-            self.xindexes,
-            {f"{k} ({self.name})": v for k, v in indexers.items() if k == "band"},
-        )
-
-        coords = {}
-        for coord_name, coord_value in self._coords.items():
-            if coord_name in index_variables:
-                coord_value = index_variables[coord_name]
-            else:
-                coord_indexers = {
-                    k: v for k, v in indexers.items() if k in coord_value.dims
-                }
-                if coord_indexers:
-                    coord_value = coord_value.isel(coord_indexers)
-                    if drop and coord_value.ndim == 0:
-                        continue
-            coords[coord_name] = coord_value
-
-        return self._replace(variable=variable, coords=coords, indexes=indexes)
 
     def add_meta(self, meta_data):
         """
@@ -323,11 +250,15 @@ class LPJmLDataSet(xr.Dataset):
             )
 
         needed_dims = set(variable.dims)
+        stripped_dims = {re.sub(r"\s*\(.*?\)", "", item) for item in needed_dims}
 
         coords: dict[Hashable, Variable] = {}
         # preserve ordering
         for k in self._variables:
-            if k in self._coord_names and (set(self.variables[k].dims) <= needed_dims):
+            if k in self._coord_names and (
+                set(self.variables[k].dims) <= needed_dims
+                or set(self.variables[k].dims) <= stripped_dims
+            ):
                 coords[k] = self.variables[k]
 
         indexes = xr.core.indexes.filter_indexes_from_coords(self._indexes, set(coords))
@@ -357,6 +288,8 @@ class LPJmLDataSet(xr.Dataset):
                     band_idx_name = key
             indexes["band"] = indexes.pop(band_idx_name)
             indexes["band"].index.name = "band"
+            indexes["band"].index.dim = "band"
+            indexes["band"].dim = "band"
 
         # get the corresponding "band" coords and delete all other band coords
         band_coords = [
@@ -376,74 +309,6 @@ class LPJmLDataSet(xr.Dataset):
             name = "band"
 
         return LPJmLData(variable, coords, name=name, indexes=indexes, fastpath=True)
-
-    def sel(
-        self,
-        indexers=None,
-        method=None,
-        tolerance=None,
-        drop=False,
-        **indexers_kwargs,
-    ):
-        """
-        Returns a new dataset with each array indexed by tick labels
-        along the specified dimension(s).
-
-        :seealso: xarray.Dataset.sel
-
-        :param indexers: A dict with keys matching variables,
-            dimensions and values given by scalars, slices or arrays of tick
-            labels. For dimensions with multi-index, the indexer may also be a
-            dict-like object with keys matching index level names.
-            If variables should be selected, select them by using the key
-            "variable" in the indexers dictionary.
-        :type indexers: dict, optional
-        :param method: Method to use for inexact matches:
-            - None (default): only exact matches
-            - pad / ffill: propagate last valid index value forward
-            - backfill / bfill: propagate next valid index value backward
-            - nearest: use nearest valid index value
-        :type method: {None, "nearest", "pad", "ffill", "backfill", "bfill"}, optional
-        :param tolerance: Maximum distance between original and new labels for
-            inexact matches. The values of the index at the matching locations
-            must satisfy the equation
-            ``abs(index[indexer] - target) <= tolerance``.
-        :type tolerance: optional
-        :param drop: If ``drop=True``, drop coordinates variables in `indexers`
-            instead of making them scalar.
-        :type drop: bool, optional
-        :param indexers_kwargs: The keyword arguments form of ``indexers``.
-        :type indexers_kwargs: {dim: indexer, ...}, optional
-
-        :return: A new Dataset with the same contents as this dataset, except
-            each variable and dimension is indexed by the appropriate indexers.
-            If indexer DataArrays have coordinates that do not conflict with
-            this object, then these coordinates will be attached.
-            In general, each array's data will be a view of the array's data
-            in this dataset, unless vectorized indexing was triggered by using
-            an array indexer, in which case the data will be a copy.
-        :rtype: xarray.Dataset
-        """
-        indexers = either_dict_or_kwargs(indexers, indexers_kwargs, "sel")
-
-        if "variable" in indexers.keys():
-            result = LPJmLDataSet(
-                {
-                    key: value
-                    for key, value in self.to_dict(data="lpjmldata").items()
-                    if key in indexers["variable"]
-                }  # noqa
-            )
-            del indexers["variable"]
-            if bool(indexers):
-                result = result.sel(
-                    indexers=indexers, method=method, tolerance=tolerance, drop=drop
-                )
-            return result
-        else:
-            return super().sel(
-                indexers=indexers, method=method, tolerance=tolerance, drop=drop
-            )
 
     def to_dict(self, data="list", encoding=False):
         """
