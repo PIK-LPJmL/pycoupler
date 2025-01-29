@@ -132,7 +132,9 @@ class LpjmlConfig(SubConfig):
                 return [out.id for out in self.output if (out.file.fmt == fmt)]
             else:
                 outs = [
-                    out for pos, out in enumerate(self.output) if out.file.fmt == fmt
+                    out
+                    for pos, out in enumerate(self.output)
+                    if out.file.fmt == fmt  # noqa
                 ]
         else:
             if id_only:
@@ -290,7 +292,9 @@ class LpjmlConfig(SubConfig):
         self._set_grid_explicitly()
 
         # set output directory, outputs (relevant ones for pbs and agriculture)
-        write_output += [item for item in coupled_output if item not in write_output]
+        write_output += [
+            item for item in coupled_output if item not in write_output
+        ]  # noqa
         self._set_output(
             output_path,
             outputs=write_output,
@@ -378,7 +382,8 @@ class LpjmlConfig(SubConfig):
                 if out.id not in nonvariable_outputs:
                     self.output[pos].file.fmt = file_format
                     self.output[pos].file.name = (
-                        f"{output_path}/{out.id}" f".{available_formats[file_format]}"
+                        f"{output_path}/{out.id}"
+                        f".{available_formats[file_format]}"  # noqa
                     )
                 else:
                     self.output[pos].file.name = (
@@ -450,7 +455,9 @@ class LpjmlConfig(SubConfig):
         self.write_restart_filename = f"{path}/restart_{self.sim_name}.lpj"
         self.restart_year = self.lastyear
 
-    def _set_timerange(self, start_year=1901, end_year=2017, write_start_year=None):
+    def _set_timerange(
+        self, start_year=1901, end_year=2017, write_start_year=None
+    ):  # noqa
         """Set simulation time range, outputyear to start as a default here.
         :param start_year: start year of simulation
         :type start_year: int
@@ -499,7 +506,9 @@ class LpjmlConfig(SubConfig):
                         - 1
                     )
 
-    def _set_coupling(self, inputs, outputs, start_year=None, model_name="copan:CORE"):
+    def _set_coupling(
+        self, inputs, outputs, start_year=None, model_name="copan:CORE"
+    ):  # noqa
         """Coupled settings - no spinup, not write restart file and set sockets
         for inputs and outputs (via corresponding ids)
         :param inputs: list of inputs to be used as socket for coupling.
@@ -673,11 +682,15 @@ class LpjmlConfig(SubConfig):
 
             # extract country specific lakes file from meta file
             if self.input.lakes.fmt in ["json", "meta"]:
-                lakes_filename = read_json(f"{self.inpath}/{self.input.lakes.name}")[
+                lakes_filename = read_json(
+                    f"{self.inpath}/{self.input.lakes.name}"
+                )[  # noqa
                     "filename"
                 ]
                 lakes_file = f"{self.inpath}/{self.input.lakes.name}"
-                lakes_file = f"{lakes_file[:lakes_file.rfind('/')+1]}{lakes_filename}"
+                lakes_file = (
+                    f"{lakes_file[:lakes_file.rfind('/')+1]}{lakes_filename}"  # noqa
+                )
             else:
                 lakes_file = f"{self.inpath}/{self.input.lakes.name}"
 
@@ -768,7 +781,9 @@ class LpjmlConfig(SubConfig):
             outputs = [out for out in outputs if out in output_id]
 
         output_details = [
-            out for out in self.get_output_avail(id_only=False) if out.name in outputs
+            out
+            for out in self.get_output_avail(id_only=False)
+            if out.name in outputs  # noqa
         ]
 
         for output in output_details:
@@ -929,7 +944,9 @@ def parse_config(
     return lpjml_config
 
 
-def read_config(file_name, model_path=None, spin_up=False, macros=None, to_dict=False):
+def read_config(
+    file_name, model_path=None, spin_up=False, macros=None, to_dict=False
+):  # noqa
     """Read function for config files to be returned as LpjmlConfig object or
     alternatively dict.
     :param file_name: file name (including relative/absolute path) of the
@@ -1016,7 +1033,9 @@ class CoupledConfig(SubConfig):
                     + spacing
                 )
             else:
-                summary += f"{'  ' * sub_repr}* {key:<20} {value}".strip() + spacing
+                summary += (
+                    f"{'  ' * sub_repr}* {key:<20} {value}".strip() + spacing
+                )  # noqa
 
         return summary
 
