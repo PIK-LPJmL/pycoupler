@@ -1,5 +1,4 @@
-"""Classes and functions to handle LPJmL configurations and related operations
-"""
+"""Classes and functions to handle LPJmL configurations and related operations"""
 
 import os
 import sys
