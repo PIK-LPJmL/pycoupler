@@ -146,16 +146,14 @@ class LpjmlConfig(SubConfig):
         else:
             return outs
 
-    def set_spinup(self, sim_path):
+    def set_spinup(self, sim_path, sim_name="spinup"):
         """Set configuration required for spinup model runs
         :param sim_path: define sim_path data is written to
         :type sim_path: str
-        :param restart_path: define restart_path the restart files to start
-            model runs from. Has to match with `restart_path` from
-            `set_transient`
-        :type restart_path: str
+        :param sim_name: name of simulation
+        :type sim_name: str
         """
-        self.sim_name = "spinup"
+        self.sim_name = sim_name
         self.sim_path = create_subdirs(sim_path, self.sim_name)
         output_path = f"{sim_path}/output/{self.sim_name}"
 
