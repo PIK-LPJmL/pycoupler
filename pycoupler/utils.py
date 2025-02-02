@@ -323,3 +323,45 @@ def create_subdirs(base_path, sim_name):
         print(f"Restart path '{base_path}/restart' was created.")
 
     return base_path
+
+
+def detect_io_type(filename):
+    """
+    Detect the file type of an LPJmL input/output file.
+
+    :param filename: Path to the file to check.
+    :type filename: str
+    :return: Detected file type ('cdf', 'clm', 'meta', 'raw', or 'text').
+    :rtype: str
+    :raises FileNotFoundError: If the file does not exist.
+    """
+    if not os.path.exists(filename):
+        raise FileNotFoundError(f"File {filename} does not exist.")
+
+    # Read the first 10 bytes of the file
+    with open(filename, "rb") as f:
+        file_check = f.read(min(os.path.getsize(filename), 10))
+
+    # Check for 'clm' (LPJmL binary format with header)
+    if len(file_check) >= 3 and file_check[:3] == b"LPJ":
+        return "clm"
+
+    # Check for NetCDF format
+    if (len(file_check) >= 3 and file_check[:3] == b"CDF") or (
+        len(file_check) >= 8 and file_check[:8] == b"\x89HDF\r\n\x1a\n"
+    ):
+        return "cdf"
+
+    # Check if file is a text file
+    try:
+        text_content = file_check.decode("utf-8")
+        if all(32 <= ord(c) <= 126 or c in "\r\n\t" for c in text_content):
+            # Check if it is a JSON file (starts with '{' after stripping whitespace)
+            if text_content.lstrip().startswith("{"):
+                return "meta"
+            return "text"
+    except UnicodeDecodeError:
+        pass  # Not a valid UTF-8 text file
+
+    # Default to 'raw' if no other type is detected
+    return "raw"

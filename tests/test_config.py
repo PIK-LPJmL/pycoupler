@@ -18,7 +18,7 @@ def test_set_spinup_config(test_path):
 
     # regrid by country - create new (extracted) input files and update config
     config_spinup.regrid(
-        sim_path=f"{test_path}/data", country_code="NLD", overwrite_input=False
+        sim_path=f"{test_path}/data", country_code="NLD", overwrite=False
     )
     assert config_spinup.model_path == test_path
     assert config_spinup.sim_path == f"{test_path}/data"

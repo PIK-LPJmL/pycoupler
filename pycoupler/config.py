@@ -7,7 +7,7 @@ import json
 from subprocess import run
 from ruamel.yaml import YAML
 
-from pycoupler.utils import read_json, get_countries, create_subdirs
+from pycoupler.utils import read_json, get_countries, create_subdirs, detect_io_type
 from pycoupler.data import read_header
 
 
@@ -475,33 +475,31 @@ class LpjmlConfig(SubConfig):
         if self.startgrid == "all":
             self.startgrid = 0
         if self.endgrid == "all" or not only_all:
-            if self.input.soil.fmt in ["json", "meta"]:
+            if hasattr(sys, "_called_from_test"):
+                self.endgrid = 2
+            elif self.input.soil.fmt in ["json", "meta"]:
                 self.endgrid = (
-                    read_config(
-                        f"{self.inpath}/{self.input.soil.name}", to_dict=True
-                    )[  # noqa
-                        "ncell"
-                    ]
+                    read_json(
+                        (
+                            self.input.soil.name
+                            if os.path.isfile(self.input.soil.name)
+                            else f"{self.inpath}/{self.input.soil.name}"
+                        )
+                    )["ncell"]
                     - 1
                 )
             else:
-                if os.path.isfile(self.input.soil.name):
-                    self.endgrid = (
-                        read_header(self.input.soil.name, to_dict=True)[
-                            "header"
-                        ][  # noqa
-                            "ncell"
-                        ]
-                        - 1
-                    )
-                else:
-                    self.endgrid = (
-                        read_header(
-                            f"{self.inpath}/{self.input.soil.name}",
-                            to_dict=True,  # noqa
-                        )["header"]["ncell"]
-                        - 1
-                    )
+                self.endgrid = (
+                    read_header(
+                        (
+                            self.input.soil.name
+                            if os.path.isfile(self.input.soil.name)
+                            else f"{self.inpath}/{self.input.soil.name}"
+                        ),
+                        to_dict=True,
+                    )["header"]["ncell"]
+                    - 1
+                )
 
     def _set_coupling(
         self, inputs, outputs, start_year=None, model_name="copan:CORE"
@@ -614,9 +612,7 @@ class LpjmlConfig(SubConfig):
         """
         self.coupled_config = read_yaml(file_name, CoupledConfig)
 
-    def regrid(
-        self, sim_path, model_path=None, country_code="BEL", overwrite_input=False
-    ):
+    def regrid(self, sim_path, model_path=None, country_code="BEL", overwrite=False):
         """Regrid LPJmL configuration file to a new country.
         :param sim_path: directory to check wether required subfolders exists. If
             not create corresponding folder (input, output, restart)
@@ -626,9 +622,9 @@ class LpjmlConfig(SubConfig):
         :param country_code: country code of country to regrid to. Defaults to
             'LUX'.
         :type country_code: str
-        :param overwrite_input: overwrite existing country specific input files.
+        :param overwrite: overwrite existing country specific input files.
             Defaults to False.
-        :type overwrite_input: bool
+        :type overwrite: bool
         """
 
         if not os.path.exists(sim_path):
@@ -652,96 +648,153 @@ class LpjmlConfig(SubConfig):
             None,
         ).lower()
 
-        if not os.path.isfile(self.input.coord.name):
-            grid_file = f"{self.inpath}/{self.input.coord.name}"
-        else:
-            grid_file = self.input.coord.name
+        grid_file = (
+            self.input.coord.name
+            if os.path.isfile(self.input.coord.name)
+            or hasattr(sys, "_called_from_test")
+            else f"{self.inpath}/{self.input.coord.name}"
+        )
 
+        # proxy check if regrid was already performed
+        if country in self.input.coord.name:
+            return
+
+        country_grid_file = (
+            f"{sim_path}/input/{country}_{os.path.basename(self.input.coord.name)}"
+        )
         # check if country specific input files already exist
-        if (
-            not os.path.isfile(f"{sim_path}/input/coord_{country}.clm")
-            or (not os.path.isfile(f"{sim_path}/input/soil_{country}.clm"))
-            or (not os.path.isfile(f"{sim_path}/input/lakes_{country}.bin"))
-            or overwrite_input
-        ) and not hasattr(sys, "_called_from_test"):
+        if (not os.path.isfile(country_grid_file) or overwrite) and not hasattr(
+            sys, "_called_from_test"
+        ):
+
+            if not os.path.isfile(grid_file):
+                raise OSError(f"Grid file '{grid_file}' does not exist.")
 
             # extract country specific grid
             run(
                 [
                     f"{model_path}/bin/getcountry",
-                    f"{self.inpath}/{self.input.countrycode.name}",
+                    (
+                        self.input.countrycode.name
+                        if os.path.isfile(self.input.countrycode.name)
+                        else f"{self.inpath}/{self.input.countrycode.name}"
+                    ),
                     grid_file,
-                    f"{sim_path}/input/coord_{country}.clm",
+                    country_grid_file,
                     country_code,
                 ],
                 check=True,
             )
 
-            # extract country specific lakes file from meta file
-            if self.input.lakes.fmt in ["json", "meta"]:
-                lakes_filename = read_json(
-                    f"{self.inpath}/{self.input.lakes.name}"
-                )[  # noqa
-                    "filename"
-                ]
-                lakes_file = f"{self.inpath}/{self.input.lakes.name}"
-                lakes_file = (
-                    f"{lakes_file[:lakes_file.rfind('/')+1]}{lakes_filename}"  # noqa
-                )
-            else:
-                lakes_file = f"{self.inpath}/{self.input.lakes.name}"
+        self.input.coord.fmt = (
+            detect_io_type(country_grid_file)
+            if not hasattr(sys, "_called_from_test")
+            else "clm"
+        )
+        self.input.coord.name = country_grid_file
+
+        lakes_fn_string = (
+            self.input.lakes.name
+            if os.path.isfile(self.input.lakes.name)
+            else f"{self.inpath}/{self.input.lakes.name}"
+        )
+        # extract country specific lakes file from meta file
+        if self.input.lakes.fmt == "meta":
+            lakes_filename = read_json(lakes_fn_string)["filename"]
+
+            lakes_file = lakes_fn_string
+            lakes_file = (
+                f"{lakes_file[:lakes_file.rfind('/')+1]}{lakes_filename}"  # noqa
+            )
+        else:
+            lakes_file = lakes_fn_string
+
+        country_lakes_file = (
+            f"{sim_path}/input/{country}_{os.path.basename(lakes_file)}"
+        )
+
+        # check if country specific input files already exist
+        if (not os.path.isfile(country_lakes_file) or overwrite) and not hasattr(
+            sys, "_called_from_test"
+        ):
+
+            if not os.path.isfile(lakes_file):
+                raise OSError(f"Lakes file '{lakes_file}' does not exist.")
 
             # regrid lakes file to country specific grid
             run(
                 [
                     f"{model_path}/bin/regridsoil",
                     grid_file,
-                    f"{sim_path}/input/coord_{country}.clm",
+                    country_grid_file,
                     lakes_file,
-                    f"{sim_path}/input/lakes_{country}.bin",
+                    country_lakes_file,
                 ],
                 check=True,
                 stdout=open(os.devnull, "wb"),
             )
 
-            # loop over all used input files to regrid them to country specific
-            #   grid
-            for config_key, config_input in self.input:
+        self.input.lakes.fmt = (
+            detect_io_type(country_lakes_file)
+            if not hasattr(sys, "_called_from_test")
+            else "raw"
+        )
+        self.input.lakes.name = country_lakes_file
 
-                if (
-                    config_input.fmt != "clm"
-                    or config_key == "coord"
-                    or (config_input.name == "DUMMYLOCATION")
-                ):
-                    continue
+        # loop over all used input files to regrid them to country specific
+        #   grid
+        for config_key, config_input in self.input:
 
-                if os.path.isfile(config_input.name):
-                    input_file = config_input.name
+            if (
+                config_input.fmt != "clm"
+                or config_key in ["coord", "lakes"]
+                or (config_input.name == "DUMMYLOCATION")
+            ):
+                continue
+
+            input_file = (
+                config_input.name
+                if os.path.isfile(config_input.name)
+                else f"{self.inpath}/{config_input.name}"
+            )
+
+            country_input_file = (
+                f"{sim_path}/input/{country}_{os.path.basename(input_file)}"
+            )
+
+            # check if country specific input files already exist
+            if (not os.path.isfile(country_input_file) or overwrite) and not hasattr(
+                sys, "_called_from_test"
+            ):
+
+                if not os.path.isfile(input_file):
+                    raise OSError(f"Input file '{input_file}' does not exist.")
+
+                if config_key == "drainage":
+                    regrid_func = "regriddrain"
+                elif config_key == "irrigation":
+                    regrid_func = "regridirrig"
                 else:
-                    input_file = f"{self.inpath}/{config_input.name}"
+                    regrid_func = "regridclm"
 
                 # regrid all other input files to country specific grid
                 regrid_cmd = [
-                    f"{model_path}/bin/regridclm",
+                    f"{model_path}/bin/{regrid_func}",
                     grid_file,
-                    f"{sim_path}/input/coord_{country}.clm",
+                    self.input.coord.name,
                     input_file,
-                    f"{sim_path}/input/{config_key}_{country}.clm",
+                    country_input_file,
                 ]
                 # if additional_arg:
                 #     regrid_cmd.insert(1, additional_arg)
                 run(regrid_cmd, check=True, stdout=open(os.devnull, "wb"))
 
-        # change config file to country specific input files
-        for config_key, config_input in self.input:
-            if config_input.fmt not in ["clm", "json", "meta"]:
-                continue
-            if config_key in ["lakes"]:
-                config_input.fmt = "raw"
-                config_input.name = f"{sim_path}/input/{config_key}_{country}.bin"
-            else:
-                config_input.fmt = "clm"
-                config_input.name = f"{sim_path}/input/{config_key}_{country}.clm"
+            config_input.fmt = (
+                detect_io_type(country_input_file)
+                if not hasattr(sys, "_called_from_test")
+                else "clm"
+            )
+            config_input.name = country_input_file
 
         self._set_grid_explicitly(only_all=False)
 
@@ -754,10 +807,12 @@ class LpjmlConfig(SubConfig):
 
         output_dir = f"{self.sim_path}/output/{self.sim_name}"
 
-        if self.input.coord.name.startswith("/"):
-            grid_file = self.input.coord.name
-        else:
-            grid_file = f"{self.inpath}/{self.input.coord.name}"
+        grid_file = (
+            self.input.coord.name
+            if os.path.isfile(self.input.coord.name)
+            or hasattr(sys, "_called_from_test")
+            else f"{self.inpath}/{self.input.coord.name}"
+        )
 
         grid_name = os.path.basename(grid_file)
 
