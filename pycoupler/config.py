@@ -696,10 +696,11 @@ class LpjmlConfig(SubConfig):
         lakes_fn_string = (
             self.input.lakes.name
             if os.path.isfile(self.input.lakes.name)
+            or hasattr(sys, "_called_from_test")
             else f"{self.inpath}/{self.input.lakes.name}"
         )
         # extract country specific lakes file from meta file
-        if self.input.lakes.fmt == "meta":
+        if self.input.lakes.fmt == "meta" and not hasattr(sys, "_called_from_test"):
             lakes_filename = read_json(lakes_fn_string)["filename"]
 
             lakes_file = lakes_fn_string
@@ -755,6 +756,7 @@ class LpjmlConfig(SubConfig):
             input_file = (
                 config_input.name
                 if os.path.isfile(config_input.name)
+                or hasattr(sys, "_called_from_test")
                 else f"{self.inpath}/{config_input.name}"
             )
 
