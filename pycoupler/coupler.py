@@ -4,6 +4,7 @@ import socket
 import struct
 import tempfile
 import copy
+import warnings
 
 import numpy as np
 import pandas as pd
@@ -63,7 +64,9 @@ def read_lines_from_file(filepath):
     lines = bytestring.split("\n")
     if int(os.environ["TEST_LINE_COUNTER"]) < len(lines):
         line = lines[int(os.environ["TEST_LINE_COUNTER"])]
-        os.environ["TEST_LINE_COUNTER"] = str(int(os.environ["TEST_LINE_COUNTER"]) + 1)
+        os.environ["TEST_LINE_COUNTER"] = str(
+            int(os.environ["TEST_LINE_COUNTER"]) + 1
+        )  # noqa
         return line
     else:
         return None
@@ -91,7 +94,9 @@ def read_int(channel):
         # write_bytestring_to_file(inttup[0], os.path.join(os.path.dirname(__file__), '../tests/data/test_receive.txt')) # noqa
         inttup = [
             int(
-                read_lines_from_file(f"{os.environ['TEST_PATH']}/data/test_receive.txt")
+                read_lines_from_file(
+                    f"{os.environ['TEST_PATH']}/data/test_receive.txt"
+                )  # noqa
             )
         ]  # noqa
     else:
@@ -106,7 +111,9 @@ def read_short(channel):
         # write_bytestring_to_file(inttup[0], os.path.join(os.path.dirname(__file__), '../tests/data/test_receive.txt')) # noqa
         inttup = [
             int(
-                read_lines_from_file(f"{os.environ['TEST_PATH']}/data/test_receive.txt")
+                read_lines_from_file(
+                    f"{os.environ['TEST_PATH']}/data/test_receive.txt"
+                )  # noqa
             )
         ]  # noqa
     else:
@@ -210,7 +217,7 @@ def opentdt(host, port):
         channel, address = serversocket.accept()
 
     channel.send("1".encode())
-    known_int = read_int(channel)
+    known_int = read_int(channel)  # noqa
     num = read_int(channel)
     num = 1
     send_int(channel, num)
@@ -264,11 +271,22 @@ class LPJmLCoupler:
     def __init__(self, config_file, version=3, host="", port=2224):
         """Constructor method"""
 
-        # initiate socket connection to LPJmL
-        self._init_channel(version, host, port)
-
         # read configuration file
         self._config = read_config(config_file)
+
+        if hasattr(self._config, "coupled_host") and hasattr(
+            self._config, "coupled_port"
+        ):
+            if host != "" or port != 2224:
+                raise warnings.warn(
+                    "Host and port are set in configuration file. "
+                    "Provided host and port are ignored."
+                )
+            host = self._config.coupled_host
+            port = self._config.coupled_port
+
+        # initiate socket connection to LPJmL
+        self._init_channel(version, host, port)
 
         # get input ids based on configuration
         LPJmLInputType.load_config(self._config)
@@ -277,7 +295,9 @@ class LPJmLCoupler:
             self._config.set_outputpath(
                 f"{os.environ['TEST_PATH']}/data/output/coupled_test"
             )
-            self._config.sim_path = os.path.join(f"{os.environ['TEST_PATH']}/data/")
+            self._config.sim_path = os.path.join(
+                f"{os.environ['TEST_PATH']}/data/"
+            )  # noqa
 
         # initiate coupling, get number of cells, inputs and outputs and verify
         self._init_coupling()

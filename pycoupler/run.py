@@ -86,6 +86,7 @@ def submit_lpjml(
     wtime=None,
     dependency=None,
     blocking=None,
+    option=None,
     couple_to=None,
 ):
     """Submit LPJmL run to Slurm using `lpjsubmit` and a generated
@@ -116,6 +117,9 @@ def submit_lpjml(
     :param blocking: cores to be blocked. More information at
         <https://www.pik-potsdam.de/en> and <https://slurm.schedmd.com/sbatch.html>.
     :type blocking: int
+    :param option: additional options to be passed to lpjsubmit. Can be a string
+        or a list of strings.
+    :type option: str/list
     :param couple_to: path to program/model/script LPJmL should be coupled to
     :type couple_to: str
     :return: return the submitted jobs id if submitted successfully.
@@ -152,6 +156,13 @@ def submit_lpjml(
     # if cores to be blocked
     if blocking:
         cmd.extend(["-blocking", str(blocking)])
+
+    if option:
+        if isinstance(option, str):
+            cmd.extend(["-option", option])
+        elif isinstance(option, list):
+            for opt in option:
+                cmd.extend(["-option", opt])
 
     # run in coupled mode and pass coupling program/model
     if couple_to:
