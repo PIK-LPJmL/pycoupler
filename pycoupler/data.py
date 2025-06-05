@@ -7,6 +7,7 @@ import pandas as pd
 import xarray as xr
 from scipy.spatial import KDTree
 from xarray.core.variable import Variable
+import xarray.core.utils as utils
 
 from pycoupler.utils import read_json
 
@@ -342,6 +343,28 @@ class LPJmLDataSet(xr.Dataset):
             return {var_name: self[var_name] for var_name in self.data_vars}
 
         return super().to_dict(data=data, encoding=encoding)
+
+    def __setitem__(self, key, value):
+
+        if utils.is_dict_like(key):
+            # check for consistency and convert value to dataset
+            # loop over dataset variables and set new values
+            processed = []
+            for name, var in self.items():
+                try:
+                    var[key] = value[name]
+                    processed.append(name)
+                except Exception as e:
+                    if processed:
+                        raise RuntimeError(
+                            "An error occurred while setting values of the"
+                            f" variable '{name}'. The following variables have"
+                            f" been successfully updated:\n{processed}"
+                        ) from e
+                    else:
+                        raise e
+        else:
+            super().__setitem__(key, value)
 
 
 def read_data(file_name, var_name=None, multiple_bands=False):
