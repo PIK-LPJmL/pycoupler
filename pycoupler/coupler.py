@@ -268,7 +268,7 @@ class LPJmLCoupler:
     :type port: int
     """
 
-    def __init__(self, config_file, version=3, host="", port=2224):
+    def __init__(self, config_file, version=3, host="localhost", port=2224):
         """Constructor method"""
 
         # read configuration file
@@ -277,7 +277,7 @@ class LPJmLCoupler:
         if hasattr(self._config, "coupled_host") and hasattr(
             self._config, "coupled_port"
         ):
-            if host != "" or port != 2224:
+            if host != "localhost" or port != 2224:
                 raise warnings.warn(
                     "Host and port are set in configuration file. "
                     "Provided host and port are ignored."
