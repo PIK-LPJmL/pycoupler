@@ -278,7 +278,7 @@ class LPJmLCoupler:
             self._config, "coupled_port"
         ):
             if host != "localhost" or port != 2224:
-                raise warnings.warn(
+                warnings.warn(
                     "Host and port are set in configuration file. "
                     "Provided host and port are ignored."
                 )
