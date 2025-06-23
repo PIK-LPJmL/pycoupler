@@ -823,18 +823,28 @@ class LPJmLCoupler:
 
             # determine start cut off and end cut off year
             if meta_data.firstyear > end_year:
+                # data is after simulation period
                 cut_start_year = meta_data.firstyear
                 cut_end_year = meta_data.firstyear
             elif meta_data.lastyear < start_year:
+                # data is before simulation period
                 cut_start_year = meta_data.lastyear
                 cut_end_year = meta_data.lastyear
             elif meta_data.firstyear >= start_year:
+                # data begins in simulation period
                 cut_start_year = meta_data.firstyear
                 cut_end_year = min(meta_data.lastyear, end_year)
             elif meta_data.lastyear < end_year:
+                # data ends in simulation period
                 cut_start_year = start_year
                 cut_end_year = meta_data.lastyear
-
+            elif meta_data.firstyear <= start_year and meta_data.lastyear >= start_year:
+                # data starts before simulation period, but simulation is within data period
+                cut_start_year = start_year
+                cut_end = cut_end_year = min(meta_data.lastyear, end_year)
+            else:
+                raise ValueError("Unexpected start_year and end_year")
+            
             cut_clm_start = [
                 f"{self._config.model_path}/bin/cutclm",
                 str(cut_start_year),
