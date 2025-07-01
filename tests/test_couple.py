@@ -1,18 +1,24 @@
 """Test the LPJmLCoupler class."""
 
 import os
+import pytest
 import numpy as np
 from unittest.mock import patch
-from copy import deepcopy
 from pycoupler.coupler import LPJmLCoupler
-
 
 from .conftest import get_test_path
 
 
+@pytest.fixture
+@patch.dict(os.environ, {"TEST_PATH": get_test_path(), "TEST_LINE_COUNTER": "0"})
+def lpjml_coupler(test_path):
+    config_coupled_fn = f"{test_path}/data/config_coupled_test.json"
+    return LPJmLCoupler(config_file=config_coupled_fn)
+
+
 @patch.dict(os.environ, {"TEST_PATH": get_test_path(), "TEST_LINE_COUNTER": "0"})
 def test_lpjml_coupler(test_path):
-
+    # Somehow the fixture doesn’t work here
     config_coupled_fn = f"{test_path}/data/config_coupled_test.json"
     lpjml_coupler = LPJmLCoupler(config_file=config_coupled_fn)
 
@@ -55,24 +61,31 @@ def test_lpjml_coupler(test_path):
     assert lpjml_coupler.sim_years == []
     assert lpjml_coupler.coupled_years == []
     assert [year for year in lpjml_coupler.get_coupled_years()] == []
-
-    second_coupler = deepcopy(lpjml_coupler)
-    lpjml_coupler.code_to_name(to_iso_alpha_3=False)
-    assert lpjml_coupler.country[0].item() == "Germany"
-    second_coupler.code_to_name(to_iso_alpha_3=True)
-    assert second_coupler.country[0].item() == "DEU"
-
     assert (
         repr(lpjml_coupler)
         == f"<pycoupler.LPJmLCoupler>\nSimulation:  (version: 3, localhost:<none>)\n  * sim_year   2050\n  * ncell      2\n  * ninput     1\nConfiguration:\n  Settings:      lpjml v5.8\n    (general)\n    * sim_name   coupled_test\n    * firstyear  2001\n    * lastyear   2050\n    * startgrid  27410\n    * endgrid    27411\n    * landuse    yes\n    (changed)\n    * model_path           LPJmL_internal\n    * sim_path             {test_path}/data/\n    * outputyear           2022\n    * output_metafile      True\n    * write_restart        False\n    * nspinup              0\n    * float_grid           True\n    * restart_filename     restart/restart_historic_run.lpj\n    * outputyear           2022\n    * radiation            cloudiness\n    * fix_co2              True\n    * fix_co2_year         2018\n    * fix_climate          True\n    * fix_climate_cycle    11\n    * fix_climate_year     2013\n    * river_routing        False\n    * tillage_type         read\n    * residue_treatment    fixed_residue_remove\n    * double_harvest       False\n    * intercrop            True\n    * sim_path             {test_path}/data/\n  Coupled model:        copan:CORE\n    * start_coupling    2023\n    * input (coupled)   ['with_tillage']\n    * output (coupled)  ['grid', 'pft_harvestc', 'cftfrac', 'soilc_agr_layer', 'hdate', 'country', 'region']\n  "  # noqa
     )
 
 
+def test_lpjml_coupler_codes_name(lpjml_coupler):
+    lpjml_coupler.code_to_name(to_iso_alpha_3=False)
+    assert lpjml_coupler.country[0].item() == "Germany"
+
+
+def test_lpjml_coupler_codes_iso(lpjml_coupler):
+    lpjml_coupler.code_to_name(to_iso_alpha_3=True)
+    assert lpjml_coupler.country[0].item() == "DEU"
+
+
 @patch.dict(os.environ, {"TEST_PATH": get_test_path(), "TEST_LINE_COUNTER": "0"})
-def test_copy_input(test_path):
-
-    config_coupled_fn = f"{test_path}/data/config_coupled_test.json"
-    lpjml_coupler = LPJmLCoupler(config_file=config_coupled_fn)
-
-    inputs = lpjml_coupler.read_input(copy=False)
-    assert lpjml_coupler._copy_input(start_year=2022, end_year=2022) == "tested"
+def test_copy_input__copy_input(test_path, lpjml_coupler):
+    # Test all period combination cases (data period is 2000 to 2022)
+    assert lpjml_coupler._copy_input(2005, 2015) == "tested"
+    assert lpjml_coupler._copy_input(1980, 1998) == "tested"
+    assert lpjml_coupler._copy_input(2024, 2025) == "tested"
+    assert lpjml_coupler._copy_input(1998, 2025) == "tested"
+    assert lpjml_coupler._copy_input(1998, 2020) == "tested"
+    assert lpjml_coupler._copy_input(2020, 2025) == "tested"
+    assert lpjml_coupler._copy_input(None, 2020) == "tested"
+    assert lpjml_coupler._copy_input(1998, None) == "tested"
+    assert lpjml_coupler._copy_input(None, None) == "tested"
