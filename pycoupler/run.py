@@ -173,7 +173,9 @@ def submit_lpjml(
         if venv_path:
             python_path = os.path.join(venv_path, "bin/python")
             if not os.path.isfile(python_path):
-                raise FileNotFoundError("venv path contains no python binary at '" + python_path + "'.")
+                raise FileNotFoundError(
+                    "venv path contains no python binary at '" + python_path + "'."
+                )
 
         bash_script = f"""#!/bin/bash
 
@@ -195,6 +197,9 @@ config_file="{config_file}"
         cmd.extend(["-couple", couple_file])
 
     cmd.extend([str(ntasks), config_file])
+
+    # Intialize submit_status in higher scope
+    submit_status = None
     # set LPJROOT to model_path to be able to call lpjsubmit
     try:
         os.environ["LPJROOT"] = config.model_path
@@ -209,7 +214,9 @@ config_file="{config_file}"
             del os.environ["LPJROOT"]
 
     # print stdout and stderr if not successful
-    if submit_status.returncode == 0:
+    if submit_status is None:
+        raise Exception("Process was not submitted.")
+    elif submit_status.returncode == 0:
         print(submit_status.stdout.decode("utf-8"))
     else:
         print(submit_status.stdout.decode("utf-8"))
