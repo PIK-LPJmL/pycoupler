@@ -1,28 +1,9 @@
 """Test the LPJmLCoupler class."""
 
-import os
-import pytest
 import numpy as np
-from unittest.mock import patch
-from pycoupler.coupler import LPJmLCoupler
-
-from .conftest import get_test_path
 
 
-@pytest.fixture
-@patch.dict(os.environ, {"TEST_PATH": get_test_path(), "TEST_LINE_COUNTER": "0"})
-def lpjml_coupler(test_path):
-    config_coupled_fn = f"{test_path}/data/config_coupled_test.json"
-    return LPJmLCoupler(config_file=config_coupled_fn)
-
-
-@patch.dict(os.environ, {"TEST_PATH": get_test_path(), "TEST_LINE_COUNTER": "0"})
-def test_lpjml_coupler(test_path):
-    # Somehow the fixture doesn’t work here
-    config_coupled_fn = f"{test_path}/data/config_coupled_test.json"
-    lpjml_coupler = LPJmLCoupler(config_file=config_coupled_fn)
-
-    """Test the LPJmLCoupler class."""
+def test_lpjml_coupler(test_path, lpjml_coupler):
     inputs = lpjml_coupler.read_input(copy=False)
     outputs = lpjml_coupler.read_historic_output()
 
@@ -77,8 +58,7 @@ def test_lpjml_coupler_codes_iso(lpjml_coupler):
     assert lpjml_coupler.country[0].item() == "DEU"
 
 
-@patch.dict(os.environ, {"TEST_PATH": get_test_path(), "TEST_LINE_COUNTER": "0"})
-def test_copy_input__copy_input(test_path, lpjml_coupler):
+def test_lpjml_coupler_copy_input_(test_path, lpjml_coupler):
     # Test all period combination cases (data period is 2000 to 2022)
     assert lpjml_coupler._copy_input(2005, 2015) == "tested"
     assert lpjml_coupler._copy_input(1980, 1998) == "tested"
