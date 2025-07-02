@@ -12,7 +12,8 @@ def test_path():
 @pytest.fixture
 def lpjml_coupler(test_path):
     config_coupled_fn = f"{test_path}/data/config_coupled_test.json"
-    # Using yield enables safe teardown of the fixture (see https://docs.pytest.org/en/stable/how-to/fixtures.html#safe-teardowns)
+    # Using yield enables safe teardown of the fixture
+    # (see https://docs.pytest.org/en/stable/how-to/fixtures.html#safe-teardowns)
     yield LPJmLCoupler(config_file=config_coupled_fn)
     # Reset test line env variable
     os.environ["TEST_LINE_COUNTER"] = "0"
