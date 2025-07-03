@@ -15,14 +15,6 @@ def test_path():
 
 
 @pytest.fixture()
-def mock_venv(tmp_path_factory):
-    venv = tmp_path_factory.mktemp("venv")
-    (venv / "bin").mkdir()
-    (venv / "bin" / "python").touch()
-    return venv
-
-
-@pytest.fixture()
 def sim_path(tmp_path_factory):
     sim_fn = tmp_path_factory.mktemp("sim")
     return sim_fn
