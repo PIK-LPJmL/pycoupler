@@ -1,22 +1,10 @@
 """Test the LPJmLCoupler class."""
 
-import os
 import numpy as np
-from unittest.mock import patch
-from copy import deepcopy
-from pycoupler.coupler import LPJmLCoupler
+import pytest
 
 
-from .conftest import get_test_path
-
-
-@patch.dict(os.environ, {"TEST_PATH": get_test_path(), "TEST_LINE_COUNTER": "0"})
-def test_lpjml_coupler(test_path):
-
-    config_coupled_fn = f"{test_path}/data/config_coupled_test.json"
-    lpjml_coupler = LPJmLCoupler(config_file=config_coupled_fn)
-
-    """Test the LPJmLCoupler class."""
+def test_lpjml_coupler(test_path, lpjml_coupler):
     inputs = lpjml_coupler.read_input(copy=False)
     outputs = lpjml_coupler.read_historic_output()
 
@@ -55,13 +43,6 @@ def test_lpjml_coupler(test_path):
     assert lpjml_coupler.sim_years == []
     assert lpjml_coupler.coupled_years == []
     assert [year for year in lpjml_coupler.get_coupled_years()] == []
-
-    second_coupler = deepcopy(lpjml_coupler)
-    lpjml_coupler.code_to_name(to_iso_alpha_3=False)
-    assert lpjml_coupler.country[0].item() == "Germany"
-    second_coupler.code_to_name(to_iso_alpha_3=True)
-    assert second_coupler.country[0].item() == "DEU"
-
     assert (
         repr(lpjml_coupler)
         == f"""<pycoupler.LPJmLCoupler>
@@ -108,11 +89,39 @@ Configuration:
     )
 
 
-@patch.dict(os.environ, {"TEST_PATH": get_test_path(), "TEST_LINE_COUNTER": "0"})
-def test_copy_input(test_path):
+def test_lpjml_coupler_codes_name(lpjml_coupler):
+    lpjml_coupler.code_to_name(to_iso_alpha_3=False)
+    assert lpjml_coupler.country[0].item() == "Germany"
 
-    config_coupled_fn = f"{test_path}/data/config_coupled_test.json"
-    lpjml_coupler = LPJmLCoupler(config_file=config_coupled_fn)
 
-    inputs = lpjml_coupler.read_input(copy=False)
-    assert lpjml_coupler._copy_input(start_year=2022, end_year=2022) == "tested"
+def test_lpjml_coupler_codes_iso(lpjml_coupler):
+    lpjml_coupler.code_to_name(to_iso_alpha_3=True)
+    assert lpjml_coupler.country[0].item() == "DEU"
+
+
+# Test all period combination cases (data period is 2000 to 2022)
+@pytest.mark.parametrize(
+    "start_year,end_year",
+    [
+        (2005, 2015),
+        (1980, 1998),
+        (2024, 2025),
+        (1998, 2025),
+        (1998, 2020),
+        (2020, 2025),
+        (None, 2024),
+        (1998, None),
+        (None, None),
+        pytest.param(
+            2025,
+            1998,
+            marks=pytest.mark.xfail(
+                raises=pytest.raises(
+                    ValueError, match="start_year cannot be later than end_year"
+                )
+            ),
+        ),
+    ],
+)
+def test_lpjml_coupler_copy_input_(test_path, lpjml_coupler, start_year, end_year):
+    assert lpjml_coupler._copy_input(start_year, end_year) == "tested"
