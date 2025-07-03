@@ -40,6 +40,7 @@ dependencies = [
 dev = [
     "pytest",
     "pytest-cov",
+    "pytest-subprocess",
     "sphinx",
     "black",
     "flake8"
