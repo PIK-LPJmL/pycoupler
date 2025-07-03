@@ -291,14 +291,6 @@ class LPJmLCoupler:
         # get input ids based on configuration
         LPJmLInputType.load_config(self._config)
 
-        if hasattr(sys, "_called_from_test"):
-            self._config.set_outputpath(
-                f"{os.environ['TEST_PATH']}/data/output/coupled_test"
-            )
-            self._config.sim_path = os.path.join(
-                f"{os.environ['TEST_PATH']}/data/"
-            )  # noqa
-
         # initiate coupling, get number of cells, inputs and outputs and verify
         self._init_coupling()
 

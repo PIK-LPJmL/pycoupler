@@ -4,7 +4,7 @@ import numpy as np
 import pytest
 
 
-def test_lpjml_coupler(test_path, lpjml_coupler):
+def test_lpjml_coupler(model_path, sim_path, lpjml_coupler):
     inputs = lpjml_coupler.read_input(copy=False)
     outputs = lpjml_coupler.read_historic_output()
 
@@ -60,8 +60,8 @@ Configuration:
     * endgrid    27411
     * landuse    yes
     (changed)
-    * model_path           LPJmL_internal
-    * sim_path             {test_path}/data/
+    * model_path           {str(model_path)}
+    * sim_path             {str(sim_path)}
     * outputyear           2022
     * output_metafile      True
     * write_restart        False
@@ -80,7 +80,6 @@ Configuration:
     * residue_treatment    fixed_residue_remove
     * double_harvest       False
     * intercrop            True
-    * sim_path             {test_path}/data/
   Coupled model:        copan:CORE
     * start_coupling    2023
     * input (coupled)   ['with_tillage']
