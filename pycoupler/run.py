@@ -88,6 +88,7 @@ def submit_lpjml(
     blocking=None,
     option=None,
     couple_to=None,
+    venv_path=None,
 ):
     """Submit LPJmL run to Slurm using `lpjsubmit` and a generated
     (class LpjmlConfig) config file. Provide arguments for Slurm sbatch
@@ -122,6 +123,8 @@ def submit_lpjml(
     :type option: str/list
     :param couple_to: path to program/model/script LPJmL should be coupled to
     :type couple_to: str
+    :param venv_path: path to a venv to run the coupled script in. This should be the path to the top folder of the venv. If not set, `python3` in PATH is used.
+    :type venv_path: str, optional
     :return: return the submitted jobs id if submitted successfully.
     :rtype: str
     """
@@ -166,13 +169,21 @@ def submit_lpjml(
 
     # run in coupled mode and pass coupling program/model
     if couple_to:
+        python_path = "python3"
+        if venv_path:
+            python_path = os.path.join(venv_path, "bin/python")
+            if not os.path.isfile(python_path):
+                raise FileNotFoundError(
+                    "venv path contains no python binary at '" + python_path + "'."
+                )
+
         bash_script = f"""#!/bin/bash
 
 # Define the path to the config file
 config_file="{config_file}"
 
 # Call the Python script with the config file as an argument
-python3 {couple_to} $config_file
+{python_path} {couple_to} $config_file
 """
 
         couple_file = f"{output_path}/inseeds.sh"
@@ -186,6 +197,9 @@ python3 {couple_to} $config_file
         cmd.extend(["-couple", couple_file])
 
     cmd.extend([str(ntasks), config_file])
+
+    # Intialize submit_status in higher scope
+    submit_status = None
     # set LPJROOT to model_path to be able to call lpjsubmit
     try:
         os.environ["LPJROOT"] = config.model_path
@@ -200,7 +214,9 @@ python3 {couple_to} $config_file
             del os.environ["LPJROOT"]
 
     # print stdout and stderr if not successful
-    if submit_status.returncode == 0:
+    if submit_status is None:
+        raise Exception("Process was not submitted.")
+    elif submit_status.returncode == 0:
         print(submit_status.stdout.decode("utf-8"))
     else:
         print(submit_status.stdout.decode("utf-8"))

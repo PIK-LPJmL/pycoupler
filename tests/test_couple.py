@@ -64,7 +64,47 @@ def test_lpjml_coupler(test_path):
 
     assert (
         repr(lpjml_coupler)
-        == f"<pycoupler.LPJmLCoupler>\nSimulation:  (version: 3, localhost:<none>)\n  * sim_year   2050\n  * ncell      2\n  * ninput     1\nConfiguration:\n  Settings:      lpjml v5.8\n    (general)\n    * sim_name   coupled_test\n    * firstyear  2001\n    * lastyear   2050\n    * startgrid  27410\n    * endgrid    27411\n    * landuse    yes\n    (changed)\n    * model_path           LPJmL_internal\n    * sim_path             {test_path}/data/\n    * outputyear           2022\n    * output_metafile      True\n    * write_restart        False\n    * nspinup              0\n    * float_grid           True\n    * restart_filename     restart/restart_historic_run.lpj\n    * outputyear           2022\n    * radiation            cloudiness\n    * fix_co2              True\n    * fix_co2_year         2018\n    * fix_climate          True\n    * fix_climate_cycle    11\n    * fix_climate_year     2013\n    * river_routing        False\n    * tillage_type         read\n    * residue_treatment    fixed_residue_remove\n    * double_harvest       False\n    * intercrop            True\n    * sim_path             {test_path}/data/\n  Coupled model:        copan:CORE\n    * start_coupling    2023\n    * input (coupled)   ['with_tillage']\n    * output (coupled)  ['grid', 'pft_harvestc', 'cftfrac', 'soilc_agr_layer', 'hdate', 'country', 'region']\n  "  # noqa
+        == f"""<pycoupler.LPJmLCoupler>
+Simulation:  (version: 3, localhost:<none>)
+  * sim_year   2050
+  * ncell      2
+  * ninput     1
+Configuration:
+  Settings:      lpjml v5.8
+    (general)
+    * sim_name   coupled_test
+    * firstyear  2001
+    * lastyear   2050
+    * startgrid  27410
+    * endgrid    27411
+    * landuse    yes
+    (changed)
+    * model_path           LPJmL_internal
+    * sim_path             {test_path}/data/
+    * outputyear           2022
+    * output_metafile      True
+    * write_restart        False
+    * nspinup              0
+    * float_grid           True
+    * restart_filename     restart/restart_historic_run.lpj
+    * outputyear           2022
+    * radiation            cloudiness
+    * fix_co2              True
+    * fix_co2_year         2018
+    * fix_climate          True
+    * fix_climate_cycle    11
+    * fix_climate_year     2013
+    * river_routing        False
+    * tillage_type         read
+    * residue_treatment    fixed_residue_remove
+    * double_harvest       False
+    * intercrop            True
+    * sim_path             {test_path}/data/
+  Coupled model:        copan:CORE
+    * start_coupling    2023
+    * input (coupled)   ['with_tillage']
+    * output (coupled)  ['grid', 'pft_harvestc', 'cftfrac', 'soilc_agr_layer', 'hdate', 'country', 'region']
+  """  # noqa
     )
 
 
