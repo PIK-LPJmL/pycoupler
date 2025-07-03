@@ -3,5 +3,7 @@ env/
 venv/
 *JB.py
 
-pycoupler.egg-info/
+*.egg-info/
 build/
+.coverage
+.pytest_cache/
