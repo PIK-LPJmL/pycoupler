@@ -799,6 +799,8 @@ class LPJmLCoupler:
             start_year = self.config.start_coupling - 1
         if end_year is None:
             end_year = self.config.start_coupling - 1
+        if start_year > end_year:
+            raise ValueError("start_year cannot be later than end_year")
 
         # iterate over each inputs to be send via sockets (get initial values)
         for key in sock_inputs:
@@ -843,8 +845,6 @@ class LPJmLCoupler:
                 # but simulation is within data period
                 cut_start_year = start_year
                 cut_end = cut_end_year = min(meta_data.lastyear, end_year)
-            else:
-                raise ValueError("Unexpected start_year and end_year")
 
             cut_clm_start = [
                 f"{self._config.model_path}/bin/cutclm",

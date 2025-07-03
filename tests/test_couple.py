@@ -1,6 +1,7 @@
 """Test the LPJmLCoupler class."""
 
 import numpy as np
+import pytest
 
 
 def test_lpjml_coupler(test_path, lpjml_coupler):
@@ -58,14 +59,29 @@ def test_lpjml_coupler_codes_iso(lpjml_coupler):
     assert lpjml_coupler.country[0].item() == "DEU"
 
 
-def test_lpjml_coupler_copy_input_(test_path, lpjml_coupler):
-    # Test all period combination cases (data period is 2000 to 2022)
-    assert lpjml_coupler._copy_input(2005, 2015) == "tested"
-    assert lpjml_coupler._copy_input(1980, 1998) == "tested"
-    assert lpjml_coupler._copy_input(2024, 2025) == "tested"
-    assert lpjml_coupler._copy_input(1998, 2025) == "tested"
-    assert lpjml_coupler._copy_input(1998, 2020) == "tested"
-    assert lpjml_coupler._copy_input(2020, 2025) == "tested"
-    assert lpjml_coupler._copy_input(None, 2020) == "tested"
-    assert lpjml_coupler._copy_input(1998, None) == "tested"
-    assert lpjml_coupler._copy_input(None, None) == "tested"
+# Test all period combination cases (data period is 2000 to 2022)
+@pytest.mark.parametrize(
+    "start_year,end_year",
+    [
+        (2005, 2015),
+        (1980, 1998),
+        (2024, 2025),
+        (1998, 2025),
+        (1998, 2020),
+        (2020, 2025),
+        (None, 2024),
+        (1998, None),
+        (None, None),
+        pytest.param(
+            2025,
+            1998,
+            marks=pytest.mark.xfail(
+                raises=pytest.raises(
+                    ValueError, match="start_year cannot be later than end_year"
+                )
+            ),
+        ),
+    ],
+)
+def test_lpjml_coupler_copy_input_(test_path, lpjml_coupler, start_year, end_year):
+    assert lpjml_coupler._copy_input(start_year, end_year) == "tested"
