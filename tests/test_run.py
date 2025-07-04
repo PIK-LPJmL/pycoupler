@@ -16,7 +16,8 @@ class TestLpjSubmit:
         fp.pass_command([fp.program("chmod"), "+x", fp.any(min=1, max=1)])
         if hasattr(request, "param") and request.param == "no mocking":
             return
-        # Register a fake process for lpjsubmit (see https://pytest-subprocess.readthedocs.io/en/latest/usage.html#non-exact-command-matching)
+        # Register a fake process for lpjsubmit
+        # (see https://pytest-subprocess.readthedocs.io/en/latest/usage.html#non-exact-command-matching) # noqa: E501
         return fp.register(
             [fp.program("lpjsubmit"), fp.any()],
             stdout="Mock lpjsubmit\nSubmitted batch job 42\nsome stuff",
@@ -130,6 +131,7 @@ class TestLpjSubmit:
 config_file="{config_coupled}"
 
 # Call the Python script with the config file as an argument
-{f"{mock_venv}/bin/python" if mock_venv else "python3"} {self.couple_script} $config_file
+{f"{mock_venv}/bin/python" if mock_venv else "python3"} {self.couple_script} \
+$config_file
 """
             )

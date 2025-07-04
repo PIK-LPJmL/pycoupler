@@ -123,7 +123,8 @@ def submit_lpjml(
     :type option: str/list
     :param couple_to: path to program/model/script LPJmL should be coupled to
     :type couple_to: str
-    :param venv_path: path to a venv to run the coupled script in. This should be the path to the top folder of the venv. If not set, `python3` in PATH is used.
+    :param venv_path: path to a venv to run the coupled script in. This should be the\
+path to the top folder of the venv. If not set, `python3` in PATH is used.
     :type venv_path: str, optional
     :return: return the submitted jobs id if submitted successfully.
     :rtype: str
