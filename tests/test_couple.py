@@ -1,22 +1,10 @@
 """Test the LPJmLCoupler class."""
 
-import os
 import numpy as np
-from unittest.mock import patch
-from copy import deepcopy
-from pycoupler.coupler import LPJmLCoupler
+import pytest
 
 
-from .conftest import get_test_path
-
-
-@patch.dict(os.environ, {"TEST_PATH": get_test_path(), "TEST_LINE_COUNTER": "0"})
-def test_lpjml_coupler(test_path):
-
-    config_coupled_fn = f"{test_path}/data/config_coupled_test.json"
-    lpjml_coupler = LPJmLCoupler(config_file=config_coupled_fn)
-
-    """Test the LPJmLCoupler class."""
+def test_lpjml_coupler(model_path, sim_path, lpjml_coupler):
     inputs = lpjml_coupler.read_input(copy=False)
     outputs = lpjml_coupler.read_historic_output()
 
@@ -55,24 +43,84 @@ def test_lpjml_coupler(test_path):
     assert lpjml_coupler.sim_years == []
     assert lpjml_coupler.coupled_years == []
     assert [year for year in lpjml_coupler.get_coupled_years()] == []
-
-    second_coupler = deepcopy(lpjml_coupler)
-    lpjml_coupler.code_to_name(to_iso_alpha_3=False)
-    assert lpjml_coupler.country[0].item() == "Germany"
-    second_coupler.code_to_name(to_iso_alpha_3=True)
-    assert second_coupler.country[0].item() == "DEU"
-
     assert (
         repr(lpjml_coupler)
-        == f"<pycoupler.LPJmLCoupler>\nSimulation:  (version: 3, localhost:<none>)\n  * sim_year   2050\n  * ncell      2\n  * ninput     1\nConfiguration:\n  Settings:      lpjml v5.8\n    (general)\n    * sim_name   coupled_test\n    * firstyear  2001\n    * lastyear   2050\n    * startgrid  27410\n    * endgrid    27411\n    * landuse    yes\n    (changed)\n    * model_path           LPJmL_internal\n    * sim_path             {test_path}/data/\n    * outputyear           2022\n    * output_metafile      True\n    * write_restart        False\n    * nspinup              0\n    * float_grid           True\n    * restart_filename     restart/restart_historic_run.lpj\n    * outputyear           2022\n    * radiation            cloudiness\n    * fix_co2              True\n    * fix_co2_year         2018\n    * fix_climate          True\n    * fix_climate_cycle    11\n    * fix_climate_year     2013\n    * river_routing        False\n    * tillage_type         read\n    * residue_treatment    fixed_residue_remove\n    * double_harvest       False\n    * intercrop            True\n    * sim_path             {test_path}/data/\n  Coupled model:        copan:CORE\n    * start_coupling    2023\n    * input (coupled)   ['with_tillage']\n    * output (coupled)  ['grid', 'pft_harvestc', 'cftfrac', 'soilc_agr_layer', 'hdate', 'country', 'region']\n  "  # noqa
+        == f"""<pycoupler.LPJmLCoupler>
+Simulation:  (version: 3, localhost:<none>)
+  * sim_year   2050
+  * ncell      2
+  * ninput     1
+Configuration:
+  Settings:      lpjml v5.8
+    (general)
+    * sim_name   coupled_test
+    * firstyear  2001
+    * lastyear   2050
+    * startgrid  27410
+    * endgrid    27411
+    * landuse    yes
+    (changed)
+    * model_path           {str(model_path)}
+    * sim_path             {str(sim_path)}
+    * outputyear           2022
+    * output_metafile      True
+    * write_restart        False
+    * nspinup              0
+    * float_grid           True
+    * restart_filename     restart/restart_historic_run.lpj
+    * outputyear           2022
+    * radiation            cloudiness
+    * fix_co2              True
+    * fix_co2_year         2018
+    * fix_climate          True
+    * fix_climate_cycle    11
+    * fix_climate_year     2013
+    * river_routing        False
+    * tillage_type         read
+    * residue_treatment    fixed_residue_remove
+    * double_harvest       False
+    * intercrop            True
+  Coupled model:        copan:CORE
+    * start_coupling    2023
+    * input (coupled)   ['with_tillage']
+    * output (coupled)  ['grid', 'pft_harvestc', 'cftfrac', 'soilc_agr_layer', 'hdate', 'country', 'region']
+  """  # noqa
     )
 
 
-@patch.dict(os.environ, {"TEST_PATH": get_test_path(), "TEST_LINE_COUNTER": "0"})
-def test_copy_input(test_path):
+def test_lpjml_coupler_codes_name(lpjml_coupler):
+    lpjml_coupler.code_to_name(to_iso_alpha_3=False)
+    assert lpjml_coupler.country[0].item() == "Germany"
 
-    config_coupled_fn = f"{test_path}/data/config_coupled_test.json"
-    lpjml_coupler = LPJmLCoupler(config_file=config_coupled_fn)
 
-    inputs = lpjml_coupler.read_input(copy=False)
-    assert lpjml_coupler._copy_input(start_year=2022, end_year=2022) == "tested"
+def test_lpjml_coupler_codes_iso(lpjml_coupler):
+    lpjml_coupler.code_to_name(to_iso_alpha_3=True)
+    assert lpjml_coupler.country[0].item() == "DEU"
+
+
+# Test all period combination cases (data period is 2000 to 2022)
+@pytest.mark.parametrize(
+    "start_year,end_year",
+    [
+        (2005, 2015),
+        (1980, 1998),
+        (2024, 2025),
+        (1998, 2025),
+        (1998, 2020),
+        (2020, 2025),
+        (None, 2024),
+        (1998, None),
+        (None, None),
+        pytest.param(
+            2025,
+            1998,
+            marks=pytest.mark.xfail(
+                raises=pytest.raises(
+                    ValueError, match="start_year cannot be later than end_year"
+                )
+            ),
+        ),
+    ],
+)
+def test_lpjml_coupler_copy_input_(test_path, lpjml_coupler, start_year, end_year):
+    assert lpjml_coupler._copy_input(start_year, end_year) == "tested"

@@ -291,14 +291,6 @@ class LPJmLCoupler:
         # get input ids based on configuration
         LPJmLInputType.load_config(self._config)
 
-        if hasattr(sys, "_called_from_test"):
-            self._config.set_outputpath(
-                f"{os.environ['TEST_PATH']}/data/output/coupled_test"
-            )
-            self._config.sim_path = os.path.join(
-                f"{os.environ['TEST_PATH']}/data/"
-            )  # noqa
-
         # initiate coupling, get number of cells, inputs and outputs and verify
         self._init_coupling()
 
@@ -799,6 +791,8 @@ class LPJmLCoupler:
             start_year = self.config.start_coupling - 1
         if end_year is None:
             end_year = self.config.start_coupling - 1
+        if start_year > end_year:
+            raise ValueError("start_year cannot be later than end_year")
 
         # iterate over each inputs to be send via sockets (get initial values)
         for key in sock_inputs:
@@ -823,17 +817,26 @@ class LPJmLCoupler:
 
             # determine start cut off and end cut off year
             if meta_data.firstyear > end_year:
+                # data is after simulation period
                 cut_start_year = meta_data.firstyear
                 cut_end_year = meta_data.firstyear
             elif meta_data.lastyear < start_year:
+                # data is before simulation period
                 cut_start_year = meta_data.lastyear
                 cut_end_year = meta_data.lastyear
             elif meta_data.firstyear >= start_year:
+                # data begins in simulation period
                 cut_start_year = meta_data.firstyear
                 cut_end_year = min(meta_data.lastyear, end_year)
             elif meta_data.lastyear < end_year:
+                # data ends in simulation period
                 cut_start_year = start_year
                 cut_end_year = meta_data.lastyear
+            elif meta_data.firstyear <= start_year and meta_data.lastyear >= start_year:
+                # data starts before simulation period,
+                # but simulation is within data period
+                cut_start_year = start_year
+                cut_end = cut_end_year = min(meta_data.lastyear, end_year)
 
             cut_clm_start = [
                 f"{self._config.model_path}/bin/cutclm",

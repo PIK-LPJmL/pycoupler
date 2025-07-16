@@ -1,8 +1,6 @@
 """Test the LPJmLData class."""
 
-import os
 import numpy as np
-from unittest.mock import patch
 
 from pycoupler.data import (
     read_data,
@@ -12,8 +10,6 @@ from pycoupler.data import (
     LPJmLInputType,
     append_to_dict,
 )
-from pycoupler.coupler import LPJmLCoupler
-from .conftest import get_test_path
 
 
 def test_read_data(test_path):
@@ -44,14 +40,7 @@ def test_dataset(test_path):
     assert list(data_dict.keys()) == ["with_tillage"]
 
 
-@patch.dict(
-    os.environ, {"TEST_PATH": get_test_path(), "TEST_LINE_COUNTER": "0"}
-)  # noqa
-def test_get_neighbourhood(test_path):
-
-    config_coupled_fn = f"{test_path}/data/config_coupled_test.json"
-    lpjml_coupler = LPJmLCoupler(config_file=config_coupled_fn)
-
+def test_get_neighbourhood(lpjml_coupler):
     neighbourhood = lpjml_coupler.grid.get_neighbourhood().values
 
     test_neighbours = np.array(
