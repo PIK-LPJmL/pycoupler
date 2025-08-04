@@ -225,47 +225,56 @@ def opentdt(host, port):
 
 
 class LPJmLCoupler:
-    """LPJmLCoupler class serves as the interface between LPJmL and the model
-    to couple with. It initiates a socket channel, provides it and follows the
-    initialization protocol (->: receiving, <-: sending, for: iteration):
-    -> version (int32)
-    -> number of cells (int32)
-    -> number of input streams (int32)
-    -> number of output streams (int32)
-    for <number of input streams>:
-        -> SEND_INPUT_SIZE (int32)
-        -> index (int32)
-        -> type(int32)
-        <- number of bands (int32)
-    for <number of output streams>:
-        -> READ_OUTPUT_SIZE (int32)
-        -> index (int32)
-        -> number of steps(int32)
-        -> number of bands (int32)
-        -> type(int32)
-    for <number of static outputs (config)>:
-        -> READ_OUTPUT (int_32)
-        -> index (int32)
-        if <static output == grid>:
-            -> data(cell1, band1), …, data(celln, band1)
-               data(cell1, band2), …, data(celln, band2)
-        else:
-            <next>
-    The protocol may vary from version to version hence this only reflects the
-    current state of the protocol. Please use the LPJmLCoupler Instance
-    throughout the Simulation and do not close or reinitiate in between.
+    """
+    Interface between LPJmL and coupled models via socket communication.
 
-    :param config_file: file name (including relative/absolute path) of the
-        corresponding LPJmL configuration to be read simulation details from
-    :type config_file: str
-    :param version: version of the coupler, to be validated with LPJmL internal
-        coupler
-    :type version: int
-    :param host: host address of the server LPJmL is running. Defaults to ""
-        (all IPs of localhost)
-    :type host: str
-    :param port: port of the server address. Defaults to 2224
-    :type port: int
+    The LPJmLCoupler initiates a socket channel and follows a specific
+    initialization protocol for data exchange with LPJmL.
+
+    Communication Protocol
+    ----------------------
+    The protocol follows this sequence (→: receive from LPJmL, ←: send to LPJmL):
+
+    1. Initial handshake:
+       → version (int32)
+       → number_of_cells (int32)
+       → number_of_input_streams (int32)
+       → number_of_output_streams (int32)
+
+    2. Input stream configuration (for each input stream):
+       → SEND_INPUT_SIZE token (int32)
+       → stream_index (int32)
+       → data_type (int32)
+       ← number_of_bands (int32)
+
+    3. Output stream configuration (for each output stream):
+       → READ_OUTPUT_SIZE token (int32)
+       → stream_index (int32)
+       → number_of_steps (int32)
+       → number_of_bands (int32)
+       → data_type (int32)
+
+    4. Static data exchange (for static outputs like grid):
+       → READ_OUTPUT token (int32)
+       → output_index (int32)
+       → data_array (float/int, shape depends on bands and cells)
+
+    Notes
+    -----
+    - Protocol version may vary between LPJmL versions
+    - Keep the same LPJmLCoupler instance throughout simulation
+    - Do not close or reinitialize during simulation
+
+    Parameters
+    ----------
+    config_file : str
+        Path to LPJmL configuration file containing simulation details.
+    version : int, default 3
+        Coupler protocol version, must match LPJmL internal coupler version.
+    host : str, default "localhost"
+        Host address where LPJmL server is running.
+    port : int, default 2224
+        Port number for socket connection.
     """
 
     def __init__(self, config_file, version=3, host="localhost", port=2224):
@@ -326,24 +335,33 @@ class LPJmLCoupler:
     @property
     def config(self):
         """Get the underlyig LpjmLConfig object
-        :getter: LpjmLConfig object
-        :type: LpjmLConfig
+
+        Returns
+        -------
+        LpjmlConfig
+            LpjmlConfig object.
         """
         return self._config
 
     @property
     def ncell(self):
         """Get the number of LPJmL cells for in- and output
-        :getter: Number of LPJmL cells
-        :type: int
+
+        Returns
+        -------
+        int
+            Number of LPJmL cells.
         """
         return self._ncell
 
     @property
     def operations_left(self):
         """Get the operations left for the current simulation year
-        :getter: Operations left
-        :type: list
+
+        Returns
+        -------
+        list
+            List of operations left for the current simulation year.
         """
         operations = []
         if self._sim_year >= self._config.start_coupling:
@@ -357,39 +375,54 @@ class LPJmLCoupler:
     @property
     def sim_year(self):
         """Get the current simulation year
-        :getter: Current simulation year
-        :type: int
+
+        Returns
+        -------
+        int
+            Current simulation year.
         """
         return self._sim_year
 
     @property
     def sim_years(self):
         """Get a list of all simulation years
-        :getter: List of all simulation years
-        :type: list
+
+        Returns
+        -------
+        list
+            List of all simulation years.
         """
         return [year for year in self.get_sim_years()]
 
     @property
     def historic_years(self):
         """Get a list of all historic years
-        :getter: List of all historic years
-        :type: list
+
+        Returns
+        -------
+        list
+            List of all historic years.
         """
         return [year for year in self.get_historic_years(match_period=False)]
 
     @property
     def coupled_years(self):
         """Get a list of all coupled years
-        :getter: List of all coupled years
-        :type: list
+
+        Returns
+        -------
+        list
+            List of all coupled years.
         """
         return [year for year in self.get_coupled_years(match_period=False)]
 
     def get_sim_years(self):
         """Get a generator for all simulation years
-        :return: Generator for all simulation years
-        :rtype: generator
+
+        Returns
+        -------
+        generator
+            Generator for all simulation years.
         """
         start_year = self._sim_year
         end_year = self._config.lastyear
@@ -400,8 +433,11 @@ class LPJmLCoupler:
 
     def get_historic_years(self, match_period=True):
         """Get a generator for all historic years
-        :return: Generator for all historic years
-        :rtype: generator
+
+        Returns
+        -------
+        generator
+            Generator for all historic years.
         """
         start_year = self._sim_year
         end_year = self.config.start_coupling
@@ -417,8 +453,11 @@ class LPJmLCoupler:
 
     def get_coupled_years(self, match_period=True):
         """Get a generator for all coupled years
-        :return: Generator for all coupled years
-        :rtype: generator
+
+        Returns
+        -------
+        generator
+            Generator for all coupled years.
         """
         start_year = self._sim_year
         end_year = self.config.lastyear
@@ -434,9 +473,15 @@ class LPJmLCoupler:
 
     def get_cells(self, id=True):
         """Get a generator for all cells
-        :param id: If True, return cell ids, else return cell indices
-        :type id: bool
-        :return: Generator for all cells
+
+        Parameters
+        ----------
+        id : bool, default True
+            If True, return cell ids, else return cell indices
+
+        Returns
+        -------
+        generator
         :rtype: generator
         """
         start_cell = self._config.startgrid
@@ -451,7 +496,14 @@ class LPJmLCoupler:
             current_cell += 1
 
     def code_to_name(self, to_iso_alpha_3=False):
-        """Convert the cell indices to cell names"""
+        """Convert country indices to cell names
+
+        Parameters
+        ----------
+        to_iso_alpha_3 : bool, default False
+            If True, convert country indices to ISO alpha-3 codes, else return
+            country names
+        """
         for static_output in self._static_ids.values():
 
             if static_output not in ["country", "region"]:
@@ -488,9 +540,16 @@ class LPJmLCoupler:
 
     def read_historic_output(self, to_xarray=True):
         """Read historic output from LPJmL
-        :return: Dictionary with output keys and corresponding output as numpy
-            arrays with dimensions (ncell, nband)
-        :rtype: dict
+
+        Parameters
+        ----------
+        to_xarray : bool, default True
+            If True, return output as xarray.DataArray, else return dictionary
+
+        Returns
+        -------
+        dict or xarray.DataArray
+            Dictionary with output keys and corresponding output as numpy arrays
         """
         # read all historic outputs
         hist_years = list()
@@ -528,21 +587,32 @@ class LPJmLCoupler:
         self._channel.close()
 
     def send_input(self, input_dict, year):
-        """Send input data of iterated year as dictionary to LPJmL. Dictionary
-        has to supplied in the form of (example):
-        my_dict = {
-            'landuse': <numpy_array_with_shape_(ncell, nband)>,
-            'with_tillage': <numpy_array_with_shape_(ncell, nband)>
-        }
-        The dictionary keys must have the same name as input keys supplied to
-        the configuration.
+        """Send input data of iterated year as dictionary to LPJmL.
 
-        :param input_dict: dict of input keys and corresponding input in the
-            form of numpy arrays with dimensions (ncell, nband) (see example
-            above)
-        :type input_dict: dict
-        :param year: supply year for validation
-        :type year: int
+        Parameters
+        ----------
+        input_dict : dict
+            Dictionary of input keys and corresponding input in the form of numpy
+            arrays with dimensions (ncell, nband)
+        year : int
+            Year for which input data is to be sent.
+
+        Returns
+        -------
+        dict
+            Dictionary with input keys and corresponding input in the form of
+            numpy arrays with dimensions (ncell, nband)
+
+        Example
+        -------
+        >>> my_dict = {
+        ...     'landuse': <numpy_array_with_shape_(ncell, nband)>,
+        ...     'with_tillage': <numpy_array_with_shape_(ncell, nband)>
+        ... }
+        >>> my_dict
+        {'landuse': <numpy_array_with_shape_(ncell, nband)>, 'with_tillage':
+        <numpy_array_with_shape_(ncell, nband)>}
+
         """
         # iteration step check - if number of iterations left exceed simulation
         #   steps (analogous to years left)
@@ -574,10 +644,15 @@ class LPJmLCoupler:
     def read_output(self, year, to_xarray=True):
         """Read LPJmL output data of the specified year.
 
-        :param year: Year for which output data is to be read.
-        :type year: int
-        :param to_xarray: If True, output is returned as xarray.DataArray.
-        :type to_xarray: bool
+        Parameters
+        ----------
+        year : int
+            Year for which output data is to be read.
+        to_xarray : bool, default True
+            If True, output is returned as xarray.DataArray.
+
+        Returns
+        -------
         :return: Dictionary with output id/name as keys and outputs in the form
                 of numpy.array or xarray.DataArray.
         :rtype: dict or xarray.DataArray
@@ -640,17 +715,24 @@ class LPJmLCoupler:
 
     def read_input(self, start_year=None, end_year=None, copy=True):
         """Read coupled input data from netcdf files and copy them to the
-        simulation directory if copy=True. If no start_year and
-        end_year are provided, the default start_year and end_year from the
-        config are used.
-        :param start_year: start year of input data
-        :type start_year: int
-        :param end_year: end year of input data
-        :type end_year: int
-        :param copy: if True, input data is copied to simulation directory
-        :type copy: bool
-        :return: LPJmLDataSet with input data with input names as keys
-        :rtype: LPJmLDataSet
+        simulation directory if copy=True.
+
+        If no start_year and end_year are provided, the default start_year and
+        end_year from the config are used.
+
+        Parameters
+        ----------
+        start_year : int, default None
+            Start year of input data.
+        end_year : int, default None
+            End year of input data.
+        copy : bool, default True
+            If True, input data is copied to simulation directory
+
+        Returns
+        -------
+        LPJmLDataSet
+            LPJmLDataSet with input data with input names as keys
         """
         if copy:
             self._copy_input(start_year=start_year, end_year=end_year)
@@ -914,6 +996,7 @@ class LPJmLCoupler:
             )
 
     def _init_coupling(self):
+        """Initialize coupling"""
         # initiate simulation time
         self._sim_year = min(self._config.outputyear, self._config.start_coupling)
         self._year_read_output = None
@@ -941,7 +1024,7 @@ class LPJmLCoupler:
         self._init_output()
 
     def _init_input(self):
-
+        """Initialize input"""
         input_sockets = self._config.get_input_sockets()
 
         if self._ninput != len(input_sockets):
@@ -972,6 +1055,7 @@ class LPJmLCoupler:
             )
 
     def _init_output(self):
+        """Initialize output"""
         output_sockets = self._config.get_output_sockets()
 
         if self._noutput != len(output_sockets):
@@ -1012,7 +1096,9 @@ class LPJmLCoupler:
             )
 
     def _iterate_operation(self, length, fun, token, args=None):
-        """Iterate reading/sending operation for sequence of inputs and/or outputs"""
+        """Iterate reading/sending operation for sequence of inputs and/or
+        outputs
+        """
 
         for _ in range(length):
             # check token

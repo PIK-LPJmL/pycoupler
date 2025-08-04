@@ -65,15 +65,11 @@ class TestLpjSubmit:
         [
             pytest.param(
                 "no mocking",
-                marks=pytest.mark.xfail(
-                    raises=pytest.raises(Exception, match=r"Process was not submitted.")
-                ),
+                marks=pytest.mark.xfail(raises=Exception),
             ),
             pytest.param(
                 "non-zero errorcode",
-                marks=pytest.mark.xfail(
-                    raises=pytest.raises(CalledProcessError, match=r"status 1")
-                ),
+                marks=pytest.mark.xfail(raises=CalledProcessError),
             ),
         ],
         indirect=True,
@@ -82,8 +78,8 @@ class TestLpjSubmit:
         # The test does nothing, we expect the fail in the fixtures
         pass
 
-    def test_command(self, sim_path, config_coupled, fp):
-        run_script_path = sim_path / "output/coupled_test/inseeds.sh"
+    def test_command(self, sim_path, config_coupled, fp, submit):
+        run_script_path = sim_path / "output/coupled_test/copan_lpjml.sh"
         assert (
             fp.call_count(
                 [
@@ -116,8 +112,8 @@ class TestLpjSubmit:
         ],
         indirect=True,
     )
-    def test_run_script(self, sim_path, config_coupled, mock_venv, request):
-        run_script_path = sim_path / "output/coupled_test/inseeds.sh"
+    def test_run_script(self, sim_path, config_coupled, mock_venv, request, submit):
+        run_script_path = sim_path / "output/coupled_test/copan_lpjml.sh"
         assert run_script_path.is_file(), "run script should have been created"
         assert (
             run_script_path.stat().st_mode & 0o0100

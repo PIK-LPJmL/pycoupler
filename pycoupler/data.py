@@ -13,7 +13,23 @@ from pycoupler.utils import read_json
 
 
 class LPJmLInputType:
-    """Available Input types loaded from config."""
+    """Available Input types loaded from config.
+
+    Parameters
+    ----------
+    id : int, optional
+        ID of the input type.
+    name : str, optional
+        Name of the input type.
+
+    Attributes
+    ----------
+    id : int
+        ID of the input type.
+    name : str
+        Name of the input type.
+    nband : int
+    """
 
     __input_types__ = None  # This will hold the configuration data
 
@@ -83,16 +99,19 @@ def append_to_dict(data_dict, data):
     """
     Append data along the third dimension to the data_dict.
 
-    :param data_dict: Dictionary holding the data.
-    :type data_dict: dict
+    Parameters
+    ----------
+    data_dict : dict
+        Dictionary holding the data.
+    data : dict
+        Dictionary with data.
+        Keys are ids/names, values are two-dimensional NumPy arrays with
+        dimensions (cells, bands).
 
-    :param data: Dictionary with data.
-                 Keys are ids/names, values are two-dimensional NumPy
-                 arrays with dimensions (cells, bands).
-    :type data: dict
-
-    :return: Updated data_dict with the appended data.
-    :rtype: dict
+    Returns
+    -------
+    dict
+        Updated data_dict with the appended data.
     """
     for key, value in data.items():
         if key in data_dict:
@@ -105,7 +124,23 @@ def append_to_dict(data_dict, data):
 
 
 class LPJmLData(xr.DataArray):
-    """Class for LPJmL data"""
+    """Class for single LPJmL data arrays (input, output, etc.) with meta data
+    and defined dimensions (cell, band, time).
+
+    Parameters
+    ----------
+    *args : tuple
+        Arguments for the xarray.DataArray constructor.
+    **kwargs : dict
+        Keyword arguments for the xarray.DataArray constructor.
+
+    Attributes
+    ----------
+    attrs : dict
+        Attributes of the data array.
+    coords : dict
+        Coordinates of the data array.
+    """
 
     __slots__ = ()
 
@@ -116,8 +151,10 @@ class LPJmLData(xr.DataArray):
         """
         Add meta data to the data array.
 
-        :param meta_data: Meta data to be added to the data array.
-        :type meta_data: LPJmLMetaData
+        Parameters
+        ----------
+        meta_data : LPJmLMetaData
+            Meta data to be added to the data array.
         """
         if isinstance(meta_data, LPJmLMetaData):
             self.attrs["standard_name"] = meta_data.variable
@@ -153,10 +190,16 @@ class LPJmLData(xr.DataArray):
     def get_neighbourhood(self, id=True, cellsize=0.5):
         """
         Get the IDs of all neighbouring cells within a given size of cells.
-        :param id: If True, return cell ids, else return cell indices
-        :type id: bool
-        :param cellsize: Size of cells in degrees.
-        :type cellsize: float
+
+        Parameters
+        ----------
+        id : bool, default True
+            If True, return cell ids, else return cell indices
+        cellsize : float, default 0.5
+            Size of cells in degrees.
+
+        Returns
+        -------
         :return: Array with the IDs of all neighbouring cells.
         :rtype: numpy.ndarray
         """
@@ -218,7 +261,22 @@ class LPJmLData(xr.DataArray):
 
 
 class LPJmLDataSet(xr.Dataset):
-    """Class for LPJmL data sets."""
+    """Class for LPJmL data sets.
+
+    Parameters
+    ----------
+    *args : tuple
+        Arguments for the xarray.Dataset constructor.
+    **kwargs : dict
+        Keyword arguments for the xarray.Dataset constructor.
+
+    Attributes
+    ----------
+    data_vars : dict
+        Data variables of the dataset.
+    attrs : dict
+        Attributes of the dataset.
+    """
 
     __slots__ = ()
 
@@ -237,7 +295,14 @@ class LPJmLDataSet(xr.Dataset):
                 self.attrs["comment"] = first_attrs["comment"]
 
     def to_numpy(self):
-        """Return data as numpy array."""
+        """Return data as numpy array.
+
+        Returns
+        -------
+        dict
+            Dictionary with data variables as keys and corresponding numpy arrays
+            as values.
+        """
         return {key: value.to_numpy() for key, value in self.data_vars.items()}
 
     def __setitem__(self, key, value):
@@ -263,7 +328,9 @@ class LPJmLDataSet(xr.Dataset):
             super().__setitem__(key, value)
 
     def _construct_dataarray(self, name: Hashable) -> LPJmLData:
-        """Construct a LPJmLData by indexing this dataset"""
+        """Construct a LPJmLData by indexing this dataset (Overwritten from
+        xarray.Dataset).
+        """
 
         try:
             variable = self._variables[name]
@@ -341,25 +408,28 @@ class LPJmLDataSet(xr.Dataset):
         Useful for converting to JSON. To avoid datetime incompatibility,
         use the ``decode_times=False`` argument in ``xarray.open_dataset``.
 
-        :param data: Whether to include the actual data in the dictionary.
+        Parameters
+        ----------
+        data : bool or {"list", "array", "lpjmldata"}, optional, default: "list"
+            Whether to include the actual data in the dictionary.
             - If set to ``False``, returns just the schema.
             - If set to ``"array"``, returns data as the underlying array type.
             - If set to ``"list"`` (or ``True`` for backwards compatibility),
               returns data in lists of Python data types. For efficient "list" output,
               use ``ds.compute().to_dict(data="list")``.
-            :type data: bool or {"list", "array", "lpjmldata"}, optional,
-                default: "list"
+        encoding : bool, optional, default: False
+            Whether to include the Dataset's encoding in the dictionary.
 
-        :param encoding: Whether to include the Dataset's encoding in the dictionary.
-            :type encoding: bool, optional, default: False
-
-        :return: A dictionary with keys: ``"coords"``, ``"attrs"``, ``"dims"``,
+        Returns
+        -------
+        dict
+            A dictionary with keys: ``"coords"``, ``"attrs"``, ``"dims"``,
             ``"data_vars"``, and optionally ``"encoding"``.
-        :rtype: dict
 
-        :seealso:
-            - :meth:`xarray.Dataset.from_dict`
-            - :meth:`xarray.DataArray.to_dict`
+        See Also
+        --------
+        xarray.Dataset.from_dict
+        xarray.DataArray.to_dict
         """
         if data == "lpjmldata":
             return {var_name: self[var_name] for var_name in self.data_vars}
@@ -369,12 +439,18 @@ class LPJmLDataSet(xr.Dataset):
 
 def read_data(file_name, var_name=None, multiple_bands=False):
     """Read netcdf file and return data as numpy array or xarray.DataArray.
-    :param file_name: path to netcdf file
-    :type file_name: str
-    :param var_name: name of variable to be read
-    :type var_name: str
-    :return: data as LPJmLData (xarray.DataArray)
-    :rtype: LPJmLData
+
+    Parameters
+    ----------
+    file_name : str
+        Path to netcdf file
+    var_name : str, optional
+        Name of variable to be read
+
+    Returns
+    -------
+    LPJmLData
+        Data as LPJmLData (xarray.DataArray)
     """
     with xr.open_dataset(
         file_name, decode_times=False, mask_and_scale=False
@@ -419,9 +495,52 @@ class LPJmLMetaData:
     """LPJmL meta data class that can be easily accessed,
     converted to a dictionary or written as a json file.
 
-    :param config_dict: takes a dictionary (ideally LPJmL config dictionary)
-        and builds up a nested LpjmLConfig class with corresponding fields
-    :type config_dict: dict
+    Parameters
+    ----------
+    config_dict : dict
+        Takes a dictionary (ideally LPJmL config dictionary) and builds up a
+        nested LpjmLConfig class with corresponding fields
+
+    Attributes
+    ----------
+    sim_name : str
+        Name of the simulation.
+    source : str
+        Source of the data.
+    history : str
+        History of the data.
+    variable : str
+        Variable of the data.
+    long_name : str
+        Long name of the data.
+    unit : str
+        Unit of the data.
+    nbands : int
+        Number of bands.
+    band_names : list
+        Names of the bands.
+    nyear : int
+        Number of years.
+    firstyear : int
+        First year of the data.
+    lastyear : int
+        Last year of the data.
+    cellsize_lon : float
+        Cell size in longitude.
+    cellsize_lat : float
+        Cell size in latitude.
+    ncell : int
+        Number of cells.
+    firstcell : int
+        First cell of the data.
+    datatype : int
+        Data type.
+    scalar : float
+        Scalar value.
+    nstep : int
+        Number of steps.
+    timestep : int
+        Time step.
     """
 
     def __init__(self, meta_dict):
@@ -431,7 +550,13 @@ class LPJmLMetaData:
             self.band_names = [str(ii) for ii in range(self.nbands)]
 
     def to_dict(self):
-        """Convert class object to dictionary"""
+        """Convert class object to dictionary
+
+        Returns
+        -------
+        dict
+            Dictionary with the meta data.
+        """
 
         def obj_to_dict(obj):
             if not hasattr(obj, "__dict__"):
@@ -518,9 +643,16 @@ class LPJmLMetaData:
 
 def read_meta(file_name):
     """Read meta data from json file and return as LPJmLMetaData object.
-    :param file_name: path to json file
-    :type file_name: str
-    :return: meta data as dictionary
+
+    Parameters
+    ----------
+    file_name : str
+        Path to json file
+
+    Returns
+    -------
+    LPJmLMetaData
+        Meta data as LPJmLMetaData object
     """
     return LPJmLMetaData(read_json(file_name))
 
@@ -534,21 +666,27 @@ def read_header(filename, to_dict=False, force_version=None, verbose=False):
 
     Reads a header from an LPJmL clm file. CLM is the default format used for
     LPJmL input files and can also be used for output files.
-    :param filename: Filename to read header from.
-    :type filename: str
-    :param to_dict: If True, return header as dictionary. If False, return
-        as LPJmLMetaData object.
-    :type to_dict: bool
-    :param force_version: Manually set clm version. The default value `NULL`
-        means that the version is determined automatically from the header. Set
-        only if the version number in the file header is incorrect.
-    :type force_version: int
-    :param verbose: If `TRUE` (the default), `read_header` provides some
+
+    Parameters
+    ----------
+    filename : str
+        Filename to read header from.
+    to_dict : bool, optional
+        If True, return header as dictionary. If False, return as
+        LPJmLMetaData object.
+    force_version : int, optional
+        Manually set clm version. The default value `NULL` means that the
+        version is determined automatically from the header. Set only if the
+        version number in the file header is incorrect.
+    verbose : bool, optional
+        If `TRUE` (the default), `read_header` provides some
         feedback when using default values for missing parameters. If `FALSE`,
         only errors are reported.
-    :type verbose: bool
-    :return: A LPJmLMetaData object or a dictionary with the header
-        information.
+
+    Returns
+    -------
+    LPJmLMetaData or dict
+        A LPJmLMetaData object or a dictionary with the header information.
     """
 
     if not os.path.exists(filename):
@@ -736,10 +874,16 @@ def read_header(filename, to_dict=False, force_version=None, verbose=False):
 def get_headersize(filename):
     """
     Get the size of the header in an LPJmL input/output file.
-    :param filename: Filename to read header size from.
-    :type filename: str
-    :return: Size of the header in bytes.
-    :rtype: int
+
+    Parameters
+    ----------
+    filename : str
+        Filename to read header size from.
+
+    Returns
+    -------
+    int
+        Size of the header in bytes.
     """
     header = read_header(filename, to_dict=True)
     version = header["header"]["version"]

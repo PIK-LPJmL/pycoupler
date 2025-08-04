@@ -131,7 +131,7 @@ def test_set_coupled_config(test_path):
         model_path=f"{test_path}/data", file_name="config_coupled_test.json"
     )
     # update with actual output path (test directory)
-    check_config_coupled.set_outputpath(f"{test_path}/data/output/coupled_test")
+    check_config_coupled._set_outputpath(f"{test_path}/data/output/coupled_test")
 
     # align both config objects
     check_config_coupled.restart_filename = config_coupled.restart_filename
