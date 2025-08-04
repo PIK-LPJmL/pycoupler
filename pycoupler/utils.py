@@ -4,7 +4,13 @@ from fuzzywuzzy import fuzz, process
 
 
 def get_countries():
-    """Current workaround to get countries defined in LPJmL."""
+    """Current workaround to get countries defined in LPJmL.
+
+    Returns
+    -------
+    dict
+        Dictionary with countries and their codes.
+    """
     return {
         "Afghanistan": {"name": "Afghanistan", "code": "AFG"},
         "Aland Islands": {"name": "Aland Islands", "code": "ALA"},
@@ -13,7 +19,10 @@ def get_countries():
         "American Samoa": {"name": "American Samoa", "code": "ASM"},
         "Angola": {"name": "Angola", "code": "AGO"},
         "Anguilla": {"name": "Anguilla", "code": "AIA"},
-        "Antigua and Barbuda": {"name": "Antigua and Barbuda", "code": "ATG"},
+        "Antigua and Barbuda": {
+            "name": "Antigua and Barbuda",
+            "code": "ATG",
+        },
         "Argentina": {"name": "Argentina", "code": "ARG"},
         "Armenia": {"name": "Armenia", "code": "ARM"},
         "Austria": {"name": "Austria", "code": "AUT"},
@@ -28,7 +37,10 @@ def get_countries():
         "Bermuda": {"name": "Bermuda", "code": "BMU"},
         "Bhutan": {"name": "Bhutan", "code": "BTN"},
         "Bolivia": {"name": "Bolivia", "code": "BOL"},
-        "Bosnia and Herzegovina": {"name": "Bosnia and Herzegovina", "code": "BIH"},
+        "Bosnia and Herzegovina": {
+            "name": "Bosnia and Herzegovina",
+            "code": "BIH",
+        },
         "Botswana": {"name": "Botswana", "code": "BWA"},
         "British Indian Ocean Territory": {
             "name": "British Indian Ocean Territory",
@@ -43,11 +55,17 @@ def get_countries():
         "Cameroon": {"name": "Cameroon", "code": "CMR"},
         "Cape Verde": {"name": "Cape Verde", "code": "CPV"},
         "Cayman Islands": {"name": "Cayman Islands", "code": "CYM"},
-        "Central African Republic": {"name": "Central African Republic", "code": "CAF"},
+        "Central African Republic": {
+            "name": "Central African Republic",
+            "code": "CAF",
+        },
         "Chad": {"name": "Chad", "code": "TCD"},
         "Chile": {"name": "Chile", "code": "CHL"},
         "Christmas Island": {"name": "Christmas Island", "code": "CXR"},
-        "Cocos Keeling Islands": {"name": "Cocos Keeling Islands", "code": "CCK"},
+        "Cocos Keeling Islands": {
+            "name": "Cocos Keeling Islands",
+            "code": "CCK",
+        },
         "Colombia": {"name": "Colombia", "code": "COL"},
         "Comoros": {"name": "Comoros", "code": "COM"},
         "Congo Brazzaville": {"name": "Congo-Brazzaville", "code": "COG"},
@@ -170,7 +188,10 @@ def get_countries():
         "No Land": {"name": "No Land", "code": "XNL"},
         "Norfolk Island": {"name": "Norfolk Island", "code": "NFK"},
         "North Korea": {"name": "North Korea", "code": "PRK"},
-        "Northern Mariana Islands": {"name": "Northern Mariana Islands", "code": "MNP"},
+        "Northern Mariana Islands": {
+            "name": "Northern Mariana Islands",
+            "code": "MNP",
+        },
         "Norway": {"name": "Norway", "code": "NOR"},
         "Oman": {"name": "Oman", "code": "OMN"},
         "Pakistan": {"name": "Pakistan", "code": "PAK"},
@@ -192,13 +213,19 @@ def get_countries():
             "name": "Saint Helena Ascension and Tristan da Cunha",
             "code": "SHN",
         },
-        "Saint Kitts and Nevis": {"name": "Saint Kitts and Nevis", "code": "KNA"},
+        "Saint Kitts and Nevis": {
+            "name": "Saint Kitts and Nevis",
+            "code": "KNA",
+        },
         "Saint Lucia": {"name": "Saint Lucia", "code": "LCA"},
         "Saint Pierre and Miquelon": {
             "name": "Saint Pierre and Miquelon",
             "code": "SPM",
         },
-        "Sao Tome and Principe": {"name": "Sao Tome and Principe", "code": "STP"},
+        "Sao Tome and Principe": {
+            "name": "Sao Tome and Principe",
+            "code": "STP",
+        },
         "Saudi Arabia": {"name": "Saudi Arabia", "code": "SAU"},
         "Senegal": {"name": "Senegal", "code": "SEN"},
         "Serbia": {"name": "Serbia", "code": "SRB"},
@@ -244,7 +271,10 @@ def get_countries():
         "Tunisia": {"name": "Tunisia", "code": "TUN"},
         "Turkey": {"name": "Turkey", "code": "TUR"},
         "Turkmenistan": {"name": "Turkmenistan", "code": "TKM"},
-        "Turks and Caicos Islands": {"name": "Turks and Caicos Islands", "code": "TCA"},
+        "Turks and Caicos Islands": {
+            "name": "Turks and Caicos Islands",
+            "code": "TCA",
+        },
         "Tuvalu": {"name": "Tuvalu", "code": "TUV"},
         "Uganda": {"name": "Uganda", "code": "UGA"},
         "Ukraine": {"name": "Ukraine", "code": "UKR"},
@@ -280,10 +310,16 @@ def get_countries():
 
 def search_country(query):
     """Search for countries based on a fuzzy matching algorithm.
-    :param query: The search query.
-    :type query: str
-    :return: The matching country code.
-    :rtype: str
+
+    Parameters
+    ----------
+    query : str
+        The search query.
+
+    Returns
+    -------
+    str
+        The matching country code.
     """
     countries = get_countries()
     name, _ = process.extractOne(query, countries.keys(), scorer=fuzz.ratio)
@@ -299,13 +335,19 @@ def read_json(file_name, object_hook=None):
 
 def create_subdirs(base_path, sim_name):
     """Check if config file is set correctly.
-    :param base_path: directory to check wether required subfolders exists. If
-        not create corresponding folder (input, output, restart)
-    :type base_path: str
-    :param sim_name: name of the simulation. Used to create output folder.
-    :type sim_name: str
-    :return: base_path
-    :rtype: str
+
+    Parameters
+    ----------
+    base_path : str
+        Directory to check wether required subfolders exists. If not create
+        corresponding folder (input, output, restart)
+    sim_name : str
+        Name of the simulation. Used to create output folder.
+
+    Returns
+    -------
+    str
+        base_path
     """
     if not os.path.exists(base_path):
         raise OSError(f"Path '{base_path}' does not exist.")
@@ -329,11 +371,20 @@ def detect_io_type(filename):
     """
     Detect the file type of an LPJmL input/output file.
 
-    :param filename: Path to the file to check.
-    :type filename: str
-    :return: Detected file type ('cdf', 'clm', 'meta', 'raw', or 'text').
-    :rtype: str
-    :raises FileNotFoundError: If the file does not exist.
+    Parameters
+    ----------
+    filename : str
+        Path to the file to check.
+
+    Returns
+    -------
+    str
+        Detected file type ('cdf', 'clm', 'meta', 'raw', or 'text').
+
+    Raises
+    ------
+    FileNotFoundError
+        If the file does not exist.
     """
     if not os.path.exists(filename):
         raise FileNotFoundError(f"File {filename} does not exist.")
@@ -356,7 +407,8 @@ def detect_io_type(filename):
     try:
         text_content = file_check.decode("utf-8")
         if all(32 <= ord(c) <= 126 or c in "\r\n\t" for c in text_content):
-            # Check if it is a JSON file (starts with '{' after stripping whitespace)
+            # Check if it is a JSON file (starts with '{' after stripping
+            # whitespace)
             if text_content.lstrip().startswith("{"):
                 return "meta"
             return "text"

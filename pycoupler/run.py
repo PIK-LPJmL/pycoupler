@@ -7,6 +7,17 @@ import multiprocessing as mp
 
 
 def operate_lpjml(config_file, std_to_file=False):
+    """Run LPJmL using a generated (class LpjmlConfig) config file.
+    Similar to R function `lpjmlKit::run_lpjml`.
+
+    Parameters
+    ----------
+    config_file : str
+        File name including path if not current to config_file
+    std_to_file : bool, optional
+        If True, stdout and stderr are written to files in the output folder.
+        Defaults to False.
+    """
 
     config = read_config(config_file)
 
@@ -66,11 +77,14 @@ def operate_lpjml(config_file, std_to_file=False):
 def run_lpjml(config_file, std_to_file=False):
     """Run LPJmL using a generated (class LpjmlConfig) config file.
     Similar to R function `lpjmlKit::run_lpjml`.
-    :param config_file: file name including path if not current to config_file
-    :type config_file: str
-    :param std_to_file: if True, stdout and stderr are written to files
-        in the output folder. Defaults to False.
-    :type std_to_file: bool
+
+    Parameters
+    ----------
+    config_file : str
+        File name including path if not current to config_file
+    std_to_file : bool, optional
+        If True, stdout and stderr are written to files in the output folder.
+        Defaults to False.
     """
     run = mp.Process(target=operate_lpjml, args=(config_file, std_to_file))
     run.start()
@@ -91,43 +105,50 @@ def submit_lpjml(
     venv_path=None,
 ):
     """Submit LPJmL run to Slurm using `lpjsubmit` and a generated
-    (class LpjmlConfig) config file. Provide arguments for Slurm sbatch
-    depending on the run. Similar to R function `lpjmlKit::submit_lpjml`.
-    :param config_file: file name including path if not current to config_file
-    :type config_file: str
-    :param group: PIK group name to be used for Slurm. Defaults to "copan".
-    :type group: str
-    :param sclass: define the job classification, options are "short", "medium",
-        "long", "priority", "standby", "io". For more information have a look
-        More information at <https://www.pik-potsdam.de/en>.
-        Defaults to `"short"`.
-    :type sclass: str
-    :param ntasks: define the number of tasks/threads.
-        More information at <https://www.pik-potsdam.de/en> and
+    (class LpjmlConfig) config file.
+
+    Provide arguments for Slurm sbatch depending on the run.
+    Similar to R function `lpjmlKit::submit_lpjml`.
+
+    Parameters
+    ----------
+    config_file : str
+        File name including path if not current to config_file
+    group : str, optional
+        PIK group name to be used for Slurm. Defaults to "copan".
+    sclass : str, optional
+        Define the job classification, options are "short", "medium", "long",
+        "priority", "standby", "io". For more information have a look at
+        <https://www.pik-potsdam.de/en>. Defaults to `"short"`.
+    ntasks : int/str, optional
+        Define the number of tasks/threads. More information at
+        <https://www.pik-potsdam.de/en> and
         <https://slurm.schedmd.com/sbatch.html>. Defaults to 256.
-    :type ntasks: int/str
-    :param wtime: define the time limit. Setting a lower time
-                 limit than the maximum runtime for `sclass` can reduce the wait
-                 time in the SLURM job queue. More information at
-                 <https://www.pik-potsdam.de/en> and
-                 <https://slurm.schedmd.com/sbatch.html>.
-    :type wtime: str
-    :param dependency: if there is a job that should be processed first (e.g.
-        spinup) then pass its job id here.
-    :type depdendency: int/str
-    :param blocking: cores to be blocked. More information at
-        <https://www.pik-potsdam.de/en> and <https://slurm.schedmd.com/sbatch.html>.
-    :type blocking: int
-    :param option: additional options to be passed to lpjsubmit. Can be a string
-        or a list of strings.
-    :type option: str/list
-    :param couple_to: path to program/model/script LPJmL should be coupled to
-    :type couple_to: str
-    :param venv_path: path to a venv to run the coupled script in. This should be the\
-path to the top folder of the venv. If not set, `python3` in PATH is used.
-    :type venv_path: str, optional
-    :return: return the submitted jobs id if submitted successfully.
-    :rtype: str
+    wtime : str, optional
+        Define the time limit. Setting a lower time limit than the maximum
+        runtime for `sclass` can reduce the wait time in the SLURM job queue.
+        More information at <https://www.pik-potsdam.de/en> and
+        <https://slurm.schedmd.com/sbatch.html>.
+    dependency : int/str, optional
+        If there is a job that should be processed first (e.g. spinup) then pass
+        its job id here.
+    blocking : int, optional
+        Cores to be blocked. More information at
+        <https://www.pik-potsdam.de/en> and
+        <https://slurm.schedmd.com/sbatch.html>.
+    option : str/list, optional
+        Additional options to be passed to lpjsubmit. Can be a string or a list
+        of strings.
+    couple_to : str, optional
+        Path to program/model/script LPJmL should be coupled to
+    venv_path : str, optional
+        Path to a venv to run the coupled script in. This should be the path to
+        the top folder of the venv. If not set, `python3` in PATH is used.
+
+    Returns
+    -------
+    str
+        The submitted jobs id if submitted successfully.
     """
 
     config = read_config(config_file)
@@ -149,7 +170,16 @@ path to the top folder of the venv. If not set, `python3` in PATH is used.
     cmd = [f"{config.model_path}/bin/lpjsubmit"]
     # specify sbatch arguments required by lpjsubmit internally
     cmd.extend(
-        ["-group", group, "-class", sclass, "-o", stdout_file, "-e", stderr_file]
+        [
+            "-group",
+            group,
+            "-class",
+            sclass,
+            "-o",
+            stdout_file,
+            "-e",
+            stderr_file,
+        ]  # noqa: E501
     )
     # if dependency (jobid) defined, submit is queued by slurm with nocheck
     if dependency:
@@ -175,7 +205,7 @@ path to the top folder of the venv. If not set, `python3` in PATH is used.
             python_path = os.path.join(venv_path, "bin/python")
             if not os.path.isfile(python_path):
                 raise FileNotFoundError(
-                    "venv path contains no python binary at '" + python_path + "'."
+                    f"venv path contains no python binary at '{python_path}'."
                 )
 
         bash_script = f"""#!/bin/bash
@@ -187,7 +217,7 @@ config_file="{config_file}"
 {python_path} {couple_to} $config_file
 """
 
-        couple_file = f"{output_path}/inseeds.sh"
+        couple_file = f"{output_path}/copan_lpjml.sh"
 
         with open(couple_file, "w") as file:
             file.write(bash_script)
@@ -233,11 +263,13 @@ config_file="{config_file}"
 
 def check_lpjml(config_file):
     """Check if config file is set correctly.
-    :param config_file: file_name (including path) to generated config json
-        file.
-    :type model_path: str
-    :param model_path: path to `LPJmL_internal` (lpjml repository)
-    :type model_path: str
+
+    Parameters
+    ----------
+    config_file : str
+        File name (including path) to generated config json file.
+    model_path : str
+        Path to `LPJmL_internal` (lpjml repository)
     """
     config = read_config(config_file)
     if not os.path.isdir(config.model_path):

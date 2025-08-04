@@ -12,12 +12,15 @@ from pycoupler.data import read_header
 
 
 class SubConfig:
-    """This serves as an LPJmL sub config class that can be easily accessed,
-    converted to a dictionary or written as a json file.
+    """
+    LPJmL sub config class for easy access, conversion to a dictionary,
+    or writing as a JSON file.
 
-    :param config_dict: takes a dictionary (ideally LPJmL config dictionary)
-        and builds up a nested LpjmLConfig class with corresponding fields
-    :type config_dict: dict
+    Parameters
+    ----------
+    config_dict : dict
+        Dictionary (ideally an LPJmL config dictionary) used to build up a nested
+        LpjmLConfig class with corresponding fields.
     """
 
     def __init__(self, config_dict):
@@ -25,7 +28,14 @@ class SubConfig:
         self.__dict__.update(config_dict)
 
     def to_dict(self):
-        """Convert class object to dictionary"""
+        """
+        Convert class object to dictionary.
+
+        Returns
+        -------
+        dict
+            Dictionary representation of the class object.
+        """
 
         def obj_to_dict(obj):
             if not hasattr(obj, "__dict__"):
@@ -46,21 +56,33 @@ class SubConfig:
         return obj_to_dict(self)
 
     def __iter__(self):
-        """Iteration method to get items of a SubConfig"""
+        """
+        Iterate over items of a SubConfig.
+
+        Yields
+        ------
+        tuple
+            Key-value pairs of the SubConfig attributes (excluding private
+            attributes).
+        """
         for key, value in self.__dict__.items():
             if not key.startswith("_"):
                 yield key, value
 
     def to_json(self, file_name=None):
-        """Write json file
-        :param file: file name (including relative/absolute path) to write json
-            to
-        :type: str
-        :param file_name: file name (including relative/absolute path) to write
-            json to
-        :type file_name: str
-        :return: file name of written json file
-        :rtype: str
+        """
+        Write the configuration to a JSON file.
+
+        Parameters
+        ----------
+        file_name : str, optional
+            File name (including relative/absolute path) to write JSON to.
+            If None, a default name is used.
+
+        Returns
+        -------
+        str
+            File name of the written JSON file.
         """
         # convert class to dict
         config_dict = self.to_dict()
@@ -79,13 +101,16 @@ class SubConfig:
 
 
 class LpjmlConfig(SubConfig):
-    """This serves as an LPJmL config class that can be easily accessed,
-    converted to a dictionary or written as a json file. It further provides
-    methods to get/set outputs, restarts and sockets for model coupling.
+    """
+    LPJmL config class for easy access, conversion to a dictionary,
+    or writing as a JSON file. Provides methods to get/set outputs,
+    restarts, and sockets for model coupling.
 
-    :param config_dict: takes a dictionary (ideally LPJmL config dictionary)
-        and builds up a nested LpjmLConfig class with corresponding fields
-    :type config_dict: dict
+    Parameters
+    ----------
+    sub_config : SubConfig
+        SubConfig instance (ideally built from an LPJmL config dictionary)
+        used to build up a nested LpjmlConfig class with corresponding fields.
     """
 
     def __init__(self, sub_config):
@@ -96,14 +121,24 @@ class LpjmlConfig(SubConfig):
         self.__dict__.update(sub_config.__dict__)
 
     def get_output_avail(self, id_only=True, to_dict=False):
-        """Get available output (outputvar) names (== output ids) as list
+        """
+        Get available output (outputvar) names or objects.
 
-        :param id_only: if True only output ids are returned, else the whole
-            outputvar object
-        :type id_only: bool
-        :param to_dict: if True a dictionary is returned, else a list with the
-            config objects of the outputvar
-        :type to_dict: bool
+        Parameters
+        ----------
+        id_only : bool, default True
+            If True, only output IDs are returned. If False, the whole
+            outputvar objects are returned.
+        to_dict : bool, default False
+            If True, a dictionary is returned. If False, a list with the
+            config objects of the outputvar.
+
+        Returns
+        -------
+        list or dict
+            List of output IDs (if id_only=True and to_dict=False),
+            dict of output objects (if to_dict=True),
+            or list of outputvar objects (if id_only=False and to_dict=False).
         """
         if id_only:
             return [out.name for out in self.outputvar]
@@ -114,17 +149,27 @@ class LpjmlConfig(SubConfig):
                 return self.outputvar
 
     def get_output(self, id_only=True, to_dict=False, fmt=None):
-        """Get defined output ids as list
+        """
+        Get defined output IDs or objects.
 
-        :param id_only: if True only output ids are returned, else the whole
-            output object
-        :type id_only: bool
-        :param to_dict: if True a dictionary is returned, else a list with the
-            config objects of the output
-        :type to_dict: bool
-        :param fmt: if defined only outputs with defined file format are
-            returned
-        :type fmt: str
+        Parameters
+        ----------
+        id_only : bool, default True
+            If True, only output IDs are returned. If False, the whole
+            output objects are returned.
+        to_dict : bool, default False
+            If True, a dictionary is returned. If False, a list with the
+            config objects of the output.
+        fmt : str, optional
+            If specified, only outputs with the defined file format are
+            returned.
+
+        Returns
+        -------
+        list or dict
+            List of output IDs (if id_only=True and to_dict=False),
+            dict of output objects (if to_dict=True),
+            or list of output objects (if id_only=False and to_dict=False).
         """
         if fmt:
             if id_only:
@@ -147,18 +192,22 @@ class LpjmlConfig(SubConfig):
             return outs
 
     def set_spinup(self, sim_path, sim_name="spinup"):
-        """Set configuration required for spinup model runs
-        :param sim_path: define sim_path data is written to
-        :type sim_path: str
-        :param sim_name: name of simulation
-        :type sim_name: str
+        """
+        Set configuration required for spinup model runs.
+
+        Parameters
+        ----------
+        sim_path : str
+            Path where simulation data is written to.
+        sim_name : str, default "spinup"
+            Name of the simulation.
         """
         self.sim_name = sim_name
         self.sim_path = create_subdirs(sim_path, self.sim_name)
         output_path = f"{sim_path}/output/{self.sim_name}"
 
         # set output writing
-        self.set_outputpath(output_path)
+        self._set_outputpath(output_path)
         # set restart directory to restart from in subsequent historic run
         self._set_restart(path=f"{sim_path}/restart")
 
@@ -174,33 +223,33 @@ class LpjmlConfig(SubConfig):
         write_file_format="cdf",
         append_output=True,
     ):
-        """Set configuration required for historic model runs
-        :param sim_path: define sim_path data is written to
-        :type sim_path: str
-        :param start_year: start year of simulation
-        :type start_year: int
-        :param end_year: end year of simulation
-        :type end_year: int
-        :param sim_name: name of simulation
-        :type sim_name: str
-        :param dependency: sim_name of simulation to depend on
-        :type dependency: str
-        :param temporal_resolution: dict of temporal resolutions
-            corresponding to `outputs` or str to set the same resolution for
-            all `outputs`. Choose between "annual", "monthly", "daily".
-            Defaults to "annual" (use default output/outputvar resolution).
-        :type temporal_resolution: dict/str
-        :param write_output: output ids of `outputs` to be written by
-            LPJmL. Make sure to check if required output is available via
-            `get_output_avail`
-        :type write_output: list
-        :param write_file_format: file format of output files. Choose between
-            "raw", "clm" and "cdf". Defaults to "cdf".
-        :type write_file_format: str
-        :param append_output: if True defined output entries are appended by
-            defined `outputs`. Please mind that the existing ones are not
-            altered.
-        :param append_output: bool
+        """
+        Set configuration required for historic model runs.
+
+        Parameters
+        ----------
+        sim_path : str
+            Path where simulation data is written to.
+        start_year : int
+            Start year of simulation.
+        end_year : int
+            End year of simulation.
+        sim_name : str, default "transient"
+            Name of the simulation.
+        dependency : str, optional
+            Name of simulation to depend on (e.g., spinup run).
+        temporal_resolution : str or dict, default "annual"
+            Temporal resolution for outputs. Can be a dict of temporal resolutions
+            corresponding to outputs or a str to set the same resolution for
+            all outputs. Choose between "annual", "monthly", "daily".
+        write_output : list, default []
+            Output IDs to be written by LPJmL. Check available outputs with
+            get_output_avail().
+        write_file_format : str, default "cdf"
+            File format of output files. Choose between "raw", "clm", and "cdf".
+        append_output : bool, default True
+            If True, defined output entries are appended. If False, existing
+            outputs are overwritten.
         """
         self.sim_name = sim_name
         self.sim_path = create_subdirs(sim_path, self.sim_name)
@@ -238,44 +287,44 @@ class LpjmlConfig(SubConfig):
         append_output=True,
         model_name="copan:CORE",
     ):
-        """Set configuration required for coupled model runs
-        :param sim_path: define sim_path data is written to
-        :type sim_path: str
-        :param start_year: start year of simulation
-        :type start_year int
-        :param end_year: end year of simulation
-        :type end_year: int
-        :param coupled_input: list of inputs to be used as socket for coupling.
-            Provide dictionary/json key as identifier -> entry in list.
-        :type coupled_input: list
-        :param coupled_output: list of outputs to be used as socket for
-            coupling. Provide output id as identifier -> entry in list.
-        :type coupled_output: list
-        :param sim_name: name of simulation
-        :type sim_name: str
-        :param dependency: sim_name of simulation to depend on
-        :type dependency: str
-        :param coupled_year: start year of coupled simulation
-        :type coupled_year: int/None
-        :param temporal_resolution: dict of temporal resolutions
-            corresponding to `outputs` or str to set the same resolution for
-            all `outputs`. Choose between "annual", "monthly", "daily".
-            Defaults to "annual" (use default output/outputvar resolution).
-        :type temporal_resolution: dict/str
-        :param write_output: output ids of `outputs` to be written by
-            LPJmL. Make sure to check if required output is available via
-            `get_output_avail`
-        :type write_output: list
-        :param write_file_format: file format of output files. Choose between
-            "raw", "clm" and "cdf". Defaults to "cdf".
-        :type write_file_format: str
-        :param append_output: if True defined output entries are appended by
-            defined `outputs`. Please mind that the existing ones are not
-            altered.
-        :param append_output: bool
-        :param model_name: model name of the coupled program which also sets
-            the model to coupled mode (without coupling coupled_model = None)
-        :type model_name: str
+        """
+        Set configuration required for coupled model runs.
+
+        Parameters
+        ----------
+        sim_path : str
+            Path where simulation data is written to.
+        start_year : int
+            Start year of simulation.
+        end_year : int
+            End year of simulation.
+        coupled_input : list
+            List of inputs to be used as socket for coupling.
+            Provide dictionary/json key as identifier.
+        coupled_output : list
+            List of outputs to be used as socket for coupling.
+            Provide output ID as identifier.
+        sim_name : str, default "coupled"
+            Name of the simulation.
+        dependency : str, optional
+            Name of simulation to depend on (e.g., transient run).
+        coupled_year : int, optional
+            Start year of coupled simulation. If None, uses start_year.
+        temporal_resolution : str or dict, default "annual"
+            Temporal resolution for outputs. Can be a dict of temporal
+            resolutions corresponding to outputs or a str to set the same
+            resolution for all outputs. Choose between "annual", "monthly",
+            "daily".
+        write_output : list, default []
+            Output IDs to be written by LPJmL. Check available outputs with
+            get_output_avail().
+        write_file_format : str, default "cdf"
+            File format of output files. Choose between "raw", "clm", and "cdf".
+        append_output : bool, default True
+            If True, defined output entries are appended. If False, existing
+            outputs are overwritten.
+        model_name : str, default "copan:CORE"
+            Name of the coupled model.
         """
         self.sim_name = sim_name
         self.sim_path = create_subdirs(sim_path, self.sim_name)
@@ -317,27 +366,27 @@ class LpjmlConfig(SubConfig):
         temporal_resolution="annual",
         append_output=True,
     ):
-        """Set outputs to be written by LPJmL, define temporal resolution
-        :param output_path: define output_path the output is written to. If
-            `append_output == True` output_path is only altered for appended
-            `outputs`.
-        :type output_path: str
-        :param outputs: output ids of `outputs` to be written by LPJmL. Make
-            sure to check if required output is available via
-            `get_output_avail`
-        :type outputs: list
-        :param file_format: file format for `outputs` (not to be used for
-            sockets!). "raw" (binary), "clm" (binary with header) and "cdf"
-            (NetCDF) are availble. Defaults to "raw".
-        :type file_format: str
-        :param temporal_resolution: dict of temporal resolutions corresponding
-            to `outputs` or str to set the same resolution for all `outputs`.
-            Defaults to "annual" (for all `outputs`).
-        :type temporal_resolution: dict/str
-        :param append_output: if True defined output entries are appended by
-            defined `outputs`. Please mind that the existing ones are not
-            altered.
-        :param append_output: bool
+        """
+        Set outputs to be written by LPJmL and define temporal resolution.
+
+        Parameters
+        ----------
+        output_path : str
+            Path where output files are written to. If append_output=True,
+            output_path is only altered for appended outputs.
+        outputs : list, default []
+            Output IDs to be written by LPJmL. Check available outputs with
+            get_output_avail().
+        file_format : str, default "raw"
+            File format for outputs (not for sockets). Available formats:
+            "raw" (binary), "clm" (binary with header), "cdf" (NetCDF).
+        temporal_resolution : str or dict, default "annual"
+            Temporal resolution for outputs. Can be a dict of resolutions
+            corresponding to outputs or a str to set the same resolution
+            for all outputs. Choose from "annual", "monthly", "daily".
+        append_output : bool, default True
+            If True, defined output entries are appended. If False,
+            existing outputs are overwritten.
         """
         available_res = ("annual", "monthly", "daily")
         available_formats = {"raw": "bin", "clm": "clm", "cdf": "nc4"}
@@ -426,12 +475,8 @@ class LpjmlConfig(SubConfig):
                     f"The following output is not defined in outputvar: {out}"
                 )
 
-    def set_outputpath(self, output_path):
-        """Set output path of specified outputs
-        :param output_path: path for outputs to be written, could also b
-            relative path
-        :type output_path: str
-        """
+    def _set_outputpath(self, output_path):
+        """Set output path of specified outputs"""
         for out in self.output:
             file_name = out.file.name.split("/")
             file_name.reverse()
@@ -455,14 +500,7 @@ class LpjmlConfig(SubConfig):
     def _set_timerange(
         self, start_year=1901, end_year=2017, write_start_year=None
     ):  # noqa
-        """Set simulation time range, outputyear to start as a default here.
-        :param start_year: start year of simulation
-        :type start_year: int
-        :param end_year: end year of simulation
-        :type end_year: int
-        :param write_start_year: first year of output being written
-        :type write_start_year: int
-        """
+        """Set simulation time range, outputyear to start as a default here."""
         self.firstyear = start_year
         self.lastyear = end_year
         if write_start_year:
@@ -504,20 +542,7 @@ class LpjmlConfig(SubConfig):
     def _set_coupling(
         self, inputs, outputs, start_year=None, model_name="copan:CORE"
     ):  # noqa
-        """Coupled settings - no spinup, not write restart file and set sockets
-        for inputs and outputs (via corresponding ids)
-        :param inputs: list of inputs to be used as socket for coupling.
-            Provide dictionary/json key as identifier -> entry in list.
-        :type inputs: list
-        :param outputs: list of outputs to be used as socket for coupling.
-            Provide output id as identifier -> entry in list.
-        :type outputs: list
-        :param start_year: start year of model coupling
-        :type start_year: int
-        :param model_name: model name of the coupled program which also sets
-            the model to coupled mode (without coupling coupled_model = None)
-        :type model_name: str
-        """
+        """Coupled settings - no spinup, not write restart file and set sockets"""
         self.write_restart = False
         self.nspinup = 0
         self.float_grid = True
@@ -530,11 +555,7 @@ class LpjmlConfig(SubConfig):
             self.start_coupling = self.firstyear
 
     def _set_input_sockets(self, inputs=[]):
-        """Set sockets for inputs and outputs (via corresponding ids)
-        :param inputs: list of inputs to be used as socket for coupling.
-            Provide dictionary/json key as identifier -> entry in list.
-        :type inputs: list
-        """
+        """Set sockets for inputs and outputs (via corresponding ids)"""
         for inp in inputs:
             sock_input = getattr(self.input, inp)
             if "id" not in sock_input.__dict__.keys():
@@ -542,12 +563,7 @@ class LpjmlConfig(SubConfig):
             sock_input.__dict__["socket"] = True
 
     def _set_outputsockets(self, outputs=[]):
-        """Set sockets for inputs and outputs (via corresponding ids)
-
-        :param outputs: list of outputs to be used as socket for coupling.
-            Provide output id as identifier -> entry in list.
-        :type outputs: list
-        """
+        """Set sockets for inputs and outputs (via corresponding ids)"""
         if "grid" not in outputs:
             outputs.append("grid")
 
@@ -572,7 +588,14 @@ class LpjmlConfig(SubConfig):
                 self.output[pos].file.socket = True
 
     def get_input_sockets(self, id_only=False):
-        """get defined socket inputs as dict"""
+        """Get defined socket inputs as dict
+
+        Parameters
+        ----------
+        id_only : bool, default False
+            If True, only input IDs are returned. If False, all input
+            information is returned.
+        """
         inputs = self.input.to_dict()
         if id_only:
             return [
@@ -588,7 +611,14 @@ class LpjmlConfig(SubConfig):
             }
 
     def get_output_sockets(self, id_only=False):
-        """get defined socket outputs as dict"""
+        """Get defined socket outputs as dict
+
+        Parameters
+        ----------
+        id_only : bool, default False
+            If True, only output IDs are returned. If False, all output
+            information is returned.
+        """
         outputs = self.to_dict()["output"]
         name_id = {out.name: out.id for out in self.outputvar}
 
@@ -607,24 +637,36 @@ class LpjmlConfig(SubConfig):
 
     def add_config(self, file_name):
         """Add config file of coupled model to LPJmL config
-        :param file_name: path to coupled config file
-        :type file_name: str
+
+        Parameters
+        ----------
+        file_name : str
+            Path to coupled config file
         """
         self.coupled_config = read_yaml(file_name, CoupledConfig)
 
     def regrid(self, sim_path, model_path=None, country_code="BEL", overwrite=False):
-        """Regrid LPJmL configuration file to a new country.
-        :param sim_path: directory to check wether required subfolders exists. If
-            not create corresponding folder (input, output, restart)
-        :type sim_path: str
-        :param model_path: path to `LPJmL_internal` (lpjml repository)
-        :type model_path: str
-        :param country_code: country code of country to regrid to. Defaults to
-            'LUX'.
-        :type country_code: str
-        :param overwrite: overwrite existing country specific input files.
-            Defaults to False.
-        :type overwrite: bool
+        """
+        Regrid LPJmL configuration file to a new country.
+
+        Parameters
+        ----------
+        sim_path : str
+            Directory to check whether required subfolders exist. If not,
+            create corresponding folders (input, output, restart).
+        model_path : str, optional
+            Path to LPJmL_internal (lpjml repository). If None, uses
+            self.model_path.
+        country_code : str, default "BEL"
+            Country code of country to regrid to.
+        overwrite : bool, default False
+            Whether to overwrite existing country-specific input files.
+
+        Raises
+        ------
+        OSError
+            If sim_path or model_path do not exist, or if required grid files
+            are missing.
         """
 
         if not os.path.exists(sim_path):
@@ -960,22 +1002,29 @@ class LpjmlConfig(SubConfig):
 def parse_config(
     file_name="./lpjml_config.json", spin_up=False, macros=None, config_class=None
 ):
-    """Precompile lpjml_config.json and return LpjmlConfig object or dict. Also
-    evaluate macros. Analogous to R function `lpjmlKit::parse_config`.
-    :param path: path to lpjml root
-    :type path: str
-    :param js_filename: js file filename, defaults to lpjml_config.json
-    :type js_filename: str
-    :param spin_up: convenience argument to set macro whether to start
-        from restart file (`True`) or not (`False`). Defaults to `True`
-    :type spin_up: bool
-    :param macros: provide a macro in the form of "-DMACRO" or list of macros
-    :type macros: str, list
-    :param config_class: class of config object to be returned or None
-        (return dict)
-    :type config_class: class
-    :return: A LpjmlConfig object
-    :rtype: LpjmlConfig, dict
+    """
+    Precompile lpjml_config.json and return LpjmlConfig object or dict.
+
+    Evaluates macros using the C preprocessor, analogous to R function
+    lpjmlKit::parse_config.
+
+    Parameters
+    ----------
+    file_name : str, default "./lpjml_config.json"
+        Path to the LPJmL configuration file.
+    spin_up : bool, default False
+        Convenience argument to set macro whether to start from restart file
+        (True) or not (False).
+    macros : str or list, optional
+        Macro(s) to provide in the form of "-DMACRO" or list of macros.
+    config_class : class, optional
+        Class of config object to be returned. If None, returns dict.
+
+    Returns
+    -------
+    LpjmlConfig or dict
+        A LpjmlConfig object if config_class is provided, otherwise a
+        dictionary.
     """
     # precompile command
     cmd = ["cpp", "-P"]
@@ -1001,22 +1050,28 @@ def parse_config(
 def read_config(
     file_name, model_path=None, spin_up=False, macros=None, to_dict=False
 ):  # noqa
-    """Read function for config files to be returned as LpjmlConfig object or
-    alternatively dict.
-    :param file_name: file name (including relative/absolute path) of the
-        corresponding LPJmL configuration.
-    :type file_name: str
-    :param model_path: path to model root directory, defaults to None
-    :type model_path: str, optional
-    :param spin_up: convenience argument to set macro whether to start
-        from restart file (`True`) or not (`False`). Defaults to `True`
-    :type spin_up: bool, optional
-    :param to_dict: if `True` an LpjmlConfig object is returned,
-        else (`False`) a dictionary is returned
-    :type to_dict: bool
-    :return: if `to_dict == True` -> LpjmlConfig object, else a
-        a dictionary
-    :rtype: LpjmlConfig, dict
+    """
+    Read LPJmL configuration files and return as LpjmlConfig object or dict.
+
+    Parameters
+    ----------
+    file_name : str
+        File name (including relative/absolute path) of the LPJmL configuration.
+    model_path : str, optional
+        Path to model root directory. If provided, joined with file_name.
+    spin_up : bool, default False
+        Convenience argument to set macro whether to start from restart file
+        (True) or not (False).
+    macros : str or list, optional
+        Macro(s) to provide in the form of "-DMACRO" or list of macros.
+    to_dict : bool, default False
+        If True, a dictionary is returned. If False, an LpjmlConfig object is
+        returned.
+
+    Returns
+    -------
+    LpjmlConfig or dict
+        LpjmlConfig object (if to_dict=False) or dictionary (if to_dict=True).
     """
     if model_path is not None:
         file_name = os.path.join(model_path, file_name)
@@ -1095,19 +1150,33 @@ class CoupledConfig(SubConfig):
 
 
 def read_yaml(file_name, config_class):
+    """Read YAML file and return as LpjmlConfig object or dict.
+
+    Parameters
+    ----------
+    file_name : str
+        Path to YAML file.
+    config_class : class
+        Class of config object to be returned. If None, returns dict.
+
+    Returns
+    -------
+    LpjmlConfig or dict
+        LpjmlConfig object (if config_class is provided) or dictionary.
+    """
     with open(file_name, "r") as f:
         yaml = YAML(typ="safe", pure=True)
         yaml_data = yaml.load(f)
 
-    return from_yaml(yaml_data, config_class)
+    return _from_yaml(yaml_data, config_class)
 
 
-def from_yaml(yaml_data, config_class):
+def _from_yaml(yaml_data, config_class):
     if isinstance(yaml_data, dict):
         return config_class(
-            {k: from_yaml(v, config_class) for k, v in yaml_data.items()}
+            {k: _from_yaml(v, config_class) for k, v in yaml_data.items()}
         )
     elif isinstance(yaml_data, list):
-        return [from_yaml(v, config_class) for v in yaml_data]
+        return [_from_yaml(v, config_class) for v in yaml_data]
     else:
         return yaml_data

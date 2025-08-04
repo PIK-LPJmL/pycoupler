@@ -114,11 +114,7 @@ def test_lpjml_coupler_codes_iso(lpjml_coupler):
         pytest.param(
             2025,
             1998,
-            marks=pytest.mark.xfail(
-                raises=pytest.raises(
-                    ValueError, match="start_year cannot be later than end_year"
-                )
-            ),
+            marks=pytest.mark.xfail(raises=ValueError),
         ),
     ],
 )
