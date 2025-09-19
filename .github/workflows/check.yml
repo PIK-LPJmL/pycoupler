@@ -56,6 +56,23 @@ jobs:
         pip install dist/*.whl
         python -c "import pycoupler; print(f'pycoupler version: {pycoupler.__version__}')"
 
+    - name: Update CITATION.cff with current version
+      if: github.ref == 'refs/heads/main' || github.ref == 'refs/heads/master' || startsWith(github.ref, 'refs/tags/v')
+      run: |
+        # Update CITATION.cff with current version using our script
+        python3 scripts/update_citation.py
+        
+        # Commit and push changes if there are any
+        if ! git diff --quiet CITATION.cff; then
+          git config --local user.email "action@github.com"
+          git config --local user.name "GitHub Action"
+          git add CITATION.cff
+          git commit -m "Update CITATION.cff to current version [skip ci]"
+          git push
+        else
+          echo "No changes to CITATION.cff needed"
+        fi
+
     - name: Publish to PyPI
       if: github.ref == 'refs/heads/main' || github.ref == 'refs/heads/master' || startsWith(github.ref, 'refs/tags/v')
       env:
