@@ -75,7 +75,7 @@ max-line-length = 88
 
 [tool.hatch.version]
 source = "vcs"
-fallback_version = "1.5.0"
+fallback_version = "1.5.6"
 
 [tool.hatch.version.raw-options]
 local_scheme = "no-local-version"
@@ -85,4 +85,4 @@ allow-direct-references = true
 
 [tool.hatch.build.hooks.vcs]
 version-file = "pycoupler/_version.py"
-template = "__version__ = '{version}'\n"
+template = "__version__ = '{version}'"
