@@ -66,9 +66,8 @@ addopts = "--strict-markers"
 [tool.black]
 line-length = 88
 target-version = ['py37', 'py38', 'py39', 'py310']
+exclude = ["pycoupler/_version.py"]
 
-[tool.flake8]
-max-line-length = 88
 
 # [project.scripts]
 # pycoupler-cli = "pycoupler.cli:main"
