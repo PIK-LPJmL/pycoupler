@@ -1,10 +1,13 @@
 [build-system]
-requires = ["setuptools", "wheel"]
-build-backend = "setuptools.build_meta"
+requires = [
+    "hatchling>=1.8.0",
+    "hatch-vcs"
+]
+build-backend = "hatchling.build"
 
 [project]
 name = "pycoupler"
-version = "1.5.0"
+dynamic = ["version"]
 description = "dynamic model coupling of LPJmL"
 readme = "README.md"
 license = {file = "LICENSE.md"}
@@ -50,6 +53,7 @@ dev = [
 Homepage = "https://github.com/PIK-LPJmL/pycoupler"
 Issues = "https://github.com/PIK-LPJmL/pycoupler/issues"
 Documentation = "https://github.com/PIK-LPJmL/pycoupler/wiki"
+Repository = "https://github.com/PIK-LPJmL/pycoupler"
 
 [tool.aliases]
 test = "pytest"
@@ -66,5 +70,19 @@ target-version = ['py37', 'py38', 'py39', 'py310']
 [tool.flake8]
 max-line-length = 88
 
-[project.scripts]
-pycoupler-cli = "pycoupler.cli:main"
+# [project.scripts]
+# pycoupler-cli = "pycoupler.cli:main"
+
+[tool.hatch.version]
+source = "vcs"
+fallback_version = "1.5.0"
+
+[tool.hatch.version.raw-options]
+local_scheme = "no-local-version"
+
+[tool.hatch.metadata]
+allow-direct-references = true
+
+[tool.hatch.build.hooks.vcs]
+version-file = "pycoupler/_version.py"
+template = "__version__ = '{version}'"

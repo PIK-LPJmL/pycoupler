@@ -2,6 +2,7 @@
 
 [![DOI](https://zenodo.org/badge/631875667.svg)](https://zenodo.org/doi/10.5281/zenodo.11576705) 
 [![CI](https://github.com/PIK-LPJmL/pycoupler/actions/workflows/check.yml/badge.svg)](https://github.com/PIK-LPJmL/pycoupler/actions) [![codecov](https://codecov.io/gh/pik-lpjml/pycoupler/graph/badge.svg?token=A7ONVL4AR4)](https://codecov.io/gh/pik-lpjml/pycoupler)
+[![PyPI version](https://badge.fury.io/py/pycoupler.svg)](https://badge.fury.io/py/pycoupler)
 
 An LPJmL-Python interface for operating [LPJmL](https://github.com/PIK-LPJmL) in
 a Python environment and coupling it with Python models, programmes or simple
@@ -37,12 +38,11 @@ next year.
 
 ## Installation
 
-Use the package manager [pip](https://pip.pypa.io/en/stable/) to install pycoupler.
-
 ```bash
-pip install .
+pip install pycoupler
 ```
 
+### Prerequisites
 Please clone and compile [LPJmL](https://github.com/PIK-LPJmL/LPJmL) in advance.  
 Make sure to also have set the [working environment for LPJmL](https://github.com/PIK-LPJmL/LPJmL/blob/master/INSTALL) correctly if you are not working
 on the PIK HPC (with Slurm Workload Manager).  
