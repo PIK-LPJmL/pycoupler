@@ -85,4 +85,4 @@ allow-direct-references = true
 
 [tool.hatch.build.hooks.vcs]
 version-file = "pycoupler/_version.py"
-template = "__version__ = '{version}'"
+template = "__version__ = '{version}'\n"
