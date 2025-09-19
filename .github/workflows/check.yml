@@ -45,13 +45,18 @@ jobs:
       run: |
         flake8 .
 
-    - name: Debug version detection
+    - name: Build package
       run: |
-        echo "Git describe: $(git describe --tags --abbrev=0)"
-        echo "Git describe full: $(git describe --tags)"
-        echo "Current commit: $(git rev-parse HEAD)"
-        echo "Latest tag: $(git tag --sort=-version:refname | head -1)"
-        echo "Is on tag: $(git describe --exact-match HEAD 2>/dev/null || echo 'No exact match')"
+        python -m build
+
+    - name: Check package
+      run: |
+        twine check dist/*
+
+    - name: Test package installation
+      run: |
+        pip install dist/*.whl
+        python -c "import pycoupler; print(f'pycoupler version: {pycoupler.__version__}')"
 
     - name: Update CITATION.cff with current version
       if: github.ref == 'refs/heads/main' || github.ref == 'refs/heads/master' || startsWith(github.ref, 'refs/tags/v')
@@ -69,19 +74,6 @@ jobs:
         else
           echo "No changes to CITATION.cff needed"
         fi
-
-    - name: Build package
-      run: |
-        python -m build
-
-    - name: Check package
-      run: |
-        twine check dist/*
-
-    - name: Test package installation
-      run: |
-        pip install dist/*.whl
-        python -c "import pycoupler; print(f'pycoupler version: {pycoupler.__version__}')"
 
     - name: Publish to PyPI
       if: github.ref == 'refs/heads/main' || github.ref == 'refs/heads/master' || startsWith(github.ref, 'refs/tags/v')
