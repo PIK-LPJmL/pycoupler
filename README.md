@@ -54,4 +54,6 @@ See [scripts](./scripts/) for examples on how to use the package.
 In case of questions please contact Jannes Breier jannesbr@pik-potsdam.de or [open an issue](https://github.com/PIK-LPJmL/pycoupler/issues/new).
 
 ## Contributing
-Merge requests are welcome, see [CONTRIBUTING.md](CONTRIBUTING.md). For major changes, please open an issue first to discuss what you would like to change.
+Merge requests are welcome, see [CONTRIBUTING.md](CONTRIBUTING.md).
+For major changes, please open an issue first to discuss what you would like to
+change.
