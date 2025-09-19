@@ -1,6 +1,6 @@
 #!/usr/bin/env python3
 """
-Update CITATION.cff with current package version and release date.
+Update CITATION.cff file with current package version and release date.
 """
 
 import sys
