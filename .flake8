@@ -1,4 +1,4 @@
 [flake8]
 max-line-length = 88
 extend-exclude = pycoupler/_version.py
-ignore = F841,F541,W503
+ignore = F841,F541,W503,E226
