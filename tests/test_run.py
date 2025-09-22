@@ -1,6 +1,7 @@
 from pycoupler.run import submit_lpjml
 import pytest
 from subprocess import CalledProcessError
+import pytest_subprocess  # noqa: F401
 
 
 class TestLpjSubmit:

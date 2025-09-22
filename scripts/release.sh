@@ -25,21 +25,7 @@ echo "Creating local release for version: $VERSION"
 CURRENT_BRANCH=$(git branch --show-current)
 echo "Current branch: $CURRENT_BRANCH"
 
-# 1. Update CITATION.cff with the specified version
-echo "Updating CITATION.cff..."
-python3 scripts/update_citation.py "$VERSION"
-
-# Check if CITATION.cff was updated
-if ! git diff --quiet CITATION.cff; then
-    echo "CITATION.cff updated, committing changes..."
-    git add CITATION.cff
-    git commit -m "Update CITATION.cff to version $VERSION"
-    echo "CITATION.cff changes committed successfully."
-else
-    echo "No changes to CITATION.cff needed."
-fi
-
-# 2. Format code with black
+# 1. Format code with black
 echo "Formatting code with black..."
 python3 -m black ./
 if [ $? -ne 0 ]; then
@@ -66,11 +52,26 @@ if [ $? -ne 0 ]; then
 fi
 echo "Linting passed successfully."
 
-# 5. Create the tag
+# 5. Update CITATION.cff and commit changes (only after all checks pass)
+echo "Updating CITATION.cff..."
+python3 scripts/update_citation.py "$VERSION"
+
+if ! git diff --quiet CITATION.cff; then
+    echo "CITATION.cff updated, committing changes..."
+    git add CITATION.cff
+    git commit -m "Release version $VERSION
+
+- Update CITATION.cff to version $VERSION"
+    echo "CITATION.cff changes committed successfully."
+else
+    echo "No changes to CITATION.cff needed."
+fi
+
+# 6. Create the tag
 echo "Creating tag v$VERSION..."
 git tag "v$VERSION"
 
-# 6. Show what was done
+# 7. Show what was done
 echo ""
 echo "Local release completed for version $VERSION!"
 echo ""
