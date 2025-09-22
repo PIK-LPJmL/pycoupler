@@ -47,8 +47,6 @@ Please clone and compile [LPJmL](https://github.com/PIK-LPJmL/LPJmL) in advance.
 Make sure to also have set the [working environment for LPJmL](https://github.com/PIK-LPJmL/LPJmL/blob/master/INSTALL) correctly if you are not working
 on the PIK HPC (with Slurm Workload Manager).  
 
-See [scripts](./scripts/) for examples on how to use the package.
-
 ## Questions / Problems
 
 In case of questions please contact Jannes Breier jannesbr@pik-potsdam.de or [open an issue](https://github.com/PIK-LPJmL/pycoupler/issues/new).
