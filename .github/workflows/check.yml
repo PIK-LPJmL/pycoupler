@@ -60,7 +60,7 @@ jobs:
         python -c "import pycoupler; print(f'pycoupler version: {pycoupler.__version__}')"
 
     - name: Update CITATION.cff with current version
-      if: github.ref == 'refs/heads/main' || github.ref == 'refs/heads/master' || startsWith(github.ref, 'refs/tags/v')
+      if: startsWith(github.ref, 'refs/tags/v')
       run: |
         # Update CITATION.cff with current version using our script
         python3 scripts/update_citation.py
@@ -80,19 +80,19 @@ jobs:
           echo "No changes to CITATION.cff needed"
         fi
 
-    - name: Publish to PyPI
-      if: startsWith(github.ref, 'refs/tags/v')
-      env:
-        TWINE_USERNAME: __token__
-        TWINE_PASSWORD: ${{ secrets.PYPI_API_TOKEN }}
-      run: twine upload dist/*
-
     - name: Extract version
       if: startsWith(github.ref, 'refs/tags/v')
       id: get_version
       run: |
         VERSION=${GITHUB_REF#refs/tags/v}
         echo "version=$VERSION" >> $GITHUB_OUTPUT
+
+    - name: Publish to PyPI
+      if: startsWith(github.ref, 'refs/tags/v')
+      env:
+        TWINE_USERNAME: __token__
+        TWINE_PASSWORD: ${{ secrets.PYPI_API_TOKEN }}
+      run: twine upload dist/*
 
     - name: Create Release
       if: startsWith(github.ref, 'refs/tags/v')
