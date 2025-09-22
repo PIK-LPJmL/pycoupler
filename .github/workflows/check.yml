@@ -65,17 +65,22 @@ jobs:
         # Update CITATION.cff with current version using our script
         python3 scripts/update_citation.py
         
-        # Commit and push changes if there are any
+        # Check if there are changes to commit
         if ! git diff --quiet CITATION.cff; then
+          echo "CITATION.cff updated, committing changes..."
+          
+          # Configure git
           git config --local user.email "action@github.com"
           git config --local user.name "GitHub Action"
+          
+          # Add and commit the changes
           git add CITATION.cff
           git commit -m "Update CITATION.cff to current version [skip ci]"
-          # Handle detached HEAD state by pushing to the tag
-          TAG_NAME=$(git describe --tags --exact-match HEAD 2>/dev/null || echo "v1.5.11")
-          # Create the tag locally if it doesn't exist
-          git tag $TAG_NAME 2>/dev/null || true
-          git push origin $TAG_NAME
+          
+          # Push changes to main branch
+          git push origin HEAD:main
+          
+          echo "CITATION.cff changes pushed to main branch"
         else
           echo "No changes to CITATION.cff needed"
         fi
