@@ -35,7 +35,7 @@ To create a new release with automatic CITATION.cff updates, use the release scr
 pip install -e .[dev]
 
 # Create a local release (updates CITATION.cff, commits, tags)
-./scripts/release.sh 1.5.25
+python -m pycoupler.release 1.5.25
 
 # Push to repository (triggers CI pipeline)
 # The script will show the correct branch name to push
