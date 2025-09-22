@@ -64,6 +64,9 @@ jobs:
     - name: Update CITATION.cff with current version
       if: startsWith(github.ref, 'refs/tags/v')
       run: |
+        # Reset any uncommitted changes to avoid including workflow files
+        git reset --hard HEAD
+        
         # Update CITATION.cff with current version using our script
         python3 scripts/update_citation.py
         
@@ -75,11 +78,16 @@ jobs:
           git config --local user.email "action@github.com"
           git config --local user.name "GitHub Action"
           
-          # Add and commit only CITATION.cff changes
+          # Stage only CITATION.cff and commit
           git add CITATION.cff
+          
+          # Debug: show what's staged
+          echo "Files staged for commit:"
+          git diff --cached --name-only
+          
           git commit -m "Update CITATION.cff to current version [skip ci]"
           
-          # Push changes to main branch
+          # Push only the CITATION.cff commit to main
           git push origin HEAD:main
           
           echo "CITATION.cff changes pushed to main branch"
