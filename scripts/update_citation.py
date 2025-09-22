@@ -126,16 +126,20 @@ def main():
 
     if updated:
         print("CITATION.cff has been updated!")
-        
+
         # Commit the changes
         import subprocess
+
         try:
             subprocess.run(["git", "add", "CITATION.cff"], check=True)
-            subprocess.run(["git", "commit", "-m", f"Update CITATION.cff to version {version}"], check=True)
+            subprocess.run(
+                ["git", "commit", "-m", f"Update CITATION.cff to version {version}"],
+                check=True,
+            )
             print("CITATION.cff changes committed successfully")
         except subprocess.CalledProcessError as e:
             print(f"Warning: Failed to commit CITATION.cff changes: {e}")
-        
+
         sys.exit(0)
     else:
         print("No changes were made.")
