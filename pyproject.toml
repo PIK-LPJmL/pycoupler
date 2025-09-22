@@ -85,3 +85,6 @@ allow-direct-references = true
 [tool.hatch.build.hooks.vcs]
 version-file = "pycoupler/_version.py"
 template = "__version__ = '{version}'"
+
+[tool.hatch.release.hooks.pre]
+"update-citation" = "scripts/update_citation.py"

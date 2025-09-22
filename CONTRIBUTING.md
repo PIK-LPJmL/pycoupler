@@ -26,6 +26,28 @@ documentation.
 
 Now you're ready to start making contributions!
 
+## Creating Releases
+
+To create a new release with automatic CITATION.cff updates, use hatch's built-in release command:
+
+```bash
+# Create a new release (updates CITATION.cff automatically)
+hatch release 1.5.25
+```
+
+Hatch will automatically:
+- Update CITATION.cff to the specified version
+- Commit the changes
+- Create the tag and release
+- Push everything to the repository
+
+**Note:** If hatch doesn't push automatically, you may need to run:
+```bash
+git push origin main --tags
+```
+
+This ensures that CITATION.cff always reflects the exact version of the release.
+
 ## Contributing
 
 To contribute to *pycoupler*, please follow these steps:
