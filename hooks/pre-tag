@@ -11,11 +11,11 @@ if [ -n "$TAG_NAME" ]; then
     echo "Using tag version: $VERSION"
     
     # Update CITATION.cff with the specific version
-    python3 scripts/update_citation.py "$VERSION"
+    python3 -c "from pycoupler.release import update_citation_file; update_citation_file('$VERSION')"
 else
     echo "No tag name provided, using current version detection"
     # Fallback to current version detection
-    python3 scripts/update_citation.py
+    python3 -c "from pycoupler.release import update_citation_file; import pycoupler; update_citation_file(pycoupler.__version__)"
 fi
 
 # Check if CITATION.cff was updated
