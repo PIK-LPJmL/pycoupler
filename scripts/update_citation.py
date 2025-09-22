@@ -30,6 +30,7 @@ def get_package_version():
     # Second try: import the package and get version
     try:
         import pycoupler
+
         return pycoupler.__version__
     except ImportError:
         pass
