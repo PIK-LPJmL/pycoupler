@@ -28,23 +28,25 @@ Now you're ready to start making contributions!
 
 ## Creating Releases
 
-To create a new release with automatic CITATION.cff updates, use hatch's built-in release command:
+To create a new release with automatic CITATION.cff updates, use the release script:
 
 ```bash
-# Create a new release (updates CITATION.cff automatically)
-hatch release 1.5.25
-```
+# Create a local release (updates CITATION.cff, commits, tags)
+./scripts/release.sh 1.5.25
 
-Hatch will automatically:
-- Update CITATION.cff to the specified version
-- Commit the changes
-- Create the tag and release
-- Push everything to the repository
-
-**Note:** If hatch doesn't push automatically, you may need to run:
-```bash
+# Push to repository (triggers CI pipeline)
 git push origin main --tags
 ```
+
+The release script will:
+- Update CITATION.cff to the specified version
+- Commit the changes
+- Create the git tag
+
+The CI pipeline will then automatically:
+- Build the package
+- Upload to PyPI
+- Create GitHub release
 
 This ensures that CITATION.cff always reflects the exact version of the release.
 
