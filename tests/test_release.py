@@ -264,10 +264,12 @@ class TestMain:
     @patch("pycoupler.release.update_citation_file")
     @patch("pycoupler.release.get_package_name")
     @patch("pycoupler.release.get_current_branch")
+    @patch("pycoupler.release.get_current_version")
     @patch("subprocess.run")
     def test_main_success(
         self,
         mock_subprocess,
+        mock_current_version,
         mock_branch,
         mock_package,
         mock_update_citation,
@@ -277,6 +279,7 @@ class TestMain:
         # Setup mocks
         mock_package.return_value = "test-package"
         mock_branch.return_value = "main"
+        mock_current_version.return_value = "0.9.0"  # Valid previous version
         mock_update_citation.return_value = True
         mock_run_command.return_value = True
         mock_subprocess.return_value = MagicMock(returncode=0)
@@ -347,6 +350,227 @@ class TestMain:
             assert exc_info.value.code == 1
 
 
+class TestVersionValidation:
+    """Test version validation functionality."""
+
+    def test_parse_version_valid(self):
+        """Test parsing valid version strings."""
+        from pycoupler.release import parse_version
+
+        assert parse_version("1.0.0") == (1, 0, 0)
+        assert parse_version("2.5.10") == (2, 5, 10)
+        assert parse_version("0.1.0") == (0, 1, 0)
+
+    def test_parse_version_invalid(self):
+        """Test parsing invalid version strings."""
+        from pycoupler.release import parse_version
+
+        assert parse_version("1.0") is None
+        assert parse_version("1.0.0.0") is None
+        assert parse_version("v1.0.0") is None
+        assert parse_version("1.0.0-beta") is None
+        assert parse_version("invalid") is None
+
+    def test_is_valid_version_increment_no_current(self):
+        """Test version validation when no current version exists."""
+        from pycoupler.release import is_valid_version_increment
+
+        # Any valid semantic version should be allowed
+        assert is_valid_version_increment(None, "1.0.0") is True
+        assert is_valid_version_increment(None, "0.1.0") is True
+        assert is_valid_version_increment(None, "2.5.10") is True
+
+        # Invalid versions should be rejected
+        assert is_valid_version_increment(None, "1.0") is False
+        assert is_valid_version_increment(None, "v1.0.0") is False
+
+    def test_is_valid_version_increment_same_version(self):
+        """Test that same version is allowed (re-release)."""
+        from pycoupler.release import is_valid_version_increment
+
+        assert is_valid_version_increment("1.0.0", "1.0.0") is True
+        assert is_valid_version_increment("2.5.10", "2.5.10") is True
+
+    def test_is_valid_version_increment_patch(self):
+        """Test valid patch version increments."""
+        from pycoupler.release import is_valid_version_increment
+
+        # Valid patch increments
+        assert is_valid_version_increment("1.0.0", "1.0.1") is True
+        assert is_valid_version_increment("2.5.10", "2.5.11") is True
+
+        # Invalid patch increments
+        assert is_valid_version_increment("1.0.0", "1.0.2") is False  # Skip
+        assert is_valid_version_increment("1.0.0", "1.0.0") is True  # Same (re-release)
+
+    def test_is_valid_version_increment_minor(self):
+        """Test valid minor version increments."""
+        from pycoupler.release import is_valid_version_increment
+
+        # Valid minor increments
+        assert is_valid_version_increment("1.0.0", "1.1.0") is True
+        assert is_valid_version_increment("2.5.10", "2.6.0") is True
+
+        # Invalid minor increments
+        assert is_valid_version_increment("1.0.0", "1.2.0") is False  # Skip
+        assert is_valid_version_increment("1.0.0", "1.1.1") is False  # Should be patch
+
+    def test_is_valid_version_increment_major(self):
+        """Test valid major version increments."""
+        from pycoupler.release import is_valid_version_increment
+
+        # Valid major increments
+        assert is_valid_version_increment("1.0.0", "2.0.0") is True
+        assert is_valid_version_increment("2.5.10", "3.0.0") is True
+
+        # Invalid major increments
+        assert is_valid_version_increment("1.0.0", "3.0.0") is False  # Skip
+        assert is_valid_version_increment("1.0.0", "2.1.0") is False  # Should be minor
+
+    def test_is_valid_version_increment_backwards(self):
+        """Test that backwards version increments are invalid."""
+        from pycoupler.release import is_valid_version_increment
+
+        # Backwards increments should be invalid
+        assert is_valid_version_increment("2.0.0", "1.0.0") is False
+        assert is_valid_version_increment("1.1.0", "1.0.0") is False
+        assert is_valid_version_increment("1.0.1", "1.0.0") is False
+
+    def test_get_current_version(self):
+        """Test getting current version from Git tags."""
+        from pycoupler.release import get_current_version
+        from unittest.mock import patch
+
+        # Test with valid tag
+        with patch("subprocess.run") as mock_run:
+            mock_run.return_value = MagicMock(
+                stdout="v1.5.0\n", returncode=0
+            )
+            assert get_current_version() == "1.5.0"
+
+        # Test with tag without 'v' prefix
+        with patch("subprocess.run") as mock_run:
+            mock_run.return_value = MagicMock(
+                stdout="1.5.0\n", returncode=0
+            )
+            assert get_current_version() == "1.5.0"
+
+        # Test with no tags
+        with patch("subprocess.run") as mock_run:
+            mock_run.side_effect = subprocess.CalledProcessError(1, "git")
+            assert get_current_version() is None
+
+
+class TestReReleaseConfirmation:
+    """Test re-release confirmation functionality."""
+
+    @patch("pycoupler.release.run_command")
+    @patch("pycoupler.release.update_citation_file")
+    @patch("pycoupler.release.get_package_name")
+    @patch("pycoupler.release.get_current_branch")
+    @patch("pycoupler.release.get_current_version")
+    @patch("subprocess.run")
+    def test_release_confirmation_yes(self, mock_subprocess, mock_current_version, 
+                                    mock_branch, mock_package, mock_update_citation, 
+                                    mock_run_command):
+        """Test re-release confirmation with 'yes' response."""
+        # Setup mocks
+        mock_package.return_value = "test-package"
+        mock_branch.return_value = "main"
+        mock_current_version.return_value = "1.0.0"  # Same as requested version
+        mock_update_citation.return_value = True
+        mock_run_command.return_value = True
+        mock_subprocess.return_value = MagicMock(returncode=0)
+
+        # Mock sys.argv and input
+        with patch.object(sys, "argv", ["release.py", "1.0.0"]):
+            with patch("builtins.print"):
+                with patch("builtins.input", return_value="y"):
+                    main()
+
+        # Verify that the release process continued
+        assert mock_run_command.call_count >= 3  # black, pytest, flake8
+
+    @patch("pycoupler.release.run_command")
+    @patch("pycoupler.release.update_citation_file")
+    @patch("pycoupler.release.get_package_name")
+    @patch("pycoupler.release.get_current_branch")
+    @patch("pycoupler.release.get_current_version")
+    @patch("subprocess.run")
+    def test_release_confirmation_no(self, mock_subprocess, mock_current_version, 
+                                   mock_branch, mock_package, mock_update_citation, 
+                                   mock_run_command):
+        """Test re-release confirmation with 'no' response."""
+        # Setup mocks
+        mock_package.return_value = "test-package"
+        mock_branch.return_value = "main"
+        mock_current_version.return_value = "1.0.0"  # Same as requested version
+        mock_update_citation.return_value = True
+        mock_run_command.return_value = True
+        mock_subprocess.return_value = MagicMock(returncode=0)
+
+        # Mock sys.argv and input
+        with patch.object(sys, "argv", ["release.py", "1.0.0"]):
+            with patch("builtins.print"):
+                with patch("builtins.input", return_value="n"):
+                    with pytest.raises(SystemExit) as exc_info:
+                        main()
+                    assert exc_info.value.code == 0  # Should exit with 0 (cancelled)
+
+    @patch("pycoupler.release.run_command")
+    @patch("pycoupler.release.update_citation_file")
+    @patch("pycoupler.release.get_package_name")
+    @patch("pycoupler.release.get_current_branch")
+    @patch("pycoupler.release.get_current_version")
+    @patch("subprocess.run")
+    def test_release_confirmation_invalid_then_valid(self, mock_subprocess, mock_current_version, 
+                                                    mock_branch, mock_package, mock_update_citation, 
+                                                    mock_run_command):
+        """Test re-release confirmation with invalid then valid response."""
+        # Setup mocks
+        mock_package.return_value = "test-package"
+        mock_branch.return_value = "main"
+        mock_current_version.return_value = "1.0.0"  # Same as requested version
+        mock_update_citation.return_value = True
+        mock_run_command.return_value = True
+        mock_subprocess.return_value = MagicMock(returncode=0)
+
+        # Mock sys.argv and input (invalid then valid)
+        with patch.object(sys, "argv", ["release.py", "1.0.0"]):
+            with patch("builtins.print"):
+                with patch("builtins.input", side_effect=["maybe", "y"]):
+                    main()
+
+        # Verify that the release process continued
+        assert mock_run_command.call_count >= 3  # black, pytest, flake8
+
+    @patch("pycoupler.release.run_command")
+    @patch("pycoupler.release.update_citation_file")
+    @patch("pycoupler.release.get_package_name")
+    @patch("pycoupler.release.get_current_branch")
+    @patch("pycoupler.release.get_current_version")
+    @patch("subprocess.run")
+    def test_no_confirmation_for_new_version(self, mock_subprocess, mock_current_version, 
+                                            mock_branch, mock_package, mock_update_citation, 
+                                            mock_run_command):
+        """Test that no confirmation is needed for new versions."""
+        # Setup mocks
+        mock_package.return_value = "test-package"
+        mock_branch.return_value = "main"
+        mock_current_version.return_value = "1.0.0"  # Different from requested version
+        mock_update_citation.return_value = True
+        mock_run_command.return_value = True
+        mock_subprocess.return_value = MagicMock(returncode=0)
+
+        # Mock sys.argv (no input needed)
+        with patch.object(sys, "argv", ["release.py", "1.0.1"]):
+            with patch("builtins.print"):
+                main()
+
+        # Verify that the release process continued without asking for confirmation
+        assert mock_run_command.call_count >= 3  # black, pytest, flake8
+
+
 class TestIntegration:
     """Integration tests for the release module."""
 
@@ -382,10 +606,13 @@ version = "1.0.0"
                 # Mock all external dependencies
                 with patch("pycoupler.release.run_command") as mock_run_command, patch(
                     "subprocess.run"
-                ) as mock_subprocess:
+                ) as mock_subprocess, patch(
+                    "pycoupler.release.get_current_version"
+                ) as mock_current_version:
 
                     mock_run_command.return_value = True
                     mock_subprocess.return_value = MagicMock(returncode=0)
+                    mock_current_version.return_value = "1.0.0"  # Valid previous version
 
                     # Test the main function
                     with patch.object(sys, "argv", ["release.py", "2.0.0"]):

@@ -20,6 +20,7 @@ The script will:
 
 import sys
 import subprocess
+import re
 from pathlib import Path
 
 
@@ -57,6 +58,74 @@ def get_current_branch():
         return "main"  # fallback
 
 
+def get_current_version():
+    """Get the current version from the latest Git tag."""
+    try:
+        # Get the latest tag
+        result = subprocess.run(
+            ["git", "describe", "--tags", "--abbrev=0"],
+            capture_output=True,
+            text=True,
+            check=True,
+        )
+        tag = result.stdout.strip()
+        # Remove 'v' prefix if present
+        version = tag.lstrip("v")
+        return version
+    except subprocess.CalledProcessError:
+        # No tags exist, return None
+        return None
+
+
+def parse_version(version_string):
+    """Parse a version string into major, minor, patch components."""
+    # Match semantic versioning pattern (major.minor.patch)
+    match = re.match(r"^(\d+)\.(\d+)\.(\d+)$", version_string)
+    if not match:
+        return None
+    return tuple(int(x) for x in match.groups())
+
+
+def is_valid_version_increment(current_version, new_version):
+    """Check if the new version is a valid increment from the current version."""
+    if current_version is None:
+        # No current version, any valid semantic version is allowed
+        return parse_version(new_version) is not None
+
+    current_parts = parse_version(current_version)
+    new_parts = parse_version(new_version)
+
+    if current_parts is None or new_parts is None:
+        return False
+
+    # Check if it's the same version (allowed for re-releasing)
+    if current_parts == new_parts:
+        return True
+
+    # Check if it's a valid increment
+    # Valid increments: patch (0.0.1), minor (0.1.0), or major (1.0.0)
+    if new_parts[0] > current_parts[0]:
+        # Major version increment - must be exactly +1
+        return (
+            new_parts[0] == current_parts[0] + 1
+            and new_parts[1] == 0
+            and new_parts[2] == 0
+        )
+    elif new_parts[0] == current_parts[0]:
+        if new_parts[1] > current_parts[1]:
+            # Minor version increment - must be exactly +1
+            return new_parts[1] == current_parts[1] + 1 and new_parts[2] == 0
+        elif new_parts[1] == current_parts[1]:
+            # Patch version increment - must be exactly +1
+            return new_parts[2] == current_parts[2] + 1
+        else:
+            # Minor version went backwards
+            return False
+    else:
+        # Major version went backwards
+        return False
+
+
 def run_command(cmd, description, fail_on_error=True):
     """Run a command and handle errors."""
     print(f"{description}...")
@@ -71,6 +140,50 @@ def run_command(cmd, description, fail_on_error=True):
         else:
             print(f"Warning: {description} failed: {e}")
             return False
+
+
+def delete_tag_if_exists(tag_name):
+    """Delete a tag locally and remotely if it exists."""
+    print(f"Checking if tag {tag_name} already exists...")
+
+    # Check if tag exists locally (fast)
+    try:
+        result = subprocess.run(
+            ["git", "tag", "-l", tag_name],
+            check=True,
+            capture_output=True,
+            text=True,
+            timeout=5,
+        )
+        if tag_name in result.stdout:
+            print(f"Tag {tag_name} exists locally, deleting...")
+            run_command(f"git tag -d {tag_name}", f"Deleting local tag {tag_name}")
+        else:
+            print(f"Tag {tag_name} does not exist locally")
+    except (subprocess.CalledProcessError, subprocess.TimeoutExpired):
+        print(f"Tag {tag_name} does not exist locally")
+
+    # Check if tag exists remotely (with timeout)
+    try:
+        result = subprocess.run(
+            ["git", "ls-remote", "--tags", "origin", tag_name],
+            check=True,
+            capture_output=True,
+            text=True,
+            timeout=10,
+        )
+        if tag_name in result.stdout:
+            print(f"Tag {tag_name} exists remotely, deleting...")
+            run_command(
+                f"git push origin :refs/tags/{tag_name}",
+                f"Deleting remote tag {tag_name}",
+            )
+        else:
+            print(f"Tag {tag_name} does not exist remotely")
+    except (subprocess.CalledProcessError, subprocess.TimeoutExpired):
+        print(f"Tag {tag_name} does not exist remotely (or network timeout)")
+
+    print(f"Tag {tag_name} cleanup completed.")
 
 
 def update_citation_file(version, date=None):
@@ -125,6 +238,7 @@ def main():
         print("  - Run linting with flake8")
         print("  - Update CITATION.cff (if needed)")
         print("  - Commit changes")
+        print("  - Delete existing tag (if it exists)")
         print("  - Create Git tag")
         print("")
         print("Prerequisites: Install dev dependencies first:")
@@ -135,14 +249,74 @@ def main():
     package_name = get_package_name()
     current_branch = get_current_branch()
 
+    # Validate version format and increment
+    current_version = get_current_version()
+    if not is_valid_version_increment(current_version, version):
+        print(f"Error: Invalid version increment!")
+        if current_version:
+            print(f"Current version: {current_version}")
+            print(f"Requested version: {version}")
+            print("")
+            print("Valid version increments:")
+            current_parts = parse_version(current_version)
+            if current_parts:
+                major, minor, patch = current_parts
+                print(f"  - Same version (re-release): {version}")
+                print(f"  - Patch increment: {major}.{minor}.{patch + 1}")
+                print(f"  - Minor increment: {major}.{minor + 1}.0")
+                print(f"  - Major increment: {major + 1}.0.0")
+        else:
+            print(
+                "No current version found. Any valid semantic version (X.Y.Z) is allowed."
+            )
+        print("")
+        print("Examples of valid semantic versioning:")
+        print("  - 1.0.0 -> 1.0.1 (patch)")
+        print("  - 1.0.0 -> 1.1.0 (minor)")
+        print("  - 1.0.0 -> 2.0.0 (major)")
+        print("  - 1.0.0 -> 1.0.0 (re-release)")
+        sys.exit(1)
+    
+    # Check if this is a re-release and ask for confirmation
+    if current_version and parse_version(current_version) == parse_version(version):
+        print(f"⚠️  WARNING: You are attempting to re-release version {version}")
+        print(f"This will delete the existing tag and create a new one with recent changes.")
+        print("")
+        while True:
+            response = input("Are you certain you want to re-release this version? [y/N]: ").strip().lower()
+            if response in ['y', 'yes']:
+                print("✅ Re-release confirmed. Proceeding...")
+                break
+            elif response in ['n', 'no', '']:
+                print("❌ Re-release cancelled.")
+                sys.exit(0)
+            else:
+                print("Please answer 'y' for yes or 'n' for no.")
+
     print(f"Creating local release for {package_name} version: {version}")
+    if current_version:
+        print(f"Current version: {current_version}")
+    else:
+        print("No previous version found (first release)")
     print(f"Current branch: {current_branch}")
 
     # 1. Format code with black
     run_command("python3 -m black ./", "Formatting code with black")
 
-    # 2. Run tests with pytest
-    run_command("python3 -m pytest", "Running tests with pytest")
+    # 2. Run tests with pytest (if tests exist)
+    try:
+        result = subprocess.run(
+            ["python3", "-m", "pytest", "--collect-only", "-q"],
+            capture_output=True,
+            text=True,
+            check=True,
+        )
+        if "collected 0 items" in result.stdout:
+            print("No tests found, skipping pytest...")
+        else:
+            run_command("python3 -m pytest", "Running tests with pytest")
+    except subprocess.CalledProcessError:
+        print("No tests found, skipping pytest...")
 
     # 3. Run linting with flake8
     run_command("python3 -m flake8", "Running linting with flake8")
@@ -176,11 +350,15 @@ def main():
     else:
         print("No changes to CITATION.cff needed.")
 
-    # 5. Create the tag
-    print(f"Creating tag v{version}...")
-    run_command(f'git tag "v{version}"', "Creating Git tag")
+    # 5. Delete existing tag if it exists (both locally and remotely)
+    tag_name = f"v{version}"
+    delete_tag_if_exists(tag_name)
 
-    # 6. Show what was done
+    # 6. Create the tag
+    print(f"Creating tag {tag_name}...")
+    run_command(f'git tag "{tag_name}"', "Creating Git tag")
+
+    # 7. Show what was done
     print("")
     print(f"Local release completed for {package_name} version {version}!")
     print("")
