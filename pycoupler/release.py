@@ -259,15 +259,21 @@ def main():
         sys.exit(1)
 
     # Check if this is a re-release and ask for confirmation
-    if current_version and parse_version(current_version) == parse_version(version):  # noqa: E501
-        print(f"⚠️  WARNING: You are attempting to re-release version {version}")  # noqa: E501
+    if current_version and parse_version(current_version) == parse_version(
+        version
+    ):  # noqa: E501
+        print(
+            f"⚠️  WARNING: You are attempting to re-release version {version}"
+        )  # noqa: E501
         print(
             f"This will delete the existing tag and create a new one with recent changes."  # noqa: E501
         )
         print("")
         while True:
             response = (
-                input("Are you certain you want to re-release this version? [y/N]: ")  # noqa: E501
+                input(
+                    "Are you certain you want to re-release this version? [y/N]: "
+                )  # noqa: E501
                 .strip()
                 .lower()
             )
@@ -320,7 +326,9 @@ def main():
     # Check if there are changes to commit
     try:
         result = subprocess.run(
-            ["git", "diff", "--quiet", "CITATION.cff"], capture_output=True, text=True  # noqa: E501
+            ["git", "diff", "--quiet", "CITATION.cff"],
+            capture_output=True,
+            text=True,  # noqa: E501
         )
         has_changes = result.returncode != 0
     except subprocess.CalledProcessError:
