@@ -443,16 +443,12 @@ class TestVersionValidation:
 
         # Test with valid tag
         with patch("subprocess.run") as mock_run:
-            mock_run.return_value = MagicMock(
-                stdout="v1.5.0\n", returncode=0
-            )
+            mock_run.return_value = MagicMock(stdout="v1.5.0\n", returncode=0)
             assert get_current_version() == "1.5.0"
 
         # Test with tag without 'v' prefix
         with patch("subprocess.run") as mock_run:
-            mock_run.return_value = MagicMock(
-                stdout="1.5.0\n", returncode=0
-            )
+            mock_run.return_value = MagicMock(stdout="1.5.0\n", returncode=0)
             assert get_current_version() == "1.5.0"
 
         # Test with no tags
@@ -470,9 +466,15 @@ class TestReReleaseConfirmation:
     @patch("pycoupler.release.get_current_branch")
     @patch("pycoupler.release.get_current_version")
     @patch("subprocess.run")
-    def test_release_confirmation_yes(self, mock_subprocess, mock_current_version, 
-                                    mock_branch, mock_package, mock_update_citation, 
-                                    mock_run_command):
+    def test_release_confirmation_yes(
+        self,
+        mock_subprocess,
+        mock_current_version,
+        mock_branch,
+        mock_package,
+        mock_update_citation,
+        mock_run_command,
+    ):
         """Test re-release confirmation with 'yes' response."""
         # Setup mocks
         mock_package.return_value = "test-package"
@@ -497,9 +499,15 @@ class TestReReleaseConfirmation:
     @patch("pycoupler.release.get_current_branch")
     @patch("pycoupler.release.get_current_version")
     @patch("subprocess.run")
-    def test_release_confirmation_no(self, mock_subprocess, mock_current_version, 
-                                   mock_branch, mock_package, mock_update_citation, 
-                                   mock_run_command):
+    def test_release_confirmation_no(
+        self,
+        mock_subprocess,
+        mock_current_version,
+        mock_branch,
+        mock_package,
+        mock_update_citation,
+        mock_run_command,
+    ):
         """Test re-release confirmation with 'no' response."""
         # Setup mocks
         mock_package.return_value = "test-package"
@@ -523,9 +531,15 @@ class TestReReleaseConfirmation:
     @patch("pycoupler.release.get_current_branch")
     @patch("pycoupler.release.get_current_version")
     @patch("subprocess.run")
-    def test_release_confirmation_invalid_then_valid(self, mock_subprocess, mock_current_version, 
-                                                    mock_branch, mock_package, mock_update_citation, 
-                                                    mock_run_command):
+    def test_release_confirmation_invalid_then_valid(
+        self,
+        mock_subprocess,
+        mock_current_version,
+        mock_branch,
+        mock_package,
+        mock_update_citation,
+        mock_run_command,
+    ):
         """Test re-release confirmation with invalid then valid response."""
         # Setup mocks
         mock_package.return_value = "test-package"
@@ -550,9 +564,15 @@ class TestReReleaseConfirmation:
     @patch("pycoupler.release.get_current_branch")
     @patch("pycoupler.release.get_current_version")
     @patch("subprocess.run")
-    def test_no_confirmation_for_new_version(self, mock_subprocess, mock_current_version, 
-                                            mock_branch, mock_package, mock_update_citation, 
-                                            mock_run_command):
+    def test_no_confirmation_for_new_version(
+        self,
+        mock_subprocess,
+        mock_current_version,
+        mock_branch,
+        mock_package,
+        mock_update_citation,
+        mock_run_command,
+    ):
         """Test that no confirmation is needed for new versions."""
         # Setup mocks
         mock_package.return_value = "test-package"
@@ -612,7 +632,9 @@ version = "1.0.0"
 
                     mock_run_command.return_value = True
                     mock_subprocess.return_value = MagicMock(returncode=0)
-                    mock_current_version.return_value = "1.0.0"  # Valid previous version
+                    mock_current_version.return_value = (
+                        "1.0.0"  # Valid previous version
+                    )
 
                     # Test the main function
                     with patch.object(sys, "argv", ["release.py", "2.0.0"]):

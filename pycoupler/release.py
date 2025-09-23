@@ -267,7 +267,7 @@ def main():
                 print(f"  - Major increment: {major + 1}.0.0")
         else:
             print(
-                "No current version found. Any valid semantic version (X.Y.Z) is allowed."
+                "No current version found. Any valid semantic version (X.Y.Z) is allowed."  # noqa: E501
             )
         print("")
         print("Examples of valid semantic versioning:")
@@ -276,18 +276,24 @@ def main():
         print("  - 1.0.0 -> 2.0.0 (major)")
         print("  - 1.0.0 -> 1.0.0 (re-release)")
         sys.exit(1)
-    
+
     # Check if this is a re-release and ask for confirmation
-    if current_version and parse_version(current_version) == parse_version(version):
-        print(f"⚠️  WARNING: You are attempting to re-release version {version}")
-        print(f"This will delete the existing tag and create a new one with recent changes.")
+    if current_version and parse_version(current_version) == parse_version(version):  # noqa: E501
+        print(f"⚠️  WARNING: You are attempting to re-release version {version}")  # noqa: E501
+        print(
+            f"This will delete the existing tag and create a new one with recent changes."  # noqa: E501
+        )
         print("")
         while True:
-            response = input("Are you certain you want to re-release this version? [y/N]: ").strip().lower()
-            if response in ['y', 'yes']:
+            response = (
+                input("Are you certain you want to re-release this version? [y/N]: ")  # noqa: E501
+                .strip()
+                .lower()
+            )
+            if response in ["y", "yes"]:
                 print("✅ Re-release confirmed. Proceeding...")
                 break
-            elif response in ['n', 'no', '']:
+            elif response in ["n", "no", ""]:
                 print("❌ Re-release cancelled.")
                 sys.exit(0)
             else:
