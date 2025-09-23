@@ -143,8 +143,8 @@ def run_command(cmd, description, fail_on_error=True):
 
 
 def delete_tag_if_exists(tag_name):
-    """Delete a tag locally and remotely if it exists."""
-    print(f"Checking if tag {tag_name} already exists...")
+    """Delete a tag locally if it exists. Remote tags are handled during manual push."""
+    print(f"Checking if tag {tag_name} already exists locally...")
 
     # Check if tag exists locally (fast)
     try:
@@ -163,27 +163,8 @@ def delete_tag_if_exists(tag_name):
     except (subprocess.CalledProcessError, subprocess.TimeoutExpired):
         print(f"Tag {tag_name} does not exist locally")
 
-    # Check if tag exists remotely (with timeout)
-    try:
-        result = subprocess.run(
-            ["git", "ls-remote", "--tags", "origin", tag_name],
-            check=True,
-            capture_output=True,
-            text=True,
-            timeout=10,
-        )
-        if tag_name in result.stdout:
-            print(f"Tag {tag_name} exists remotely, deleting...")
-            run_command(
-                f"git push origin :refs/tags/{tag_name}",
-                f"Deleting remote tag {tag_name}",
-            )
-        else:
-            print(f"Tag {tag_name} does not exist remotely")
-    except (subprocess.CalledProcessError, subprocess.TimeoutExpired):
-        print(f"Tag {tag_name} does not exist remotely (or network timeout)")
-
-    print(f"Tag {tag_name} cleanup completed.")
+    print(f"Local tag {tag_name} cleanup completed.")
+    print("Note: Remote tags will be handled when you manually push with --tags")
 
 
 def update_citation_file(version, date=None):
@@ -238,7 +219,7 @@ def main():
         print("  - Run linting with flake8")
         print("  - Update CITATION.cff (if needed)")
         print("  - Commit changes")
-        print("  - Delete existing tag (if it exists)")
+        print("  - Delete existing local tag (if it exists)")
         print("  - Create Git tag")
         print("")
         print("Prerequisites: Install dev dependencies first:")
@@ -339,7 +320,7 @@ def main():
     # Check if there are changes to commit
     try:
         result = subprocess.run(
-            ["git", "diff", "--quiet", "CITATION.cff"], capture_output=True, text=True
+            ["git", "diff", "--quiet", "CITATION.cff"], capture_output=True, text=True  # noqa: E501
         )
         has_changes = result.returncode != 0
     except subprocess.CalledProcessError:
@@ -370,6 +351,11 @@ def main():
     print("")
     print("To push to repository, run:")
     print(f"  git push origin {current_branch} --tags")
+    print("")
+    print("Note: If this is a re-release and the tag exists remotely,")
+    print("you may need to force push the tag:")
+    print(f"  git push origin :refs/tags/v{version}  # Delete remote tag")
+    print(f"  git push origin v{version}             # Push new tag")
     print("")
     print("The CI pipeline will automatically:")
     print("  - Run tests with pytest and coverage")
