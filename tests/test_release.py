@@ -290,7 +290,8 @@ class TestMain:
                 main()
 
         # Verify calls
-        assert mock_run_command.call_count == 4  # black, pytest, flake8, git add
+        # black, pytest, flake8, git add, git push (remote tag deletion)
+        assert mock_run_command.call_count == 5
         mock_update_citation.assert_called_once_with("1.0.0")
 
     @patch("pycoupler.release.run_command")

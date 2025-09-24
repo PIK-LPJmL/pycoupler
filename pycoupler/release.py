@@ -169,14 +169,17 @@ def delete_tag_if_exists(tag_name):
         run_command(
             f"git push origin :refs/tags/{tag_name}",
             f"Deleting remote tag {tag_name}",
-            fail_on_error=False  # Don't fail if tag doesn't exist remotely
+            fail_on_error=False,  # Don't fail if tag doesn't exist remotely
         )
     except Exception:
         # Ignore errors - tag might not exist remotely
         pass
 
     print(f"Tag {tag_name} cleanup completed.")
-    print("Note: You can now push your new commit and tag manually with: git push origin <branch> --tags")
+    print(
+        "Note: You can now push your new commit and tag manually with: "
+        "git push origin <branch> --tags"
+    )
 
 
 def update_citation_file(version, date=None):
