@@ -143,8 +143,8 @@ def run_command(cmd, description, fail_on_error=True):
 
 
 def delete_tag_if_exists(tag_name):
-    """Delete a tag locally if it exists. Remote tags are handled during manual push."""
-    print(f"Checking if tag {tag_name} already exists locally...")
+    """Delete a tag locally and remotely if it exists."""
+    print(f"Checking if tag {tag_name} already exists...")
 
     # Check if tag exists locally (fast)
     try:
@@ -163,8 +163,20 @@ def delete_tag_if_exists(tag_name):
     except (subprocess.CalledProcessError, subprocess.TimeoutExpired):
         print(f"Tag {tag_name} does not exist locally")
 
-    print(f"Local tag {tag_name} cleanup completed.")
-    print("Note: Remote tags will be handled when you manually push with --tags")
+    # Always try to delete remote tag (in case it exists)
+    print(f"Deleting remote tag {tag_name} (if it exists)...")
+    try:
+        run_command(
+            f"git push origin :refs/tags/{tag_name}",
+            f"Deleting remote tag {tag_name}",
+            fail_on_error=False  # Don't fail if tag doesn't exist remotely
+        )
+    except Exception:
+        # Ignore errors - tag might not exist remotely
+        pass
+
+    print(f"Tag {tag_name} cleanup completed.")
+    print("Note: You can now push your new commit and tag manually with: git push origin <branch> --tags")
 
 
 def update_citation_file(version, date=None):
@@ -360,10 +372,8 @@ def main():
     print("To push to repository, run:")
     print(f"  git push origin {current_branch} --tags")
     print("")
-    print("Note: If this is a re-release and the tag exists remotely,")
-    print("you may need to force push the tag:")
-    print(f"  git push origin :refs/tags/v{version}  # Delete remote tag")
-    print(f"  git push origin v{version}             # Push new tag")
+    print("Note: Remote tag has been automatically deleted if it existed.")
+    print("You can now safely push your new commit and tag together.")
     print("")
     print("The CI pipeline will automatically:")
     print("  - Run tests with pytest and coverage")
