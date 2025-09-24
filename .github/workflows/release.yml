@@ -3,7 +3,6 @@ name: release
 on:
   push:
     branches: [main, master]
-    tags: ['v*']
 
 jobs:
   release:
@@ -22,39 +21,28 @@ jobs:
     - name: Detect version and tag
       id: version
       run: |
-        # Check if this is a tag push
-        if [[ "${{ github.ref }}" == refs/tags/* ]]; then
-          # Direct tag push - use the tag version
-          VERSION=${GITHUB_REF#refs/tags/v}
-          echo "version=$VERSION" >> $GITHUB_OUTPUT
-          echo "is_tag_push=true" >> $GITHUB_OUTPUT
-          echo "tag_name=${{ github.ref_name }}" >> $GITHUB_OUTPUT
-          echo "✅ Direct tag push detected: v$VERSION"
-        else
-          # Branch push - check if there are new tags
-          echo "🔍 Checking for new tags in this push..."
-          
-          # Get the latest tag
+        echo "🔍 Checking for version tags in this push to main/master..."
+        
+        # Check if this push contains a commit with "Version" in the message
+        # This indicates a release was created locally and pushed
+        if git log --oneline -1 --grep="Version" | grep -q "Version"; then
+          # Get the latest tag that exists on this branch
           LATEST_TAG=$(git describe --tags --abbrev=0 2>/dev/null || echo "")
           
           if [ -n "$LATEST_TAG" ]; then
-            # Check if this tag was created in this push
-            if git log --oneline -1 --grep="Version" | grep -q "Version"; then
-              VERSION=${LATEST_TAG#v}
-              echo "version=$VERSION" >> $GITHUB_OUTPUT
-              echo "is_tag_push=false" >> $GITHUB_OUTPUT
-              echo "tag_name=$LATEST_TAG" >> $GITHUB_OUTPUT
-              echo "✅ New tag detected in merge: $LATEST_TAG"
-            else
-              echo "⚠️ No new version tag found in this push"
-              echo "should_release=false" >> $GITHUB_OUTPUT
-              exit 0
-            fi
+            VERSION=${LATEST_TAG#v}
+            echo "version=$VERSION" >> $GITHUB_OUTPUT
+            echo "tag_name=$LATEST_TAG" >> $GITHUB_OUTPUT
+            echo "✅ New version tag detected in this push: $LATEST_TAG"
           else
-            echo "⚠️ No tags found in repository"
+            echo "⚠️ Version commit found but no tag detected"
             echo "should_release=false" >> $GITHUB_OUTPUT
             exit 0
           fi
+        else
+          echo "⚠️ No version commit found in this push"
+          echo "should_release=false" >> $GITHUB_OUTPUT
+          exit 0
         fi
 
     - name: Check if release should proceed
