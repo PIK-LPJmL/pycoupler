@@ -38,8 +38,19 @@ jobs:
             echo "version=$VERSION" >> $GITHUB_OUTPUT
             echo "tag_name=$TAGS_ON_COMMIT" >> $GITHUB_OUTPUT
             echo "✅ Version tag found for this commit: $TAGS_ON_COMMIT"
+            
+            # Additional verification: check if this is the most recent tag
+            LATEST_TAG=$(git describe --tags --abbrev=0 2>/dev/null || echo "")
+            if [ "$LATEST_TAG" = "$TAGS_ON_COMMIT" ]; then
+              echo "✅ Confirmed: $TAGS_ON_COMMIT is the latest tag"
+            else
+              echo "⚠️ Warning: $TAGS_ON_COMMIT is not the latest tag (latest: $LATEST_TAG)"
+              echo "This might indicate multiple tags in the same push"
+            fi
           else
             echo "⚠️ Version commit found but no tag points to it"
+            echo "Available tags:"
+            git tag -l | tail -5
             echo "should_release=false" >> $GITHUB_OUTPUT
             exit 0
           fi
@@ -102,11 +113,34 @@ jobs:
         echo "📦 Tag name: ${{ steps.version.outputs.tag_name }}"
         echo "🏷️  Is tag push: ${{ steps.version.outputs.is_tag_push }}"
 
+    - name: Verify tag exists
+      run: |
+        echo "🔍 Verifying tag ${{ steps.version.outputs.tag_name }} exists..."
+        if git tag -l | grep -q "^${{ steps.version.outputs.tag_name }}$"; then
+          echo "✅ Tag ${{ steps.version.outputs.tag_name }} found locally"
+        else
+          echo "❌ Tag ${{ steps.version.outputs.tag_name }} not found locally"
+          echo "Available tags:"
+          git tag -l | head -10
+          exit 1
+        fi
+        
+        # Show tag details
+        echo "Tag details:"
+        git show ${{ steps.version.outputs.tag_name }} --no-patch --format="%H %s"
+
     - name: Publish to PyPI
       env:
         TWINE_USERNAME: __token__
         TWINE_PASSWORD: ${{ secrets.PYPI_API_TOKEN }}
       run: twine upload dist/*
+
+    - name: Ensure tag is pushed to remote
+      run: |
+        echo "🏷️  Ensuring tag ${{ steps.version.outputs.tag_name }} is available for GitHub release..."
+        # The tag should already be available from the merge, but let's make sure
+        git fetch origin --tags
+        echo "✅ Tags fetched from remote"
 
     - name: Create Release
       uses: softprops/action-gh-release@v1
