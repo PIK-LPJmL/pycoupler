@@ -338,7 +338,7 @@ def main():
         print("CITATION.cff updated, committing changes...")
         run_command("git add CITATION.cff", "Adding CITATION.cff to staging")
         run_command(
-            f'git commit -m "Release version {version}\\n\\n- Update CITATION.cff to version {version}"',  # noqa: E501
+            f'git commit -m "Version {version}"',
             "Committing CITATION.cff changes",
         )
         print("CITATION.cff changes committed successfully.")

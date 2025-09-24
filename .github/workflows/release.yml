@@ -5,7 +5,40 @@ on:
     tags: ['v*']
 
 jobs:
+  check-tag:
+    runs-on: ubuntu-latest
+    outputs:
+      should-release: ${{ steps.check.outputs.should-release }}
+    steps:
+    - name: Checkout code
+      uses: actions/checkout@v4
+      with:
+        fetch-depth: 0  # Fetch all history and tags
+        fetch-tags: true  # Ensure all tags are fetched for version resolution
+
+    - name: Check if tag is on main/master branch
+      id: check
+      run: |
+        # Get the commit that the tag points to
+        TAG_COMMIT=$(git rev-list -n 1 ${{ github.ref_name }})
+        echo "Tag ${{ github.ref_name }} points to commit: $TAG_COMMIT"
+        
+        # Check if this commit is reachable from main or master
+        if git branch -r --contains $TAG_COMMIT | grep -E "(origin/main|origin/master)" > /dev/null; then
+          echo "✅ Tag ${{ github.ref_name }} is on main/master branch"
+          echo "should-release=true" >> $GITHUB_OUTPUT
+        else
+          echo "⚠️  Tag ${{ github.ref_name }} is NOT on main/master branch"
+          echo "Available branches containing this commit:"
+          git branch -r --contains $TAG_COMMIT
+          echo "This release will be skipped for security reasons."
+          echo "To release, merge your changes to main/master first, then tag from there."
+          echo "should-release=false" >> $GITHUB_OUTPUT
+        fi
+
   release:
+    needs: check-tag
+    if: needs.check-tag.outputs.should-release == 'true'
     runs-on: ubuntu-latest
     permissions:
       contents: write
@@ -16,23 +49,6 @@ jobs:
       with:
         fetch-depth: 0  # Fetch all history and tags
         fetch-tags: true  # Ensure all tags are fetched for version resolution
-
-    - name: Verify tag is on main/master branch
-      run: |
-        # Get the commit that the tag points to
-        TAG_COMMIT=$(git rev-list -n 1 ${{ github.ref_name }})
-        echo "Tag ${{ github.ref_name }} points to commit: $TAG_COMMIT"
-        
-        # Check if this commit is reachable from main or master
-        if git branch -r --contains $TAG_COMMIT | grep -E "(origin/main|origin/master)" > /dev/null; then
-          echo "✅ Tag ${{ github.ref_name }} is on main/master branch"
-        else
-          echo "❌ Tag ${{ github.ref_name }} is NOT on main/master branch"
-          echo "Available branches containing this commit:"
-          git branch -r --contains $TAG_COMMIT
-          echo "This release will be skipped for security reasons."
-          exit 1
-        fi
 
     - name: Set up Python
       uses: actions/setup-python@v5
