@@ -61,29 +61,4 @@ jobs:
         pip install dist/*.whl
         python -c "import pycoupler; print(f'pycoupler version: {pycoupler.__version__}')"
 
-    - name: Extract version
-      if: startsWith(github.ref, 'refs/tags/v')
-      id: get_version
-      run: |
-        VERSION=${GITHUB_REF#refs/tags/v}
-        echo "version=$VERSION" >> $GITHUB_OUTPUT
-
-    - name: Publish to PyPI
-      if: startsWith(github.ref, 'refs/tags/v')
-      env:
-        TWINE_USERNAME: __token__
-        TWINE_PASSWORD: ${{ secrets.PYPI_API_TOKEN }}
-      run: twine upload dist/*
-
-    - name: Create Release
-      if: startsWith(github.ref, 'refs/tags/v')
-      uses: softprops/action-gh-release@v1
-      with:
-        tag_name: ${{ github.ref }}
-        name: Release of version ${{ steps.get_version.outputs.version }}
-        body: |
-          Changes in this Release
-          - Automated release notes
-        draft: false
-        prerelease: false
-        files: dist/*
+    # Publishing is handled by the separate release.yml workflow
