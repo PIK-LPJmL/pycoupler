@@ -26,16 +26,20 @@ jobs:
         # Check if this push contains a commit with "Version" in the message
         # This indicates a release was created locally and pushed
         if git log --oneline -1 --grep="Version" | grep -q "Version"; then
-          # Get the latest tag that exists on this branch
-          LATEST_TAG=$(git describe --tags --abbrev=0 2>/dev/null || echo "")
+          # Get the commit hash of the "Version" commit
+          VERSION_COMMIT=$(git log --oneline -1 --grep="Version" --format="%H")
+          echo "Found version commit: $VERSION_COMMIT"
           
-          if [ -n "$LATEST_TAG" ]; then
-            VERSION=${LATEST_TAG#v}
+          # Find tags that point to this specific commit
+          TAGS_ON_COMMIT=$(git tag --points-at $VERSION_COMMIT | grep "^v" | head -1)
+          
+          if [ -n "$TAGS_ON_COMMIT" ]; then
+            VERSION=${TAGS_ON_COMMIT#v}
             echo "version=$VERSION" >> $GITHUB_OUTPUT
-            echo "tag_name=$LATEST_TAG" >> $GITHUB_OUTPUT
-            echo "✅ New version tag detected in this push: $LATEST_TAG"
+            echo "tag_name=$TAGS_ON_COMMIT" >> $GITHUB_OUTPUT
+            echo "✅ Version tag found for this commit: $TAGS_ON_COMMIT"
           else
-            echo "⚠️ Version commit found but no tag detected"
+            echo "⚠️ Version commit found but no tag points to it"
             echo "should_release=false" >> $GITHUB_OUTPUT
             exit 0
           fi
