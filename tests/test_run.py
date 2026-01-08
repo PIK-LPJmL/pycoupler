@@ -1,6 +1,7 @@
 import json
 from pathlib import Path
 from subprocess import CalledProcessError
+import pytest_subprocess  # noqa: F401
 
 import pytest
 

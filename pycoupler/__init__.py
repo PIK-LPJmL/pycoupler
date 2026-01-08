@@ -1,3 +1,9 @@
+try:
+    from ._version import __version__
+except ModuleNotFoundError:  # pragma: no cover
+    # package is not installed
+    __version__ = "1.5.0"
+
 from .config import (
     LpjmlConfig,
     CoupledConfig,
@@ -54,3 +60,5 @@ __all__ += [
     "read_json",
     "detect_io_type",
 ]
+
+__all__ += ["__version__"]

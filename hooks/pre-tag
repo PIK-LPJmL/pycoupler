@@ -1,0 +1,35 @@
+#!/bin/bash
+# Pre-tag hook to update CITATION.cff before creating a tag
+
+echo "Pre-tag hook: Updating CITATION.cff..."
+
+# Get the tag name from command line arguments
+TAG_NAME="$1"
+if [ -n "$TAG_NAME" ]; then
+    # Remove 'v' prefix if present
+    VERSION=${TAG_NAME#v}
+    echo "Using tag version: $VERSION"
+    
+    # Update CITATION.cff with the specific version
+    python3 -c "from pycoupler.release import update_citation_file; update_citation_file('$VERSION')"
+else
+    echo "No tag name provided, using current version detection"
+    # Fallback to current version detection
+    python3 -c "from pycoupler.release import update_citation_file; import pycoupler; update_citation_file(pycoupler.__version__)"
+fi
+
+# Check if CITATION.cff was updated
+if ! git diff --quiet CITATION.cff; then
+    echo "CITATION.cff updated, committing changes..."
+    
+    # Add and commit the changes
+    git add CITATION.cff
+    git commit -m "Update CITATION.cff to current version"
+    
+    echo "CITATION.cff changes committed successfully"
+else
+    echo "No changes to CITATION.cff needed"
+fi
+
+# Allow the tag to proceed
+exit 0
