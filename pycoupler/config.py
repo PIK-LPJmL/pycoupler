@@ -279,13 +279,13 @@ class LpjmlConfig(SubConfig):
         coupled_input,
         coupled_output,
         sim_name="coupled",
+        coupled_config=None,
         dependency=None,
         coupled_year=None,
         temporal_resolution="annual",
         write_output=[],
         write_file_format="cdf",
         append_output=True,
-        model_name="copan:CORE",
     ):
         """
         Set configuration required for coupled model runs.
@@ -306,6 +306,8 @@ class LpjmlConfig(SubConfig):
             Provide output ID as identifier.
         sim_name : str, default "coupled"
             Name of the simulation.
+        coupled_config : str, optional
+            Path to coupled config file.
         dependency : str, optional
             Name of simulation to depend on (e.g., transient run).
         coupled_year : int, optional
@@ -323,8 +325,6 @@ class LpjmlConfig(SubConfig):
         append_output : bool, default True
             If True, defined output entries are appended. If False, existing
             outputs are overwritten.
-        model_name : str, default "copan:CORE"
-            Name of the coupled model.
         """
         self.sim_name = sim_name
         self.sim_path = create_subdirs(sim_path, self.sim_name)
@@ -352,11 +352,18 @@ class LpjmlConfig(SubConfig):
         self._set_coupling(
             inputs=coupled_input,
             outputs=coupled_output,
-            start_year=coupled_year,
-            model_name=model_name,
+            start_year=coupled_year
         )
         # set start from directory to start from historic run
         self._set_startfrom(path=f"{sim_path}/restart", dependency=dependency)
+
+        # add coupled config if provided
+        if coupled_config:
+            self.add_config(coupled_config)
+            if hasattr(self.coupled_config, "model") and isinstance(
+                self.coupled_config.model, str
+            ):
+                self.coupled_model = self.coupled_config.model
 
     def _set_output(
         self,
@@ -540,7 +547,7 @@ class LpjmlConfig(SubConfig):
                 )
 
     def _set_coupling(
-        self, inputs, outputs, start_year=None, model_name="copan:CORE"
+        self, inputs, outputs, start_year=None, model_name="copan"
     ):  # noqa
         """Coupled settings - no spinup, not write restart file and set sockets"""
         self.write_restart = False

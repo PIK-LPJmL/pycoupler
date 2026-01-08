@@ -1,9 +1,13 @@
 import os
 from datetime import datetime
-from subprocess import run, Popen, PIPE, CalledProcessError
+from pathlib import Path
+from subprocess import CalledProcessError, PIPE, Popen, run
+
 from pycoupler.config import read_config
 
 import multiprocessing as mp
+
+from pycoupler.utils import warn_deprecated_alias
 
 
 def operate_lpjml(config_file, std_to_file=False):
@@ -74,7 +78,7 @@ def operate_lpjml(config_file, std_to_file=False):
         raise CalledProcessError(p.returncode, p.args)
 
 
-def run_lpjml(config_file, std_to_file=False):
+def start_lpjml(config_file, std_to_file=False):
     """Run LPJmL using a generated (class LpjmlConfig) config file.
     Similar to R function `lpjmlKit::run_lpjml`.
 
@@ -86,10 +90,17 @@ def run_lpjml(config_file, std_to_file=False):
         If True, stdout and stderr are written to files in the output folder.
         Defaults to False.
     """
-    run = mp.Process(target=operate_lpjml, args=(config_file, std_to_file))
-    run.start()
+    process = mp.Process(target=operate_lpjml, args=(config_file, std_to_file))
+    process.start()
 
-    return run
+    return process
+
+
+def run_lpjml(*args, **kwargs):
+    """Backward-compatible alias for :func:`start_lpjml`."""
+
+    warn_deprecated_alias(start_lpjml, "run_lpjml", "start_lpjml")
+    return start_lpjml(*args, **kwargs)
 
 
 def submit_lpjml(
@@ -199,6 +210,11 @@ def submit_lpjml(
                 cmd.extend(["-option", opt])
 
     # run in coupled mode and pass coupling program/model
+    needs_coupler_wait = bool(couple_to)
+    slurm_jcf_path = Path(os.getcwd()) / "slurm.jcf"
+
+    couple_file = None
+
     if couple_to:
         python_path = "python3"
         if venv_path:
@@ -227,6 +243,9 @@ config_file="{config_file}"
 
         cmd.extend(["-couple", couple_file])
 
+    if needs_coupler_wait:
+        cmd.append("-norun")
+
     cmd.extend([str(ntasks), config_file])
 
     # Intialize submit_status in higher scope
@@ -244,21 +263,117 @@ config_file="{config_file}"
         else:
             del os.environ["LPJROOT"]
 
-    # print stdout and stderr if not successful
     if submit_status is None:
         raise Exception("Process was not submitted.")
-    elif submit_status.returncode == 0:
-        print(submit_status.stdout.decode("utf-8"))
-    else:
-        print(submit_status.stdout.decode("utf-8"))
-        print(submit_status.stderr.decode("utf-8"))
+
+    submit_stdout = submit_status.stdout.decode("utf-8")
+    submit_stderr = submit_status.stderr.decode("utf-8")
+
+    if submit_status.returncode != 0:
+        print(submit_stdout)
+        print(submit_stderr)
         raise CalledProcessError(submit_status.returncode, submit_status.args)
-    # return job id
+
+    print(submit_stdout)
+
+    job_submission_output = submit_stdout
+
+    if needs_coupler_wait:
+        job_submission_output = _patch_slurm_and_submit(
+            slurm_jcf_path=slurm_jcf_path,
+            couple_file=couple_file,
+            dependency=dependency,
+        )
+
+    if "Submitted batch job" not in job_submission_output:
+        raise RuntimeError(
+            "Could not determine job id from submission output:\n"
+            f"{job_submission_output}"
+        )
+
     return (
-        submit_status.stdout.decode("utf-8")
-        .split("Submitted batch job ")[1]
-        .split("\n")[0]
+        job_submission_output.split("Submitted batch job ")[1].split("\n")[0]
     )
+
+
+def _patch_slurm_and_submit(slurm_jcf_path: Path, couple_file: str | None, dependency):
+    """Ensure the coupling helper is waited on before submitting the job.
+
+    Older LPJmL versions background the coupler without waiting for it. We patch
+    the generated `slurm.jcf` to add `couple_pid` handling if it is missing and
+    then submit the job ourselves via `sbatch`.
+    """
+
+    if couple_file is None:
+        raise RuntimeError("Coupling file path is required for coupled submissions.")
+
+    if not slurm_jcf_path.exists():
+        raise FileNotFoundError(
+            f"lpjsubmit did not create expected job file at '{slurm_jcf_path}'."
+        )
+
+    slurm_text = slurm_jcf_path.read_text()
+    if "couple_pid" not in slurm_text:
+        slurm_text = _inject_coupler_wait(slurm_text, couple_file)
+        slurm_jcf_path.write_text(slurm_text)
+
+    sbatch_cmd = ["sbatch"]
+    if dependency:
+        sbatch_cmd.append(f"--dependency=afterok:{dependency}")
+    sbatch_cmd.append(str(slurm_jcf_path))
+    sbatch_status = run(sbatch_cmd, capture_output=True)
+
+    sbatch_stdout = sbatch_status.stdout.decode("utf-8")
+    sbatch_stderr = sbatch_status.stderr.decode("utf-8")
+
+    if sbatch_status.returncode != 0:
+        print(sbatch_stdout)
+        print(sbatch_stderr)
+        raise CalledProcessError(sbatch_status.returncode, sbatch_status.args)
+
+    print(sbatch_stdout)
+    return sbatch_stdout
+
+
+def _inject_coupler_wait(slurm_text: str, couple_file: str) -> str:
+    """Patch the slurm script so it waits for the coupling helper."""
+
+    launch_variants = [
+        f"{couple_file}  &",
+        f"{couple_file} &",
+    ]
+
+    target_snippet = None
+    for variant in launch_variants:
+        snippet = f"{variant}\n\n"
+        if snippet in slurm_text:
+            target_snippet = snippet
+            break
+
+    if target_snippet is None:
+        raise RuntimeError(
+            "Could not find the coupling launch line in slurm.jcf to patch."
+        )
+
+    replacement = target_snippet.replace("&", "&\ncouple_pid=$!", 1)
+    slurm_text = slurm_text.replace(target_snippet, replacement, 1)
+
+    exit_marker = "exit $rc # exit with return code"
+    if exit_marker not in slurm_text:
+        raise RuntimeError("Could not find exit marker in slurm.jcf.")
+
+    wait_block = (
+        'if [ -n "${couple_pid:-}" ]; then\n'
+        "  wait $couple_pid\n"
+        "  couple_rc=$?\n"
+        "  if [ $rc -eq 0 ]; then\n"
+        "    rc=$couple_rc\n"
+        "  fi\n"
+        "fi\n"
+        f"{exit_marker}"
+    )
+
+    return slurm_text.replace(exit_marker, wait_block, 1)
 
 
 def check_lpjml(config_file):

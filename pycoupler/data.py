@@ -1,7 +1,9 @@
 import os
 import struct
 import re
+from pathlib import Path
 from collections.abc import Hashable
+from typing import Dict
 import numpy as np
 import pandas as pd
 import xarray as xr
@@ -10,6 +12,26 @@ from xarray.core.variable import Variable
 import xarray.core.utils as utils
 
 from pycoupler.utils import read_json
+
+DEFAULT_NETCDF_FILL_VALUE = np.float32(-999.0)
+
+
+def _suppress_coordinate_fill(dataset: xr.Dataset) -> None:
+    """Remove _FillValue metadata from coordinate variables."""
+
+    for coord_name in dataset.coords:
+        coord = dataset[coord_name]
+        coord.attrs.pop("_FillValue", None)
+        coord.encoding["_FillValue"] = None
+
+
+def _sanitize_prefix(value: str | None, default: str = "lpjml") -> str:
+    """Return a filesystem-friendly prefix."""
+    candidate = (value or "").strip()
+    if not candidate:
+        candidate = default
+    safe = re.sub(r"[^\w\-]+", "_", candidate).strip("_")
+    return safe or default
 
 
 class LPJmLInputType:
@@ -121,6 +143,56 @@ def append_to_dict(data_dict, data):
             data_dict[key] = value
 
     return data_dict
+
+
+def _ensure_cf_metadata(
+    data_array: xr.DataArray,
+) -> Dict[str, str] | None:
+    """Attach CF-compliant coordinate metadata and extract globals."""
+
+    da = data_array
+
+    def _ensure(coord_name: str, attrs: Dict[str, str]):
+        if coord_name in da.coords:
+            coord = da.coords[coord_name]
+            for key, value in attrs.items():
+                coord.attrs.setdefault(key, value)
+
+    _ensure(
+        "lat",
+        {
+            "standard_name": "latitude",
+            "long_name": "Latitude",
+            "units": "degrees_north",
+            "axis": "Y",
+        },
+    )
+    _ensure(
+        "lon",
+        {
+            "standard_name": "longitude",
+            "long_name": "Longitude",
+            "units": "degrees_east",
+            "axis": "X",
+        },
+    )
+    if "time" in da.coords:
+        coord = da.coords["time"]
+        coord.attrs.setdefault("standard_name", "time")
+        coord.attrs.setdefault("long_name", "Time")
+        coord.attrs.setdefault("axis", "T")
+        coord.attrs.setdefault("units", "years")
+        coord.attrs.setdefault("calendar", "noleap")
+
+    _ensure(
+        "area_km2",
+        {"long_name": "grid cell area", "units": "km2"},
+    )
+
+    if not da.attrs.get("units"):
+        da.attrs["units"] = "1"
+
+    return da.attrs.pop("_global_attrs", None)
 
 
 class LPJmLData(xr.DataArray):
@@ -255,9 +327,176 @@ class LPJmLData(xr.DataArray):
 
         return neighbours
 
-    def transform(self):
-        """TODO: implement function to convert cell into lon/lat format"""
-        pass
+    def _wrap(self, data_array):
+        """Return a LPJmLData instance from a generic DataArray."""
+        if isinstance(data_array, LPJmLData):
+            return data_array
+        if isinstance(data_array, xr.DataArray):
+            return self.__class__(data_array)
+        raise TypeError(
+            f"Expected xarray.DataArray, got {type(data_array)!r}"
+        )
+
+    def transform(self, to="lon_lat"):
+        """Transform the spatial layout between cell and lon/lat grid.
+
+        Parameters
+        ----------
+        to : {"lon_lat", "cell"}, default "lon_lat"
+            Target representation. ``"lon_lat"`` reshapes the data onto a
+            two-dimensional latitude/longitude grid using the embedded
+            coordinates; ``"cell"`` collapses a lon/lat grid back to the
+            original one-dimensional ``cell`` dimension.
+
+        Returns
+        -------
+        LPJmLData
+            Transformed data array.
+        """
+
+        to = (to or "").lower()
+        if to not in {"lon_lat", "cell"}:
+            raise ValueError(
+                f"Unsupported transform target '{to}'. "
+                "Use either 'lon_lat' or 'cell'."
+            )
+
+        if to == "lon_lat":
+            if "cell" not in self.dims:
+                return self.copy()
+            if not {"lon", "lat"} <= set(self.coords):
+                raise ValueError(
+                    "Cannot transform to lon/lat grid without 'lon' and 'lat' "
+                    "coordinates attached to the 'cell' dimension."
+                )
+
+            # Ensure lat/lon combinations are unique before unstacking
+            index = pd.MultiIndex.from_arrays(
+                [self.coords["lat"].values, self.coords["lon"].values],
+                names=("lat", "lon"),
+            )
+            if not index.is_unique:
+                raise ValueError(
+                    "Duplicate lat/lon pairs detected; cannot build a unique grid."
+                )
+
+            lon_lat = self.set_index(cell=("lat", "lon")).unstack("cell")
+            # Sort coordinates for consistent orientation (lon ascending, lat descending)
+            if "lon" in lon_lat.dims:
+                lon_lat = lon_lat.sortby("lon")
+            if "lat" in lon_lat.dims:
+                lon_lat = lon_lat.sortby("lat", ascending=False)
+
+            dims = list(lon_lat.dims)
+            ordered_dims = [dim for dim in ("lat", "lon") if dim in dims]
+            ordered_dims.extend(dim for dim in dims if dim not in ordered_dims)
+            lon_lat = lon_lat.transpose(*ordered_dims)
+            return self._wrap(lon_lat)
+
+        # to == "cell"
+        if not {"lon", "lat"} <= set(self.dims):
+            return self.copy()
+
+        cell_da = self.sortby("lon").sortby("lat", ascending=False)
+        cell_da = cell_da.stack(cell=("lat", "lon")).reset_index("cell")
+        # Ensure lon/lat remain attached to the cell dimension
+        if "lon" in cell_da.coords:
+            cell_da.coords["lon"] = ("cell", cell_da.coords["lon"].values)
+        if "lat" in cell_da.coords:
+            cell_da.coords["lat"] = ("cell", cell_da.coords["lat"].values)
+
+        dims = list(cell_da.dims)
+        ordered_dims = ["cell"]
+        ordered_dims.extend(dim for dim in dims if dim != "cell")
+        cell_da = cell_da.transpose(*ordered_dims)
+        return self._wrap(cell_da)
+
+    def to_netcdf(
+        self,
+        path: str | os.PathLike[str] | None = None,
+        *,
+        compression: bool = True,
+        complevel: int = 4,
+        fill_value: float | None = None,
+        engine: str = "netcdf4",
+        mode: str = "w",
+        compute: bool = True,
+        **kwargs,
+    ):
+        """Write this LPJmLData to NetCDF, analogous to
+        :meth:`xarray.DataArray.to_netcdf`, but gridding ``cell`` dimensions
+        before persisting. [#da_netcdf]_
+
+        .. [#da_netcdf] https://docs.xarray.dev/en/latest/generated/xarray.DataArray.to_netcdf.html
+        """
+
+        kwargs = dict(kwargs)
+        kwargs.pop("lpjml_style", None)
+
+        lpjml = self
+        if lpjml.name is None and path is None:
+            raise ValueError(
+                "LPJmLData must have a name when no output path is provided."
+            )
+
+        if "cell" in lpjml.dims:
+            if not {"lon", "lat"} <= set(lpjml.coords):
+                raise ValueError(
+                    "Cannot write LPJmLData with a 'cell' dimension that lacks "
+                    "'lon' and 'lat' coordinates."
+                )
+            lpjml = lpjml.transform("lon_lat")
+
+        global_attrs = _ensure_cf_metadata(lpjml)
+        dataset = lpjml.to_dataset()
+        _suppress_coordinate_fill(dataset)
+        if global_attrs:
+            dataset.attrs.update(dict(global_attrs))
+        dataset.attrs.setdefault("Conventions", "CF-1.8")
+
+        var_name = lpjml.name or "__lpjml_data__"
+        dtype = lpjml.dtype
+        encoding: dict[str, dict[str, object]] = {}
+
+        enc: dict[str, object] = {}
+        target_fill = fill_value
+        if target_fill is None:
+            if np.issubdtype(dtype, np.floating):
+                target_fill = DEFAULT_NETCDF_FILL_VALUE
+            elif np.issubdtype(dtype, np.integer):
+                target_fill = -999
+        if target_fill is not None:
+            enc["_FillValue"] = target_fill
+
+        if compression and np.issubdtype(dtype, np.number):
+            enc["zlib"] = True
+            enc["complevel"] = complevel
+
+        encoding[var_name] = enc
+
+        if path is None:
+            return dataset.to_netcdf(
+                path=None,
+                engine=engine,
+                mode=mode,
+                encoding=encoding,
+                compute=compute,
+                **kwargs,
+            )
+
+        target_path = Path(path)
+        if not target_path.suffix:
+            target_path = target_path.with_suffix(".nc4")
+
+        dataset.to_netcdf(
+            target_path,
+            engine=engine,
+            mode=mode,
+            encoding=encoding,
+            compute=compute,
+            **kwargs,
+        )
+        return str(target_path)
 
 
 class LPJmLDataSet(xr.Dataset):
@@ -338,6 +577,9 @@ class LPJmLDataSet(xr.Dataset):
             _, name, variable = xr.core.dataset._get_virtual_variable(
                 self._variables, name, self.dims
             )
+        else:
+            # Work on a shallow copy so we don't mutate dataset variables
+            variable = variable.copy(deep=False)
 
         needed_dims = set(variable.dims)
         stripped_dims = {re.sub(r"\s*\(.*?\)", "", item) for item in needed_dims}
@@ -349,9 +591,16 @@ class LPJmLDataSet(xr.Dataset):
                 set(self.variables[k].dims) <= needed_dims
                 or set(self.variables[k].dims) <= stripped_dims
             ):
-                coords[k] = self.variables[k]
+                coords[k] = self.variables[k].copy(deep=False)
 
-        indexes = xr.core.indexes.filter_indexes_from_coords(self._indexes, set(coords))
+        indexes = xr.core.indexes.filter_indexes_from_coords(
+            self._indexes, set(coords)
+        )
+        # Copy indexes to avoid mutating dataset-level state
+        indexes = {
+            key: (idx.copy() if hasattr(idx, "copy") else idx)
+            for key, idx in indexes.items()
+        }
 
         # TODO: this is a hack to get around the fact that we don't have
         #  a proper way to represent band dimensions in xarray
@@ -436,7 +685,106 @@ class LPJmLDataSet(xr.Dataset):
 
         return super().to_dict(data=data, encoding=encoding)
 
+    def transform(self, to="lon_lat"):
+        """Transform all LPJmLData variables to the requested spatial layout."""
 
+        transformed = {}
+        for name, data in self.data_vars.items():
+            if isinstance(data, LPJmLData):
+                transformed[name] = data.transform(to=to)
+            else:
+                transformed[name] = data
+
+        result = LPJmLDataSet(transformed)
+        result.attrs = self.attrs.copy()
+        return result
+
+    def to_netcdf(
+        self,
+        path: str | os.PathLike[str],
+        *,
+        lpjml_style: bool = True,
+        per_variable: bool = True,
+        file_prefix: str | None = None,
+        suffix: str = ".nc4",
+        compression: bool = True,
+        complevel: int = 4,
+        fill_value: float | None = None,
+        engine: str | None = None,
+        mode: str = "w",
+        compute: bool = True,
+        **kwargs,
+    ) -> str | Dict[str, str]:
+        """Write the dataset to NetCDF.
+
+        By default LPJmL conventions are applied: every variable is aligned on
+        the LPJmL grid and written to a dedicated ``<prefix>_<var>.nc4`` file
+        (``per_variable=True``). Set ``per_variable=False`` to emit a single
+        multi-variable file. Pass ``lpjml_style=False`` to defer entirely to the
+        underlying :meth:`xarray.Dataset.to_netcdf`.
+        """
+
+        kwargs = dict(kwargs)
+        per_variable = kwargs.pop("split_vars", per_variable)
+        kwargs.pop("file_prefix", None)
+        kwargs.pop("suffix", None)
+
+        if not lpjml_style:
+            return super().to_netcdf(
+                path=path,
+                engine=engine,
+                mode=mode,
+                compute=compute,
+                **kwargs,
+            )
+
+        aligned = _grid_aligned_dataset(self)
+        _suppress_coordinate_fill(aligned)
+        if per_variable:
+            target_dir = Path(path)
+            target_dir.mkdir(parents=True, exist_ok=True)
+            prefix_default = (
+                file_prefix
+                or aligned.attrs.get("sim_name")
+                or target_dir.name
+                or "lpjml"
+            )
+            prefix = _sanitize_prefix(prefix_default)
+            written: Dict[str, str] = {}
+            for name, data in aligned.data_vars.items():
+                target_file = target_dir / f"{prefix}_{name}{suffix}"
+                LPJmLData(data).to_netcdf(
+                    target_file,
+                    compression=compression,
+                    complevel=complevel,
+                    fill_value=fill_value,
+                    engine=engine or "netcdf4",
+                    mode=mode,
+                    compute=compute,
+                    **kwargs,
+                )
+                written[name] = str(target_file)
+            return written
+
+        encoding = {
+            name: _netcdf_encoding(
+                data,
+                fill_value=fill_value,
+                compression=compression,
+                complevel=complevel,
+            )
+            for name, data in aligned.data_vars.items()
+        }
+        target_path = os.fspath(path)
+        aligned.to_netcdf(
+            target_path,
+            engine=engine or "netcdf4",
+            mode=mode,
+            encoding=encoding,
+            compute=compute,
+            **kwargs,
+        )
+        return target_path
 def read_data(file_name, var_name=None, multiple_bands=False):
     """Read netcdf file and return data as numpy array or xarray.DataArray.
 
@@ -655,6 +1003,52 @@ def read_meta(file_name):
         Meta data as LPJmLMetaData object
     """
     return LPJmLMetaData(read_json(file_name))
+
+
+def _netcdf_encoding(
+    data: xr.DataArray,
+    *,
+    fill_value: float | None,
+    compression: bool,
+    complevel: int,
+) -> Dict[str, object]:
+    dtype = data.dtype
+    encoding: Dict[str, object] = {}
+
+    if fill_value is not None:
+        encoding["_FillValue"] = fill_value
+    else:
+        if np.issubdtype(dtype, np.floating):
+            encoding["_FillValue"] = DEFAULT_NETCDF_FILL_VALUE
+        elif np.issubdtype(dtype, np.integer):
+            encoding["_FillValue"] = -9999
+
+    if compression and np.issubdtype(dtype, np.number):
+        encoding["zlib"] = True
+        encoding["complevel"] = complevel
+
+    return encoding
+
+
+def _grid_aligned_dataset(ds: xr.Dataset) -> xr.Dataset:
+    """Return dataset where all cell variables are converted to lon/lat grids."""
+
+    data_vars = {}
+    for name, data in ds.data_vars.items():
+        arr = data if isinstance(data, LPJmLData) else LPJmLData(data)
+        if "cell" in arr.dims:
+            if not {"lon", "lat"} <= set(arr.coords):
+                raise ValueError(
+                    f"Variable '{name}' is indexed by 'cell' but lacks "
+                    "corresponding 'lon'/'lat' coordinates."
+                )
+            arr = arr.transform("lon_lat")
+        data_vars[name] = arr
+
+    aligned = xr.Dataset(data_vars)
+    aligned.attrs.update(ds.attrs)
+    aligned.attrs.setdefault("Conventions", "CF-1.8")
+    return aligned
 
 
 # Function has been derived from the lpjmlkit R package

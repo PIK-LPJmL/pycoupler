@@ -1,15 +1,189 @@
 """Test the LPJmLData class."""
 
+from pathlib import Path
+
 import numpy as np
+import xarray as xr
+from netCDF4 import Dataset
 
 from pycoupler.data import (
-    read_data,
-    read_meta,
-    read_header,
+    LPJmLData,
+    LPJmLDataSet,
+    append_to_dict,
     get_headersize,
     LPJmLInputType,
-    append_to_dict,
+    read_data,
+    read_header,
+    read_meta,
 )
+
+
+def _sample_lpjml_data():
+    """Create a tiny LPJmLData object with cell+lat/lon information."""
+    cell_ids = np.array([100, 101, 200, 201])
+    lat = np.array([50.0, 50.0, 49.5, 49.5])
+    lon = np.array([-1.0, -0.5, -1.0, -0.5])
+    time = np.array([2000, 2001])
+
+    values = np.arange(cell_ids.size * time.size, dtype=float).reshape(
+        cell_ids.size, time.size
+    )
+    return LPJmLData(
+        data=values,
+        dims=("cell", "time"),
+        coords=dict(
+            cell=cell_ids,
+            time=time,
+            lat=("cell", lat),
+            lon=("cell", lon),
+        ),
+        name="soilc",
+    )
+
+
+def test_lpjmldata_transform_roundtrip():
+    """Validate cell <-> lon/lat transforms match lpjmlkit behaviour."""
+    data = _sample_lpjml_data()
+
+    lon_lat = data.transform("lon_lat")
+    assert set(lon_lat.dims) == {"lat", "lon", "time"}
+    np.testing.assert_allclose(lon_lat.lat.values, np.array([50.0, 49.5]))
+    np.testing.assert_allclose(lon_lat.lon.values, np.array([-1.0, -0.5]))
+
+    roundtrip = lon_lat.transform("cell")
+    assert set(roundtrip.dims) == {"cell", "time"}
+
+    roundtrip_sorted = roundtrip.sortby("lon").sortby("lat", ascending=False)
+    expected = data.sortby("lon").sortby("lat", ascending=False)
+
+    roundtrip_sorted = roundtrip_sorted.assign_coords(
+        cell=("cell", np.arange(roundtrip_sorted.sizes["cell"]))
+    )
+    expected = expected.assign_coords(
+        cell=("cell", np.arange(expected.sizes["cell"]))
+    )
+
+    xr.testing.assert_allclose(roundtrip_sorted, expected)
+
+
+def test_lpjmldataset_transform_and_netcdf(tmp_path):
+    """Ensure dataset transform enables writing gridded NetCDF output."""
+    soilc = _sample_lpjml_data()
+    ds = LPJmLDataSet({"soilc": soilc})
+
+    lon_lat_ds = ds.transform("lon_lat")
+    lon_lat_var = lon_lat_ds["soilc"]
+    assert {"lat", "lon"} <= set(lon_lat_var.dims)
+
+    nc_path = tmp_path / "soilc.nc4"
+    lon_lat_var.to_netcdf(nc_path)
+    with xr.open_dataset(nc_path) as reopened:
+        reopened_var = reopened["soilc"].transpose(*lon_lat_var.dims)
+        np.testing.assert_allclose(reopened_var.values, lon_lat_var.values)
+
+    cell_ds = lon_lat_ds.transform("cell")
+    cell_sorted = cell_ds["soilc"].sortby("lon").sortby("lat", ascending=False)
+    expected = soilc.sortby("lon").sortby("lat", ascending=False)
+    cell_sorted = cell_sorted.assign_coords(
+        cell=("cell", np.arange(cell_sorted.sizes["cell"]))
+    )
+    expected = expected.assign_coords(
+        cell=("cell", np.arange(expected.sizes["cell"]))
+    )
+    xr.testing.assert_allclose(cell_sorted, expected)
+
+
+def test_write_lpjmldata_netcdf_helper(tmp_path):
+    """Ensure helper writes grid and non-grid variables."""
+    soilc = _sample_lpjml_data()
+    target = tmp_path / "soilc.nc4"
+    soilc.to_netcdf(target)
+    assert target.exists()
+    with xr.open_dataset(target) as reopened:
+        assert reopened["soilc"].dims == soilc.transform("lon_lat").dims
+        np.testing.assert_allclose(
+            reopened["soilc"].values,
+            soilc.transform("lon_lat").values,
+        )
+
+    world = LPJmLData(
+        data=np.array([1.0, 2.0]),
+        dims=("time",),
+        coords={"time": [2000, 2001]},
+        name="world_var",
+    )
+    world_target = tmp_path / "world_var.nc4"
+    world.to_netcdf(world_target)
+    with xr.open_dataset(world_target) as reopened:
+        np.testing.assert_allclose(reopened["world_var"].values, world.values)
+
+
+def test_lpjmldata_method_to_netcdf(tmp_path):
+    soilc = _sample_lpjml_data()
+    target = tmp_path / "method_soilc.nc4"
+    result_path = soilc.to_netcdf(target)
+    assert Path(result_path).exists()
+
+
+def test_lpjmldata_global_attrs_passthrough(tmp_path):
+    soilc = _sample_lpjml_data()
+    soilc.attrs["_global_attrs"] = {"title": "Test Title", "institution": "PIK"}
+    target = tmp_path / "global.nc4"
+    soilc.to_netcdf(target)
+    with xr.open_dataset(target) as reopened:
+        assert reopened.attrs["title"] == "Test Title"
+        assert reopened.attrs["institution"] == "PIK"
+
+
+def test_netcdf_fill_values_are_finite(tmp_path):
+    soilc = _sample_lpjml_data()
+    target = tmp_path / "finite_fill.nc4"
+    soilc.to_netcdf(target)
+
+    with Dataset(target) as nc:
+        soilc_var = nc.variables["soilc"]
+        assert abs(float(soilc_var._FillValue)) < 1000
+        for coord_name in ("time", "lat", "lon"):
+            coord_var = nc.variables[coord_name]
+            assert "_FillValue" not in coord_var.ncattrs()
+
+
+def test_lpjmldataset_to_netcdf_separate(tmp_path):
+    soilc = _sample_lpjml_data()
+    world = LPJmLData(
+        data=np.array([1.0, 2.0]),
+        dims=("time",),
+        coords={"time": [2000, 2001]},
+        name="world_var",
+    )
+    ds = LPJmLDataSet({"soilc": soilc, "world_var": world})
+
+    out_dir = tmp_path / "nc_out"
+    files = ds.to_netcdf(out_dir, file_prefix="run")
+    assert set(files) == {"soilc", "world_var"}
+    for file_path in files.values():
+        assert Path(file_path).exists()
+
+
+def test_lpjmldataset_to_netcdf_combined(tmp_path):
+    soilc = _sample_lpjml_data()
+    world = LPJmLData(
+        data=np.array([1.0, 2.0]),
+        dims=("time",),
+        coords={"time": [2000, 2001]},
+        name="world_var",
+    )
+    ds = LPJmLDataSet({"soilc": soilc, "world_var": world})
+
+    target = tmp_path / "combined.nc4"
+    result = ds.to_netcdf(target, per_variable=False)
+    assert Path(result).exists()
+    with xr.open_dataset(result) as reopened:
+        assert {"lat", "lon"} <= set(reopened["soilc"].dims)
+        np.testing.assert_allclose(
+            reopened["soilc"].values,
+            soilc.transform("lon_lat").values,
+        )
 
 
 def test_read_data(test_path):

@@ -5,6 +5,10 @@ import struct
 import tempfile
 import copy
 import warnings
+import subprocess
+import atexit
+import signal
+from contextlib import contextmanager
 
 import numpy as np
 import pandas as pd
@@ -24,6 +28,52 @@ from pycoupler.data import (
     read_header,
 )
 from pycoupler.utils import get_countries
+
+
+# Port cleanup utilities ==================================================== #
+
+def kill_process_on_port(port):
+    """Kill any process using the specified port."""
+    try:
+        # Find processes using the port
+        result = subprocess.run(
+            ["lsof", "-ti", f":{port}"], 
+            capture_output=True, 
+            text=True, 
+            timeout=5
+        )
+        if result.returncode == 0 and result.stdout.strip():
+            pids = result.stdout.strip().split('\n')
+            killed_count = 0
+            for pid in pids:
+                if pid.strip():
+                    try:
+                        subprocess.run(["kill", "-9", pid.strip()], timeout=5)
+                        killed_count += 1
+                    except subprocess.TimeoutExpired:
+                        pass
+            return killed_count
+        return 0
+    except (subprocess.TimeoutExpired, subprocess.CalledProcessError, FileNotFoundError):
+        return -1
+
+def cleanup_port_on_exit(port):
+    """Register a cleanup function for the given port."""
+    def cleanup():
+        kill_process_on_port(port)
+    atexit.register(cleanup)
+
+@contextmanager
+def safe_port_binding(host, port):
+    """Context manager for safe port binding with automatic cleanup."""
+    # Clean up any existing processes on the port first
+    kill_process_on_port(port)
+    
+    try:
+        yield port
+    finally:
+        # Clean up on exit
+        kill_process_on_port(port)
 
 
 # class for testing purposes
@@ -206,6 +256,9 @@ def opentdt(host, port):
     if hasattr(sys, "_called_from_test"):
         channel = test_channel()
     else:
+        # Clean up any existing processes on the port first
+        kill_process_on_port(port)
+        
         # create an INET, STREAMing socket
         serversocket = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
         serversocket.setsockopt(socket.SOL_SOCKET, socket.SO_REUSEADDR, 1)
@@ -439,7 +492,7 @@ class LPJmLCoupler:
         generator
             Generator for all historic years.
         """
-        start_year = self._sim_year
+        start_year = self._config.firstyear
         end_year = self.config.start_coupling
         if match_period and start_year >= end_year:
             raise ValueError(
@@ -552,15 +605,21 @@ class LPJmLCoupler:
             Dictionary with output keys and corresponding output as numpy arrays
         """
         # read all historic outputs
-        hist_years = list()
+        output_years = list()
         for year in self.get_historic_years():
-            hist_years.append(year)
             if year == self._config.outputyear:
                 output_dict = self.read_output(year=year, to_xarray=False)
+                output_years.append(year)
             elif year > self._config.outputyear:
                 output_dict = append_to_dict(
                     output_dict, self.read_output(year=year, to_xarray=False)
                 )
+                output_years.append(year)
+
+        if not output_dict:
+            raise ValueError(
+                f"No historic output found for year {self._config.outputyear}"
+            )
 
         for key in output_dict:
             if key in output_dict:
@@ -568,11 +627,11 @@ class LPJmLCoupler:
                     item[0] for item in self._output_ids.items() if item[1] == key
                 ][0]
                 lpjml_output = self._create_xarray_template(
-                    index, time_length=len(hist_years)
+                    index, time_length=len(output_years)
                 )
 
                 lpjml_output.coords["time"] = pd.date_range(
-                    start=str(hist_years[0]), end=str(hist_years[-1] + 1), freq="YE"
+                    start=str(output_years[0]), end=str(output_years[-1] + 1), freq="YE"
                 )
                 lpjml_output.data = output_dict[key]
                 output_dict[key] = lpjml_output
@@ -583,8 +642,20 @@ class LPJmLCoupler:
             return output_dict
 
     def close(self):
-        """Close socket channel"""
-        self._channel.close()
+        """Close socket channel and clean up port"""
+        if hasattr(self, '_channel') and self._channel:
+            self._channel.close()
+        
+        # Clean up any processes still using the port
+        if hasattr(self, '_config') and hasattr(self._config, 'coupled_port'):
+            kill_process_on_port(self._config.coupled_port)
+    
+    def __del__(self):
+        """Destructor to ensure cleanup on object deletion"""
+        try:
+            self.close()
+        except:
+            pass  # Ignore errors during cleanup
 
     def send_input(self, input_dict, year):
         """Send input data of iterated year as dictionary to LPJmL.
@@ -1349,11 +1420,26 @@ class LPJmLCoupler:
         index = read_int(self._channel)
         if isinstance(data, LPJmLDataSet):
             data = data.to_numpy()
-        elif not isinstance(data[self._input_ids[index]], np.ndarray):
+        
+        # Get the input data array
+        input_name = self._input_ids[index]
+        input_data = data[input_name]
+        
+        # Convert to numpy array if it's not already
+        if not isinstance(input_data, np.ndarray):
+            if hasattr(input_data, 'values'):
+                input_data = input_data.values
+            elif hasattr(input_data, 'to_numpy'):
+                input_data = input_data.to_numpy()
+            else:
+                input_data = np.array(input_data)
+        
+        # Ensure it's a numpy array
+        if not isinstance(input_data, np.ndarray):
             self.close()
             raise TypeError(
-                "Unsupported object type. Please supply a numpy "
-                + "array with the dimension of (ncells, nband)."
+                f"Input data for '{input_name}' could not be converted to numpy array. "
+                + f"Got type: {type(input_data)}"
             )
 
         # type check conversion
@@ -1362,10 +1448,10 @@ class LPJmLCoupler:
         elif self._input_types[index].type == int:
             type_check = np.integer
 
-        if not np.issubdtype(data[self._input_ids[index]].dtype, type_check):
+        if not np.issubdtype(input_data.dtype, type_check):
             self.close()
             raise TypeError(
-                f"Unsupported type: {data[self._input_ids[index]].dtype} "
+                f"Unsupported type: {input_data.dtype} "
                 + "Please supply a numpy array with data type: "
                 + f"{np.dtype(self._input_types[index].type)}."
             )
@@ -1376,21 +1462,21 @@ class LPJmLCoupler:
         if index in self._input_ids.keys():
             # get corresponding number of bands from LPJmLInputType class
             bands = LPJmLInputType(id=index).nband
-            if not np.shape(data[self._input_ids[index]]) == (self._ncell, bands):
+            if not np.shape(input_data) == (self._ncell, bands):
                 if (
                     bands == 1
-                    and not np.shape(data[self._input_ids[index]])[0] == self._ncell
+                    and not np.shape(input_data)[0] == self._ncell
                 ):  # noqa
                     self.close()
                     raise ValueError(
                         "The dimensions of the supplied data: "
-                        + f"{(self._ncell, bands)} does not match the "
-                        + f"needed dimensions for {self._input_ids[index]}"
+                        + f"{np.shape(input_data)} does not match the "
+                        + f"needed dimensions for {input_name}"
                         + f": {(self._ncell, bands)}."
                     )
             # execute sending values method to actually send the input to
             #   socket
-            self._send_input_values(data[self._input_ids[index]])
+            self._send_input_values(input_data)
 
     def _send_input_values(self, data):
         """Iterate over all values to be sent to the socket. Recursive iteration
