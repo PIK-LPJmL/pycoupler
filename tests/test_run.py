@@ -169,7 +169,9 @@ $config_file
         assert "wait $couple_pid" in slurm_text
 
     @pytest.mark.parametrize("slurm_wait_state", ["present"], indirect=True)
-    def test_slurm_wait_block_respected(self, config_coupled, submit, slurm_wait_state, tmp_path):
+    def test_slurm_wait_block_respected(
+        self, config_coupled, submit, slurm_wait_state, tmp_path
+    ):
         expected = self._build_slurm_text(config_coupled, has_wait=True)
         assert (tmp_path / "slurm.jcf").read_text() == expected
 
