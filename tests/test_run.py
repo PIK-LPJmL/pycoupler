@@ -21,14 +21,14 @@ class TestLpjSubmit:
         return getattr(request, "param", "missing")
 
     @pytest.fixture(autouse=True)
-    def mock_lpjsubmit(self, fp, request, slurm_wait_state, config_coupled):
+    def mock_lpjsubmit(self, fp, request, slurm_wait_state, config_coupled, tmp_path):
         # We expect chmod to actually modify permissions
         fp.pass_command([fp.program("chmod"), "+x", fp.any(min=1, max=1)])
         fail_mode = getattr(request, "param", None)
         if fail_mode == "no mocking":
             return
 
-        slurm_jcf_path = Path.cwd() / "slurm.jcf"
+        slurm_jcf_path = tmp_path / "slurm.jcf"
 
         def _lpjsubmit_callback(_):
             slurm_text = self._build_slurm_text(
@@ -68,6 +68,7 @@ class TestLpjSubmit:
         sim_path,
         config_coupled,
         request,
+        tmp_path,
     ):
         return submit_lpjml(
             config_coupled,
@@ -77,6 +78,7 @@ class TestLpjSubmit:
             wtime=self.wtime,
             couple_to=self.couple_script,
             venv_path=mock_venv,
+            slurm_jcf_dir=tmp_path,
         )
 
     def test_job_id(self, submit):
@@ -126,8 +128,8 @@ class TestLpjSubmit:
             == 1
         ), "lpjsubmit should be called exactly once with correct parameters"
 
-    def test_sbatch_called(self, fp, submit):
-        slurm_jcf_path = Path.cwd() / "slurm.jcf"
+    def test_sbatch_called(self, fp, submit, tmp_path):
+        slurm_jcf_path = tmp_path / "slurm.jcf"
         assert (
             fp.call_count(["sbatch", str(slurm_jcf_path)]) == 1
         ), "sbatch should be invoked once with generated slurm.jcf"
@@ -161,17 +163,15 @@ $config_file
 """
             )
 
-    def test_slurm_wait_block_injected(self, config_coupled, submit):
-        slurm_text = Path("slurm.jcf").read_text()
+    def test_slurm_wait_block_injected(self, config_coupled, submit, tmp_path):
+        slurm_text = (tmp_path / "slurm.jcf").read_text()
         assert "couple_pid=$!" in slurm_text
         assert "wait $couple_pid" in slurm_text
 
     @pytest.mark.parametrize("slurm_wait_state", ["present"], indirect=True)
-    def test_slurm_wait_block_respected(
-        self, config_coupled, submit, slurm_wait_state
-    ):
+    def test_slurm_wait_block_respected(self, config_coupled, submit, slurm_wait_state, tmp_path):
         expected = self._build_slurm_text(config_coupled, has_wait=True)
-        assert Path("slurm.jcf").read_text() == expected
+        assert (tmp_path / "slurm.jcf").read_text() == expected
 
     def _build_slurm_text(self, config_path: str, has_wait: bool) -> str:
         couple_file = self._couple_file(config_path)

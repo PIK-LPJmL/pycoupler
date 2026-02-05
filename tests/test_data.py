@@ -59,9 +59,7 @@ def test_lpjmldata_transform_roundtrip():
     roundtrip_sorted = roundtrip_sorted.assign_coords(
         cell=("cell", np.arange(roundtrip_sorted.sizes["cell"]))
     )
-    expected = expected.assign_coords(
-        cell=("cell", np.arange(expected.sizes["cell"]))
-    )
+    expected = expected.assign_coords(cell=("cell", np.arange(expected.sizes["cell"])))
 
     xr.testing.assert_allclose(roundtrip_sorted, expected)
 
@@ -87,9 +85,7 @@ def test_lpjmldataset_transform_and_netcdf(tmp_path):
     cell_sorted = cell_sorted.assign_coords(
         cell=("cell", np.arange(cell_sorted.sizes["cell"]))
     )
-    expected = expected.assign_coords(
-        cell=("cell", np.arange(expected.sizes["cell"]))
-    )
+    expected = expected.assign_coords(cell=("cell", np.arange(expected.sizes["cell"])))
     xr.testing.assert_allclose(cell_sorted, expected)
 
 

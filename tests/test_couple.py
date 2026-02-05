@@ -39,7 +39,8 @@ def test_lpjml_coupler(model_path, sim_path, lpjml_coupler):
 
     assert lpjml_coupler.ncell == 2
     assert [year for year in lpjml_coupler.get_cells()] == [27410, 27411]
-    assert lpjml_coupler.historic_years == []
+    # historic_years is computed from firstyear (2001) to start_coupling (2023)
+    assert lpjml_coupler.historic_years == list(range(2001, 2023))
     assert lpjml_coupler.sim_years == []
     assert lpjml_coupler.coupled_years == []
     assert [year for year in lpjml_coupler.get_coupled_years()] == []

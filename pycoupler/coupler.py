@@ -7,7 +7,6 @@ import copy
 import warnings
 import subprocess
 import atexit
-import signal
 from contextlib import contextmanager
 
 import numpy as np
@@ -32,18 +31,16 @@ from pycoupler.utils import get_countries
 
 # Port cleanup utilities ==================================================== #
 
+
 def kill_process_on_port(port):
     """Kill any process using the specified port."""
     try:
         # Find processes using the port
         result = subprocess.run(
-            ["lsof", "-ti", f":{port}"], 
-            capture_output=True, 
-            text=True, 
-            timeout=5
+            ["lsof", "-ti", f":{port}"], capture_output=True, text=True, timeout=5
         )
         if result.returncode == 0 and result.stdout.strip():
-            pids = result.stdout.strip().split('\n')
+            pids = result.stdout.strip().split("\n")
             killed_count = 0
             for pid in pids:
                 if pid.strip():
@@ -54,21 +51,29 @@ def kill_process_on_port(port):
                         pass
             return killed_count
         return 0
-    except (subprocess.TimeoutExpired, subprocess.CalledProcessError, FileNotFoundError):
+    except (
+        subprocess.TimeoutExpired,
+        subprocess.CalledProcessError,
+        FileNotFoundError,
+    ):
         return -1
+
 
 def cleanup_port_on_exit(port):
     """Register a cleanup function for the given port."""
+
     def cleanup():
         kill_process_on_port(port)
+
     atexit.register(cleanup)
+
 
 @contextmanager
 def safe_port_binding(host, port):
     """Context manager for safe port binding with automatic cleanup."""
     # Clean up any existing processes on the port first
     kill_process_on_port(port)
-    
+
     try:
         yield port
     finally:
@@ -258,7 +263,7 @@ def opentdt(host, port):
     else:
         # Clean up any existing processes on the port first
         kill_process_on_port(port)
-        
+
         # create an INET, STREAMing socket
         serversocket = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
         serversocket.setsockopt(socket.SOL_SOCKET, socket.SO_REUSEADDR, 1)
@@ -643,18 +648,18 @@ class LPJmLCoupler:
 
     def close(self):
         """Close socket channel and clean up port"""
-        if hasattr(self, '_channel') and self._channel:
+        if hasattr(self, "_channel") and self._channel:
             self._channel.close()
-        
+
         # Clean up any processes still using the port
-        if hasattr(self, '_config') and hasattr(self._config, 'coupled_port'):
+        if hasattr(self, "_config") and hasattr(self._config, "coupled_port"):
             kill_process_on_port(self._config.coupled_port)
-    
+
     def __del__(self):
         """Destructor to ensure cleanup on object deletion"""
         try:
             self.close()
-        except:
+        except Exception:
             pass  # Ignore errors during cleanup
 
     def send_input(self, input_dict, year):
@@ -1420,20 +1425,20 @@ class LPJmLCoupler:
         index = read_int(self._channel)
         if isinstance(data, LPJmLDataSet):
             data = data.to_numpy()
-        
+
         # Get the input data array
         input_name = self._input_ids[index]
         input_data = data[input_name]
-        
+
         # Convert to numpy array if it's not already
         if not isinstance(input_data, np.ndarray):
-            if hasattr(input_data, 'values'):
+            if hasattr(input_data, "values"):
                 input_data = input_data.values
-            elif hasattr(input_data, 'to_numpy'):
+            elif hasattr(input_data, "to_numpy"):
                 input_data = input_data.to_numpy()
             else:
                 input_data = np.array(input_data)
-        
+
         # Ensure it's a numpy array
         if not isinstance(input_data, np.ndarray):
             self.close()
@@ -1463,10 +1468,7 @@ class LPJmLCoupler:
             # get corresponding number of bands from LPJmLInputType class
             bands = LPJmLInputType(id=index).nband
             if not np.shape(input_data) == (self._ncell, bands):
-                if (
-                    bands == 1
-                    and not np.shape(input_data)[0] == self._ncell
-                ):  # noqa
+                if bands == 1 and not np.shape(input_data)[0] == self._ncell:  # noqa
                     self.close()
                     raise ValueError(
                         "The dimensions of the supplied data: "

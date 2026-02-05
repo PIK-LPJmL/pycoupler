@@ -350,9 +350,7 @@ class LpjmlConfig(SubConfig):
         )
         # set coupling parameters
         self._set_coupling(
-            inputs=coupled_input,
-            outputs=coupled_output,
-            start_year=coupled_year
+            inputs=coupled_input, outputs=coupled_output, start_year=coupled_year
         )
         # set start from directory to start from historic run
         self._set_startfrom(path=f"{sim_path}/restart", dependency=dependency)

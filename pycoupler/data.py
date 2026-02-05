@@ -333,9 +333,7 @@ class LPJmLData(xr.DataArray):
             return data_array
         if isinstance(data_array, xr.DataArray):
             return self.__class__(data_array)
-        raise TypeError(
-            f"Expected xarray.DataArray, got {type(data_array)!r}"
-        )
+        raise TypeError(f"Expected xarray.DataArray, got {type(data_array)!r}")
 
     def transform(self, to="lon_lat"):
         """Transform the spatial layout between cell and lon/lat grid.
@@ -381,7 +379,8 @@ class LPJmLData(xr.DataArray):
                 )
 
             lon_lat = self.set_index(cell=("lat", "lon")).unstack("cell")
-            # Sort coordinates for consistent orientation (lon ascending, lat descending)
+            # Sort coordinates for consistent orientation (lon ascending,
+            # lat descending)
             if "lon" in lon_lat.dims:
                 lon_lat = lon_lat.sortby("lon")
             if "lat" in lon_lat.dims:
@@ -427,7 +426,7 @@ class LPJmLData(xr.DataArray):
         :meth:`xarray.DataArray.to_netcdf`, but gridding ``cell`` dimensions
         before persisting. [#da_netcdf]_
 
-        .. [#da_netcdf] https://docs.xarray.dev/en/latest/generated/xarray.DataArray.to_netcdf.html
+        .. [#da_netcdf] https://docs.xarray.dev/en/latest/generated/xarray.DataArray.to_netcdf.html # noqa: E501
         """
 
         kwargs = dict(kwargs)
@@ -593,9 +592,7 @@ class LPJmLDataSet(xr.Dataset):
             ):
                 coords[k] = self.variables[k].copy(deep=False)
 
-        indexes = xr.core.indexes.filter_indexes_from_coords(
-            self._indexes, set(coords)
-        )
+        indexes = xr.core.indexes.filter_indexes_from_coords(self._indexes, set(coords))
         # Copy indexes to avoid mutating dataset-level state
         indexes = {
             key: (idx.copy() if hasattr(idx, "copy") else idx)
@@ -785,6 +782,8 @@ class LPJmLDataSet(xr.Dataset):
             **kwargs,
         )
         return target_path
+
+
 def read_data(file_name, var_name=None, multiple_bands=False):
     """Read netcdf file and return data as numpy array or xarray.DataArray.
 

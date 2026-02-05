@@ -114,6 +114,7 @@ def submit_lpjml(
     option=None,
     couple_to=None,
     venv_path=None,
+    slurm_jcf_dir=None,
 ):
     """Submit LPJmL run to Slurm using `lpjsubmit` and a generated
     (class LpjmlConfig) config file.
@@ -155,6 +156,10 @@ def submit_lpjml(
     venv_path : str, optional
         Path to a venv to run the coupled script in. This should be the path to
         the top folder of the venv. If not set, `python3` in PATH is used.
+    slurm_jcf_dir : str or Path, optional
+        Directory where slurm.jcf file should be written. If not set, uses
+        current working directory. Useful for tests to avoid polluting the
+        project root.
 
     Returns
     -------
@@ -211,7 +216,9 @@ def submit_lpjml(
 
     # run in coupled mode and pass coupling program/model
     needs_coupler_wait = bool(couple_to)
-    slurm_jcf_path = Path(os.getcwd()) / "slurm.jcf"
+    if slurm_jcf_dir is None:
+        slurm_jcf_dir = os.getcwd()
+    slurm_jcf_path = Path(slurm_jcf_dir) / "slurm.jcf"
 
     couple_file = None
 
@@ -291,9 +298,7 @@ config_file="{config_file}"
             f"{job_submission_output}"
         )
 
-    return (
-        job_submission_output.split("Submitted batch job ")[1].split("\n")[0]
-    )
+    return job_submission_output.split("Submitted batch job ")[1].split("\n")[0]
 
 
 def _patch_slurm_and_submit(slurm_jcf_path: Path, couple_file: str | None, dependency):
