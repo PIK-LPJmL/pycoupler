@@ -11,16 +11,15 @@ def test_lpjml_coupler(model_path, sim_path, lpjml_coupler):
     hist_outputs = outputs.copy(deep=True)
 
     for year in lpjml_coupler.get_sim_years():
-        # Make a writable copy of inputs to modify time values
-        inputs = inputs.copy(deep=True)
-        # Make the underlying numpy array writable
-        inputs.time.values.setflags(write=True)
-        inputs.time.values[0] = np.datetime64(f"{year}-12-31")
+        # Use assign_coords to set time (avoids read-only array issues)
+        # Use datetime64[ns] to match xarray's internal representation
+        new_time = np.datetime64(f"{year}-12-31", "ns")
+        inputs = inputs.assign_coords(time=[new_time])
         # send input data to lpjml
         lpjml_coupler.send_input(inputs, year)
         # read output data from lpjml
 
-        outputs.time.values[0] = np.datetime64(f"{year}-12-31")
+        outputs = outputs.assign_coords(time=[new_time])
         for name, output in lpjml_coupler.read_output(year).items():
             outputs[name][:] = output[:]
 
