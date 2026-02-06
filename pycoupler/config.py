@@ -1141,8 +1141,8 @@ class CoupledConfig(SubConfig):
         for key, value in self.__dict__.items():
             if isinstance(value, SubConfig):
                 summary += f"""{'  ' * sub_repr}* {key}: {value.__repr__(
-                        sub_repr + 1, order + 1
-                    )}""".strip() + spacing
+                    sub_repr + 1, order + 1
+                )}""".strip() + spacing
             else:
                 summary += (
                     f"{'  ' * sub_repr}* {key:<20} {value}".strip() + spacing
