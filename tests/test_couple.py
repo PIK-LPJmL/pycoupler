@@ -13,6 +13,8 @@ def test_lpjml_coupler(model_path, sim_path, lpjml_coupler):
     for year in lpjml_coupler.get_sim_years():
         # Make a writable copy of inputs to modify time values
         inputs = inputs.copy(deep=True)
+        # Make the underlying numpy array writable
+        inputs.time.values.setflags(write=True)
         inputs.time.values[0] = np.datetime64(f"{year}-12-31")
         # send input data to lpjml
         lpjml_coupler.send_input(inputs, year)
