@@ -40,3 +40,13 @@ def test_detect_io_type(test_path):
     # Test invalid file (should raise FileNotFoundError)
     with pytest.raises(FileNotFoundError):
         detect_io_type(f"{test_path}/data/non_existent_file.txt")
+
+    # Test binary file that can't be decoded as UTF-8 (triggers UnicodeDecodeError)
+    # Create a binary file that's not valid UTF-8
+    from pathlib import Path
+
+    binary_file = Path(test_path) / "data" / "invalid_utf8.bin"
+    binary_file.parent.mkdir(parents=True, exist_ok=True)
+    binary_file.write_bytes(b"\xff\xfe\x00\x01")  # Invalid UTF-8 sequence
+    result = detect_io_type(str(binary_file))
+    assert result == "raw"  # Should default to 'raw' when decode fails
