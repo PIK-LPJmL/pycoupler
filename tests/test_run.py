@@ -150,9 +150,7 @@ class TestLpjSubmit:
             run_script_path.stat().st_mode & 0o0100
         ), "run script should be executable"
         with run_script_path.open("r") as f:
-            assert (
-                f.read()
-                == f"""#!/bin/bash
+            assert f.read() == f"""#!/bin/bash
 
 # Define the path to the config file
 config_file="{config_coupled}"
@@ -161,7 +159,6 @@ config_file="{config_coupled}"
 {f"{mock_venv}/bin/python" if mock_venv else "python3"} {self.couple_script} \
 $config_file
 """
-            )
 
     def test_slurm_wait_block_injected(self, config_coupled, submit, tmp_path):
         slurm_text = (tmp_path / "slurm.jcf").read_text()
