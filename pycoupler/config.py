@@ -1,4 +1,5 @@
-"""Classes and functions to handle LPJmL configurations and related operations"""
+"""Classes and functions to handle LPJmL configurations and related
+operations"""
 
 import os
 import sys
@@ -7,7 +8,8 @@ import json
 from subprocess import run
 from ruamel.yaml import YAML
 
-from pycoupler.utils import read_json, get_countries, create_subdirs, detect_io_type
+from pycoupler.utils import read_json, get_countries, create_subdirs, \
+    detect_io_type
 from pycoupler.data import read_header
 
 
@@ -19,8 +21,8 @@ class SubConfig:
     Parameters
     ----------
     config_dict : dict
-        Dictionary (ideally an LPJmL config dictionary) used to build up a nested
-        LpjmLConfig class with corresponding fields.
+        Dictionary (ideally an LPJmL config dictionary) used to build up a
+        nested LpjmLConfig class with corresponding fields.
     """
 
     def __init__(self, config_dict):
@@ -239,14 +241,16 @@ class LpjmlConfig(SubConfig):
         dependency : str, optional
             Name of simulation to depend on (e.g., spinup run).
         temporal_resolution : str or dict, default "annual"
-            Temporal resolution for outputs. Can be a dict of temporal resolutions
-            corresponding to outputs or a str to set the same resolution for
-            all outputs. Choose between "annual", "monthly", "daily".
+            Temporal resolution for outputs. Can be a dict of temporal
+            resolutions corresponding to outputs or a str to set the same
+            resolution for all outputs. Choose between "annual", "monthly",
+            "daily".
         write_output : list, default []
             Output IDs to be written by LPJmL. Check available outputs with
             get_output_avail().
         write_file_format : str, default "cdf"
-            File format of output files. Choose between "raw", "clm", and "cdf".
+            File format of output files. Choose between "raw", "clm", and
+            "cdf".
         append_output : bool, default True
             If True, defined output entries are appended. If False, existing
             outputs are overwritten.
@@ -256,7 +260,9 @@ class LpjmlConfig(SubConfig):
         output_path = f"{sim_path}/output/{self.sim_name}"
         # set time range for historic run
         self._set_timerange(
-            start_year=start_year, end_year=end_year, write_start_year=start_year
+            start_year=start_year,
+            end_year=end_year,
+            write_start_year=start_year
         )
         # set output writing
         self._set_output(
@@ -321,7 +327,8 @@ class LpjmlConfig(SubConfig):
             Output IDs to be written by LPJmL. Check available outputs with
             get_output_avail().
         write_file_format : str, default "cdf"
-            File format of output files. Choose between "raw", "clm", and "cdf".
+            File format of output files. Choose between "raw", "clm", and
+            "cdf".
         append_output : bool, default True
             If True, defined output entries are appended. If False, existing
             outputs are overwritten.
@@ -332,7 +339,9 @@ class LpjmlConfig(SubConfig):
 
         # set time range for coupled run
         self._set_timerange(
-            start_year=start_year, end_year=end_year, write_start_year=start_year
+            start_year=start_year,
+            end_year=end_year,
+            write_start_year=start_year
         )
         # set grid explicitly to be able to use start and endgrid
         self._set_grid_explicitly()
@@ -350,7 +359,9 @@ class LpjmlConfig(SubConfig):
         )
         # set coupling parameters
         self._set_coupling(
-            inputs=coupled_input, outputs=coupled_output, start_year=coupled_year
+            inputs=coupled_input,
+            outputs=coupled_output,
+            start_year=coupled_year
         )
         # set start from directory to start from historic run
         self._set_startfrom(path=f"{sim_path}/restart", dependency=dependency)
@@ -406,7 +417,7 @@ class LpjmlConfig(SubConfig):
             outputs.append("grid")
 
         # create dict of outputvar names with indexes for iteration
-        outputvar_names = {ov.name: pos for pos, ov in enumerate(self.outputvar)}
+        outputvar_names = {ov.name: pos for pos, ov in enumerate(self.outputvar)}  # noqa: E501
         # extract dict of outputvar for manipulation
         outputvars = self.to_dict()["outputvar"]
 
@@ -428,7 +439,7 @@ class LpjmlConfig(SubConfig):
                     isinstance(temporal_resolution, dict)
                     and out.id in temporal_resolution.keys()
                 ):
-                    self.output[pos].file.timestep = temporal_resolution[out.id]
+                    self.output[pos].file.timestep = temporal_resolution[out.id]  # noqa: E501
 
                 if out.id not in nonvariable_outputs:
                     self.output[pos].file.fmt = file_format
@@ -546,8 +557,9 @@ class LpjmlConfig(SubConfig):
 
     def _set_coupling(
         self, inputs, outputs, start_year=None, model_name="copan"
-    ):  # noqa
-        """Coupled settings - no spinup, not write restart file and set sockets"""
+    ):
+        """Coupled settings - no spinup, not write restart file and set
+        sockets"""
         self.write_restart = False
         self.nspinup = 0
         self.float_grid = True
@@ -563,6 +575,8 @@ class LpjmlConfig(SubConfig):
         """Set sockets for inputs and outputs (via corresponding ids)"""
         for inp in inputs:
             sock_input = getattr(self.input, inp)
+            if not hasattr(sock_input, "__dict__"):
+                continue  # skip scalars (e.g. delta_year in LPJmL v6)
             if "id" not in sock_input.__dict__.keys():
                 raise ValueError("Please use a config with input ids.")
             sock_input.__dict__["socket"] = True
@@ -573,7 +587,7 @@ class LpjmlConfig(SubConfig):
             outputs.append("grid")
 
         # get names/ids only of outputs that are defined in outputvar
-        valid_outs = {out.name for out in self.outputvar if out.name in outputs}
+        valid_outs = {out.name for out in self.outputvar if out.name in outputs}  # noqa: E501
 
         # check if all outputs are valid
         nonvalid_outputs = list(set(outputs) - valid_outs)
@@ -584,7 +598,7 @@ class LpjmlConfig(SubConfig):
             )
         # get position of valid outputs in config output list
         output_pos = [
-            pos for pos, out in enumerate(self.output) if out.id in valid_outs
+            pos for pos, out in enumerate(self.output) if out.id in valid_outs  # noqa: E501
         ]
 
         # set socket to true for corresponding outputs
@@ -606,13 +620,17 @@ class LpjmlConfig(SubConfig):
             return [
                 inp
                 for inp in inputs
-                if ("socket" in inputs[inp]) and inputs[inp]["socket"]
+                if isinstance(inputs[inp], dict)
+                and ("socket" in inputs[inp])
+                and inputs[inp]["socket"]
             ]
         else:
             return {
                 inp: inputs[inp]
                 for inp in inputs
-                if ("socket" in inputs[inp]) and inputs[inp]["socket"]
+                if isinstance(inputs[inp], dict)
+                and ("socket" in inputs[inp])
+                and inputs[inp]["socket"]
             }
 
     def get_output_sockets(self, id_only=False):
@@ -650,7 +668,7 @@ class LpjmlConfig(SubConfig):
         """
         self.coupled_config = read_yaml(file_name, CoupledConfig)
 
-    def regrid(self, sim_path, model_path=None, country_code="BEL", overwrite=False):
+    def regrid(self, sim_path, model_path=None, country_code="BEL", overwrite=False):  # noqa: E501
         """
         Regrid LPJmL configuration file to a new country.
 
@@ -707,10 +725,10 @@ class LpjmlConfig(SubConfig):
             return
 
         country_grid_file = (
-            f"{sim_path}/input/{country}_{os.path.basename(self.input.coord.name)}"
+            f"{sim_path}/input/{country}_{os.path.basename(self.input.coord.name)}"  # noqa: E501
         )
         # check if country specific input files already exist
-        if (not os.path.isfile(country_grid_file) or overwrite) and not hasattr(
+        if (not os.path.isfile(country_grid_file) or overwrite) and not hasattr( # noqa: E501
             sys, "_called_from_test"
         ):
 
@@ -747,12 +765,12 @@ class LpjmlConfig(SubConfig):
             else f"{self.inpath}/{self.input.lakes.name}"
         )
         # extract country specific lakes file from meta file
-        if self.input.lakes.fmt == "meta" and not hasattr(sys, "_called_from_test"):
+        if self.input.lakes.fmt == "meta" and not hasattr(sys, "_called_from_test"):  # noqa: E501
             lakes_filename = read_json(lakes_fn_string)["filename"]
 
             lakes_file = lakes_fn_string
             lakes_file = (
-                f"{lakes_file[:lakes_file.rfind('/')+1]}{lakes_filename}"  # noqa
+                f"{lakes_file[:lakes_file.rfind('/')+1]}{lakes_filename}"  # noqa: E501
             )
         else:
             lakes_file = lakes_fn_string
@@ -762,7 +780,7 @@ class LpjmlConfig(SubConfig):
         )
 
         # check if country specific input files already exist
-        if (not os.path.isfile(country_lakes_file) or overwrite) and not hasattr(
+        if (not os.path.isfile(country_lakes_file) or overwrite) and not hasattr( # noqa: E501
             sys, "_called_from_test"
         ):
 
@@ -794,9 +812,9 @@ class LpjmlConfig(SubConfig):
         for config_key, config_input in self.input:
 
             if (
-                config_input.fmt != "clm"
+                getattr(config_input, "fmt", None) != "clm"
                 or config_key in ["coord", "lakes"]
-                or (config_input.name == "DUMMYLOCATION")
+                or getattr(config_input, "name", None) == "DUMMYLOCATION"
             ):
                 continue
 
@@ -812,7 +830,7 @@ class LpjmlConfig(SubConfig):
             )
 
             # check if country specific input files already exist
-            if (not os.path.isfile(country_input_file) or overwrite) and not hasattr(
+            if (not os.path.isfile(country_input_file) or overwrite) and not hasattr( # noqa: E501
                 sys, "_called_from_test"
             ):
 
@@ -838,12 +856,19 @@ class LpjmlConfig(SubConfig):
                 #     regrid_cmd.insert(1, additional_arg)
                 run(regrid_cmd, check=True, stdout=open(os.devnull, "wb"))
 
-            config_input.fmt = (
-                detect_io_type(country_input_file)
-                if not hasattr(sys, "_called_from_test")
-                else "clm"
-            )
+            # Keep original fmt ("clm"): regridclm always outputs clm format.
+            # Re-detecting via detect_io_type() can misclassify (e.g.
+            # slope files as "text" when first bytes are printable ASCII).
             config_input.name = country_input_file
+            if (
+                os.path.isfile(country_input_file)
+                and os.path.getsize(country_input_file) == 0
+                and not hasattr(sys, "_called_from_test")
+            ):
+                raise OSError(
+                    f"Regridded file '{country_input_file}' is empty. "
+                    "Delete it and run regrid(..., overwrite=True) to regenerate."  # noqa: E501
+                )
 
         self._set_grid_explicitly(only_all=False)
 
@@ -868,12 +893,12 @@ class LpjmlConfig(SubConfig):
         if not os.path.isfile(f"{output_dir}/{grid_name}") and not hasattr(
             sys, "_called_from_test"
         ):
-            run(f"tail -c +44 {grid_file} > {output_dir}/{grid_name}", shell=True)
+            run(f"tail -c +44 {grid_file} > {output_dir}/{grid_name}", shell=True)  # noqa: E501
 
         grid_file = f"{output_dir}/{grid_name}"
 
         outputs = [
-            out for out in self.get_output(fmt="cdf", id_only=True) if out != "grid"
+            out for out in self.get_output(fmt="cdf", id_only=True) if out != "grid"  # noqa: E501
         ]
 
         if output_id:
@@ -967,7 +992,7 @@ class LpjmlConfig(SubConfig):
             summary_list = [summary, "  (changed)"]
             summary_list.extend(
                 [
-                    f"  * {torepr}{(20-len(torepr))*' '} {getattr(self, torepr)}"
+                    f"  * {torepr}{(20-len(torepr))*' '} {getattr(self, torepr)}"  # noqa: E501
                     for torepr in changed_repr
                 ]
             )
@@ -1005,7 +1030,7 @@ class LpjmlConfig(SubConfig):
 
 
 def parse_config(
-    file_name="./lpjml_config.json", spin_up=False, macros=None, config_class=None
+    file_name="./lpjml_config.json", spin_up=False, macros=None, config_class=None  # noqa: E501
 ):
     """
     Precompile lpjml_config.json and return LpjmlConfig object or dict.
@@ -1061,7 +1086,8 @@ def read_config(
     Parameters
     ----------
     file_name : str
-        File name (including relative/absolute path) of the LPJmL configuration.
+        File name (including relative/absolute path) of the LPJmL
+        configuration.
     model_path : str, optional
         Path to model root directory. If provided, joined with file_name.
     spin_up : bool, default False
