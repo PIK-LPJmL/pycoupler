@@ -90,7 +90,8 @@ class LPJmLInputType:
         # Filter to entries with "id" (proper input types); skip scalars like
         # delta_year
         cls.__input_types__ = {
-            k: v for k, v in cls.__input_types__.items()
+            k: v
+            for k, v in cls.__input_types__.items()
             if isinstance(v, dict) and "id" in v
         }
         cls.names = list(cls.__input_types__.keys())
@@ -244,12 +245,15 @@ class LPJmLData(xr.DataArray):
 
             if meta_data.cellsize_lat != meta_data.cellsize_lon:
                 raise ValueError(
-                    "Cell sizes in latitude and longitude direction must be " "equal!"  # noqa: E501
+                    "Cell sizes in latitude and longitude direction must be "
+                    "equal!"  # noqa: E501
                 )
             else:
                 self.attrs["cellsize"] = meta_data.cellsize_lon
 
-            band_dim = next((dim for dim in self.dims if dim.startswith("band")), None)  # noqa: E501
+            band_dim = next(
+                (dim for dim in self.dims if dim.startswith("band")), None
+            )  # noqa: E501
             # TODO assign lat lon to grid object
             if band_dim is not None and len(self.coords[band_dim]) > 1:
                 if meta_data.variable == "grid":
@@ -257,10 +261,14 @@ class LPJmLData(xr.DataArray):
                 elif len(self.coords[band_dim]) == len(meta_data.band_names):
                     self.coords[band_dim] = meta_data.band_names
                 else:
-                    self.coords[band_dim] = np.arange(1, len(self.coords[band_dim]) + 1)  # noqa: E501
+                    self.coords[band_dim] = np.arange(
+                        1, len(self.coords[band_dim]) + 1
+                    )  # noqa: E501
 
             if hasattr(meta_data, "global_attrs"):
-                self.attrs["institution"] = meta_data.global_attrs["institution"]  # noqa: E501
+                self.attrs["institution"] = meta_data.global_attrs[
+                    "institution"
+                ]  # noqa: E501
                 self.attrs["contact"] = meta_data.global_attrs["contact"]
                 self.attrs["comment"] = meta_data.global_attrs["comment"]
         else:
@@ -318,7 +326,9 @@ class LPJmLData(xr.DataArray):
                     current_neighbours
                 ]
             elif len(current_neighbours) > 0 and not id:
-                neighbour_ids[i, : len(current_neighbours)] = current_neighbours  # noqa: E501
+                neighbour_ids[i, : len(current_neighbours)] = (
+                    current_neighbours  # noqa: E501
+                )
 
         neighbours = LPJmLData(
             data=neighbour_ids,
@@ -528,7 +538,9 @@ class LPJmLDataSet(xr.Dataset):
     def __init__(self, *args, **kwargs):
         super(LPJmLDataSet, self).__init__(*args, **kwargs)
 
-        if self.data_vars and ("cellsize" in self[list(self.data_vars)[0]].attrs):  # noqa: E501
+        if self.data_vars and (
+            "cellsize" in self[list(self.data_vars)[0]].attrs
+        ):  # noqa: E501
             first_attrs = self[list(self.data_vars)[0]].attrs
             self.attrs["source"] = first_attrs["source"]
             self.attrs["history"] = first_attrs["history"]
@@ -588,7 +600,9 @@ class LPJmLDataSet(xr.Dataset):
             variable = variable.copy(deep=False)
 
         needed_dims = set(variable.dims)
-        stripped_dims = {re.sub(r"\s*\(.*?\)", "", item) for item in needed_dims}  # noqa: E501
+        stripped_dims = {
+            re.sub(r"\s*\(.*?\)", "", item) for item in needed_dims
+        }  # noqa: E501
 
         coords: dict[Hashable, Variable] = {}
         # preserve ordering
@@ -599,7 +613,9 @@ class LPJmLDataSet(xr.Dataset):
             ):
                 coords[k] = self.variables[k].copy(deep=False)
 
-        indexes = xr.core.indexes.filter_indexes_from_coords(self._indexes, set(coords))  # noqa: E501
+        indexes = xr.core.indexes.filter_indexes_from_coords(
+            self._indexes, set(coords)
+        )  # noqa: E501
         # Copy indexes to avoid mutating dataset-level state
         indexes = {
             key: (idx.copy() if hasattr(idx, "copy") else idx)
@@ -611,7 +627,9 @@ class LPJmLDataSet(xr.Dataset):
 
         # get the corresponding band dimension
         band_dim = [
-            dim for dim in variable._dims if dim.startswith("band") and dim != "band"  # noqa: E501
+            dim
+            for dim in variable._dims
+            if dim.startswith("band") and dim != "band"  # noqa: E501
         ]
         if band_dim:
             variable._dims = variable._parse_dimensions(
@@ -622,7 +640,9 @@ class LPJmLDataSet(xr.Dataset):
             )
 
         # get the corresponding "band" index and delete all other band indexes
-        band_idx = [key for key in coords if key.startswith("band") and key != "band"]  # noqa: E501
+        band_idx = [
+            key for key in coords if key.startswith("band") and key != "band"
+        ]  # noqa: E501
         if band_idx:
             for key in band_idx:
                 if name not in key:
@@ -651,7 +671,9 @@ class LPJmLDataSet(xr.Dataset):
         if name.startswith("band") and name != "band":
             name = "band"
 
-        return LPJmLData(variable, coords, name=name, indexes=indexes, fastpath=True)  # noqa: E501
+        return LPJmLData(
+            variable, coords, name=name, indexes=indexes, fastpath=True
+        )  # noqa: E501
 
     def to_dict(self, data="list", encoding=False):
         """
@@ -820,7 +842,9 @@ def read_data(file_name, var_name=None, multiple_bands=False):
             data.coords["time"].attrs["units"] = unit
             data.coords["time"] = date_time.year
 
-        other_dims = [dim for dim in data.dims if dim not in ["lat", "lon", "time"]]  # noqa: E501
+        other_dims = [
+            dim for dim in data.dims if dim not in ["lat", "lon", "time"]
+        ]  # noqa: E501
 
         # handle multiple bands
         if var_name and multiple_bands:
@@ -1292,7 +1316,9 @@ def get_headersize(filename):
     header = read_header(filename, to_dict=True)
     version = header["header"]["version"]
     if version < 1 or version > 4:
-        raise ValueError("Invalid header version. Expecting value between 1 and 4.")  # noqa: E501
+        raise ValueError(
+            "Invalid header version. Expecting value between 1 and 4."
+        )  # noqa: E501
 
     headersize = len(header["name"]) + {1: 7, 2: 9, 3: 11, 4: 13}[version] * 4
     return headersize

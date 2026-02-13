@@ -582,7 +582,8 @@ class LPJmLCoupler:
             if static_output == "country" and to_iso_alpha_3:
                 country_dict = get_countries()
                 name_dict = {
-                    idx: country_dict[reg]["code"] for idx, reg in name_dict.items()  # noqa: E501
+                    idx: country_dict[reg]["code"]
+                    for idx, reg in name_dict.items()  # noqa: E501
                 }
                 getattr(self, f"{static_output}").attrs[
                     "long_name"
@@ -700,7 +701,9 @@ class LPJmLCoupler:
         #   steps (analogous to years left)
         # Year check - if procvided year matches internal simulation year
         if year != self._sim_year:
-            raise ValueError(f"Year {year} not matches simulated year {self._sim_year}")  # noqa: E501
+            raise ValueError(
+                f"Year {year} not matches simulated year {self._sim_year}"
+            )  # noqa: E501
         operations = self.operations_left
 
         # Check if read_output operation valid
@@ -769,7 +772,9 @@ class LPJmLCoupler:
                 if key not in self._static_ids
             }  # noqa
 
-        output_iterations = sum(steps for steps in self._output_steps if steps > 0)  # noqa: E501
+        output_iterations = sum(
+            steps for steps in self._output_steps if steps > 0
+        )  # noqa: E501
 
         # Perform subannual (monthly, daily) read_output operation
         output = self._iterate_operation(
@@ -841,7 +846,9 @@ class LPJmLCoupler:
                 inputs.values(), key=lambda inp: inp.time.item()
             ).time.item()  # noqa
             for key in inputs.keys():
-                inputs[key] = inputs[key].drop("time").assign_coords({"time": [year]})  # noqa: E501
+                inputs[key] = (
+                    inputs[key].drop("time").assign_coords({"time": [year]})
+                )  # noqa: E501
 
         inputs = LPJmLDataSet(inputs)
         # define longitide and latitude DataArray (workaround to reduce dims to
@@ -856,16 +863,23 @@ class LPJmLCoupler:
         lats = self._cached_grid["lats"]
 
         if start_year and end_year:
-            kwargs = {"time": [year for year in range(start_year, end_year + 1)]}  # noqa: E501
+            kwargs = {
+                "time": [year for year in range(start_year, end_year + 1)]
+            }  # noqa: E501
         elif start_year and not end_year:
             kwargs = {
                 "time": [
-                    year for year in range(start_year, max(inputs.time.values) + 1)  # noqa: E501
+                    year
+                    for year in range(
+                        start_year, max(inputs.time.values) + 1
+                    )  # noqa: E501
                 ]
             }
         elif not start_year and end_year:
             kwargs = {
-                "time": [year for year in range(min(inputs.time.values), end_year + 1)]  # noqa: E501
+                "time": [
+                    year for year in range(min(inputs.time.values), end_year + 1)
+                ]  # noqa: E501
             }
         else:
             kwargs = {}
@@ -911,7 +925,9 @@ class LPJmLCoupler:
             if len(band_names) % len(self.config.cftmap) == 0:
                 len_irr_systems = len(band_names) // len(self.config.cftmap)
             else:
-                len_irr_systems = len(band_names) // len(self.config.landusemap)  # noqa: E501
+                len_irr_systems = len(band_names) // len(
+                    self.config.landusemap
+                )  # noqa: E501
 
             if len_irr_systems == 2:
                 irr_systems = irr_systems_short
@@ -963,7 +979,9 @@ class LPJmLCoupler:
         for key in sock_inputs:
             # check if working on the cluster (workaround by Ciaron)
             #   (might be adjusted to the new cluster coming soon ...)
-            if self.config.inpath and (not sock_inputs[key]["name"].startswith("/")):  # noqa: E501
+            if self.config.inpath and (
+                not sock_inputs[key]["name"].startswith("/")
+            ):  # noqa: E501
                 sock_inputs[key][
                     "name"
                 ] = f"{self.config.inpath}/{sock_inputs[key]['name']}"
@@ -997,7 +1015,9 @@ class LPJmLCoupler:
                 # data ends in simulation period
                 cut_start_year = start_year
                 cut_end_year = meta_data.lastyear
-            elif meta_data.firstyear <= start_year and meta_data.lastyear >= start_year:  # noqa: E501
+            elif (
+                meta_data.firstyear <= start_year and meta_data.lastyear >= start_year
+            ):  # noqa: E501
                 # data starts before simulation period,
                 # but simulation is within data period
                 cut_start_year = start_year
@@ -1041,7 +1061,9 @@ class LPJmLCoupler:
             if self.config.input.coord.name.startswith("/"):
                 grid_file = self.config.input.coord.name
             else:
-                grid_file = f"{self.config.inpath}/{self.config.input.coord.name}"  # noqa: E501
+                grid_file = (
+                    f"{self.config.inpath}/{self.config.input.coord.name}"  # noqa: E501
+                )
             # convert clm input to netcdf files
             conversion_cmd = [
                 f"{self._config.model_path}/bin/clm2cdf",
@@ -1079,13 +1101,17 @@ class LPJmLCoupler:
     def _init_coupling(self):
         """Initialize coupling"""
         # initiate simulation time
-        self._sim_year = min(self._config.outputyear, self._config.start_coupling)  # noqa: E501
+        self._sim_year = min(
+            self._config.outputyear, self._config.start_coupling
+        )  # noqa: E501
         self._year_read_output = None
         self._year_send_input = None
 
         # read amount of LPJml cells
         self._ncell = read_int(self._channel)
-        if self._ncell != len(range(self._config.startgrid, self._config.endgrid + 1)):  # noqa: E501
+        if self._ncell != len(
+            range(self._config.startgrid, self._config.endgrid + 1)
+        ):  # noqa: E501
             self.close()
             raise ValueError(
                 f"Invalid number of cells received ({self._ncell}), must be"
@@ -1401,7 +1427,9 @@ class LPJmLCoupler:
             data=output_tmpl,
             dims=("cell", "band", "time"),
             coords=dict(
-                cell=np.arange(self._config.startgrid, self._config.endgrid + 1),  # noqa: E501
+                cell=np.arange(
+                    self._config.startgrid, self._config.endgrid + 1
+                ),  # noqa: E501
                 lon=(["cell"], self.grid.coords["lon"].values),
                 lat=(["cell"], self.grid.coords["lat"].values),
                 band=np.arange(bands),  # [str(i) for i in range(bands)],
@@ -1419,7 +1447,9 @@ class LPJmLCoupler:
             # add meta information to output
             output_tmpl.add_meta(meta_output)
 
-            output_tmpl = output_tmpl.rename(band=f"band ({self._output_ids[index]})")  # noqa: E501
+            output_tmpl = output_tmpl.rename(
+                band=f"band ({self._output_ids[index]})"
+            )  # noqa: E501
             # add meta data to output
         return output_tmpl
 
@@ -1461,9 +1491,8 @@ class LPJmLCoupler:
 
         if not np.issubdtype(input_data.dtype, type_check):
             # Auto-convert float to int when integer input is expected
-            if (
-                self._input_types[index].type == int
-                and np.issubdtype(input_data.dtype, np.floating)
+            if self._input_types[index].type == int and np.issubdtype(
+                input_data.dtype, np.floating
             ):
                 input_data = np.around(input_data).astype(np.int64)
             else:
@@ -1481,7 +1510,9 @@ class LPJmLCoupler:
             # get corresponding number of bands from LPJmLInputType class
             bands = LPJmLInputType(id=index).nband
             if not np.shape(input_data) == (self._ncell, bands):
-                if bands == 1 and not np.shape(input_data)[0] == self._ncell:  # noqa: E501
+                if (
+                    bands == 1 and not np.shape(input_data)[0] == self._ncell
+                ):  # noqa: E501
                     self.close()
                     raise ValueError(
                         "The dimensions of the supplied data: "
@@ -1546,7 +1577,9 @@ class LPJmLCoupler:
         # as list for appending/extending as list
         return output
 
-    def _read_output_values(self, output, index, dims=None, steps_as_bands=False):  # noqa: E501
+    def _read_output_values(
+        self, output, index, dims=None, steps_as_bands=False
+    ):  # noqa: E501
         """Iterate over all values to be read from the socket. Recursive
         iteration with the correct order of cells and bands for outputs.
         """
@@ -1559,11 +1592,15 @@ class LPJmLCoupler:
             for cell in range(cells):
                 # Read the value from the socket
                 if one_band:
-                    output[cell] = self._output_types[index].read_fun(self._channel)  # noqa: E501
+                    output[cell] = self._output_types[index].read_fun(
+                        self._channel
+                    )  # noqa: E501
                 elif steps_as_bands:
-                    output[cell, self._output_count_steps[index]] = self._output_types[  # noqa: E501
+                    output[cell, self._output_count_steps[index]] = self._output_types[
                         index
-                    ].read_fun(self._channel)
+                    ].read_fun(
+                        self._channel
+                    )  # noqa: E501
                 else:
                     output[cell, band] = self._output_types[index].read_fun(
                         self._channel
@@ -1582,7 +1619,9 @@ class LPJmLCoupler:
             output = self._config.output[output_id]
         elif index is not None:
             output = [
-                out for out in self._config.output if out.id == self._output_ids[index]  # noqa: E501
+                out
+                for out in self._config.output
+                if out.id == self._output_ids[index]  # noqa: E501
             ][0]
         else:
             raise ValueError("Either index or output_id must be supplied")

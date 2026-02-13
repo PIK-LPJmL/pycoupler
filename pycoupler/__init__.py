@@ -13,8 +13,13 @@ from .config import (
 
 from .coupler import LPJmLCoupler, kill_process_on_port
 
-from .run import run_lpjml, submit_lpjml, check_lpjml, start_lpjml, \
-    kill_stale_lpjml_processes
+from .run import (
+    run_lpjml,
+    submit_lpjml,
+    check_lpjml,
+    start_lpjml,
+    kill_stale_lpjml_processes,
+)
 
 from .data import (
     LPJmLData,
@@ -52,7 +57,13 @@ __all__ += [
     "get_headersize",
 ]
 
-__all__ += ["run_lpjml", "start_lpjml", "submit_lpjml", "check_lpjml", "kill_stale_lpjml_processes"]  # noqa: E501
+__all__ += [
+    "run_lpjml",
+    "start_lpjml",
+    "submit_lpjml",
+    "check_lpjml",
+    "kill_stale_lpjml_processes",
+]  # noqa: E501
 
 __all__ += [
     "get_countries",

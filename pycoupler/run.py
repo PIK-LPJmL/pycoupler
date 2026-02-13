@@ -52,7 +52,9 @@ def kill_stale_lpjml_processes(port=None, verbose=False):
                         )
                         killed_count += 1
                         if verbose:
-                            print(f"Killed LPJmL process with PID {pid.strip()}")  # noqa: E501
+                            print(
+                                f"Killed LPJmL process with PID {pid.strip()}"
+                            )  # noqa: E501
                     except subprocess.TimeoutExpired:
                         pass
     except (
@@ -118,7 +120,9 @@ def operate_lpjml(config_file, std_to_file=False):
     config = read_config(config_file)
 
     if not os.path.isdir(config.model_path):
-        raise ValueError(f"Folder of model_path '{config.model_path}' does not exist!")  # noqa: E501
+        raise ValueError(
+            f"Folder of model_path '{config.model_path}' does not exist!"
+        )  # noqa: E501
 
     output_path = f"{config.sim_path}/output/{config.sim_name}"
 
@@ -271,7 +275,9 @@ def submit_lpjml(
 
     config = read_config(config_file)
     if not os.path.isdir(config.model_path):
-        raise ValueError(f"Folder of model_path '{config.model_path}' does not exist!")  # noqa: E501
+        raise ValueError(
+            f"Folder of model_path '{config.model_path}' does not exist!"
+        )  # noqa: E501
 
     output_path = f"{config.sim_path}/output/{config.sim_name}"
 
@@ -400,10 +406,14 @@ config_file="{config_file}"
             f"{job_submission_output}"
         )
 
-    return job_submission_output.split("Submitted batch job ")[1].split("\n")[0]  # noqa: E501
+    return job_submission_output.split("Submitted batch job ")[1].split("\n")[
+        0
+    ]  # noqa: E501
 
 
-def _patch_slurm_and_submit(slurm_jcf_path: Path, couple_file: str | None, dependency): # noqa: E501
+def _patch_slurm_and_submit(
+    slurm_jcf_path: Path, couple_file: str | None, dependency
+):  # noqa: E501
     """Ensure the coupling helper is waited on before submitting the job.
 
     Older LPJmL versions background the coupler without waiting for it. We
@@ -412,7 +422,9 @@ def _patch_slurm_and_submit(slurm_jcf_path: Path, couple_file: str | None, depen
     """
 
     if couple_file is None:
-        raise RuntimeError("Coupling file path is required for coupled submissions.")  # noqa: E501
+        raise RuntimeError(
+            "Coupling file path is required for coupled submissions."
+        )  # noqa: E501
 
     if not slurm_jcf_path.exists():
         raise FileNotFoundError(
@@ -495,7 +507,9 @@ def check_lpjml(config_file):
     """
     config = read_config(config_file)
     if not os.path.isdir(config.model_path):
-        raise ValueError(f"Folder of model_path '{config.model_path}' does not exist!")  # noqa: E501
+        raise ValueError(
+            f"Folder of model_path '{config.model_path}' does not exist!"
+        )  # noqa: E501
     if os.path.isfile(f"{config.model_path}/bin/lpjcheck"):
         proc_status = run(
             ["./bin/lpjcheck", config_file],
