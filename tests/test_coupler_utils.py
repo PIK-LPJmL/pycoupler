@@ -38,8 +38,12 @@ class TestKillProcessOnPort:
             ["lsof", "-ti", ":8080"], capture_output=True, text=True, timeout=5
         )
         # Check kill was called for each PID
-        mock_run.assert_any_call(["kill", "-9", "12345"], timeout=5)
-        mock_run.assert_any_call(["kill", "-9", "67890"], timeout=5)
+        mock_run.assert_any_call(
+            ["kill", "-9", "12345"], timeout=5, capture_output=True
+        )
+        mock_run.assert_any_call(
+            ["kill", "-9", "67890"], timeout=5, capture_output=True
+        )
 
     @patch("pycoupler.coupler.subprocess.run")
     def test_kill_process_on_port_no_processes(self, mock_run):
@@ -124,8 +128,12 @@ class TestKillProcessOnPort:
 
         assert result == 2
         # Check that strip() was applied
-        mock_run.assert_any_call(["kill", "-9", "12345"], timeout=5)
-        mock_run.assert_any_call(["kill", "-9", "67890"], timeout=5)
+        mock_run.assert_any_call(
+            ["kill", "-9", "12345"], timeout=5, capture_output=True
+        )
+        mock_run.assert_any_call(
+            ["kill", "-9", "67890"], timeout=5, capture_output=True
+        )
 
 
 class TestCleanupPortOnExit:
