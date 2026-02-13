@@ -87,6 +87,12 @@ class LPJmLInputType:
     def load_config(cls, config):
         """Load input types from the provided config."""
         cls.__input_types__ = config.input.to_dict()
+        # Filter to entries with "id" (proper input types); skip scalars like
+        # delta_year
+        cls.__input_types__ = {
+            k: v for k, v in cls.__input_types__.items()
+            if isinstance(v, dict) and "id" in v
+        }
         cls.names = list(cls.__input_types__.keys())
         cls.ids = [value["id"] for value in cls.__input_types__.values()]
 
@@ -106,14 +112,15 @@ class LPJmLInputType:
     @property
     def type(self):
         """Get the data type for the specific input"""
-        if self.name in ["with_tillage", "sdate"]:
+        if self.name in ["with_tillage", "sdate", "cover_crop"]:
             return int
         else:
             return float
 
     @property
     def has_bands(self):
-        """Check if multiple bands exist (better check for categorical bands)"""
+        """Check if multiple bands exist (better check for categorical
+        bands)"""
         return bool(self.nband > 1)
 
 
@@ -237,12 +244,12 @@ class LPJmLData(xr.DataArray):
 
             if meta_data.cellsize_lat != meta_data.cellsize_lon:
                 raise ValueError(
-                    "Cell sizes in latitude and longitude direction must be " "equal!"
+                    "Cell sizes in latitude and longitude direction must be " "equal!"  # noqa: E501
                 )
             else:
                 self.attrs["cellsize"] = meta_data.cellsize_lon
 
-            band_dim = next((dim for dim in self.dims if dim.startswith("band")), None)
+            band_dim = next((dim for dim in self.dims if dim.startswith("band")), None)  # noqa: E501
             # TODO assign lat lon to grid object
             if band_dim is not None and len(self.coords[band_dim]) > 1:
                 if meta_data.variable == "grid":
@@ -250,10 +257,10 @@ class LPJmLData(xr.DataArray):
                 elif len(self.coords[band_dim]) == len(meta_data.band_names):
                     self.coords[band_dim] = meta_data.band_names
                 else:
-                    self.coords[band_dim] = np.arange(1, len(self.coords[band_dim]) + 1)
+                    self.coords[band_dim] = np.arange(1, len(self.coords[band_dim]) + 1)  # noqa: E501
 
             if hasattr(meta_data, "global_attrs"):
-                self.attrs["institution"] = meta_data.global_attrs["institution"]
+                self.attrs["institution"] = meta_data.global_attrs["institution"]  # noqa: E501
                 self.attrs["contact"] = meta_data.global_attrs["contact"]
                 self.attrs["comment"] = meta_data.global_attrs["comment"]
         else:
@@ -311,7 +318,7 @@ class LPJmLData(xr.DataArray):
                     current_neighbours
                 ]
             elif len(current_neighbours) > 0 and not id:
-                neighbour_ids[i, : len(current_neighbours)] = current_neighbours
+                neighbour_ids[i, : len(current_neighbours)] = current_neighbours  # noqa: E501
 
         neighbours = LPJmLData(
             data=neighbour_ids,
@@ -375,7 +382,7 @@ class LPJmLData(xr.DataArray):
             )
             if not index.is_unique:
                 raise ValueError(
-                    "Duplicate lat/lon pairs detected; cannot build a unique grid."
+                    "Duplicate lat/lon pairs detected; cannot build a unique grid."  # noqa: E501
                 )
 
             lon_lat = self.set_index(cell=("lat", "lon")).unstack("cell")
@@ -441,7 +448,7 @@ class LPJmLData(xr.DataArray):
         if "cell" in lpjml.dims:
             if not {"lon", "lat"} <= set(lpjml.coords):
                 raise ValueError(
-                    "Cannot write LPJmLData with a 'cell' dimension that lacks "
+                    "Cannot write LPJmLData with a 'cell' dimension that lacks "  # noqa: E501
                     "'lon' and 'lat' coordinates."
                 )
             lpjml = lpjml.transform("lon_lat")
@@ -521,7 +528,7 @@ class LPJmLDataSet(xr.Dataset):
     def __init__(self, *args, **kwargs):
         super(LPJmLDataSet, self).__init__(*args, **kwargs)
 
-        if self.data_vars and ("cellsize" in self[list(self.data_vars)[0]].attrs):
+        if self.data_vars and ("cellsize" in self[list(self.data_vars)[0]].attrs):  # noqa: E501
             first_attrs = self[list(self.data_vars)[0]].attrs
             self.attrs["source"] = first_attrs["source"]
             self.attrs["history"] = first_attrs["history"]
@@ -538,8 +545,8 @@ class LPJmLDataSet(xr.Dataset):
         Returns
         -------
         dict
-            Dictionary with data variables as keys and corresponding numpy arrays
-            as values.
+            Dictionary with data variables as keys and corresponding numpy
+            arrays as values.
         """
         return {key: value.to_numpy() for key, value in self.data_vars.items()}
 
@@ -581,7 +588,7 @@ class LPJmLDataSet(xr.Dataset):
             variable = variable.copy(deep=False)
 
         needed_dims = set(variable.dims)
-        stripped_dims = {re.sub(r"\s*\(.*?\)", "", item) for item in needed_dims}
+        stripped_dims = {re.sub(r"\s*\(.*?\)", "", item) for item in needed_dims}  # noqa: E501
 
         coords: dict[Hashable, Variable] = {}
         # preserve ordering
@@ -592,7 +599,7 @@ class LPJmLDataSet(xr.Dataset):
             ):
                 coords[k] = self.variables[k].copy(deep=False)
 
-        indexes = xr.core.indexes.filter_indexes_from_coords(self._indexes, set(coords))
+        indexes = xr.core.indexes.filter_indexes_from_coords(self._indexes, set(coords))  # noqa: E501
         # Copy indexes to avoid mutating dataset-level state
         indexes = {
             key: (idx.copy() if hasattr(idx, "copy") else idx)
@@ -604,7 +611,7 @@ class LPJmLDataSet(xr.Dataset):
 
         # get the corresponding band dimension
         band_dim = [
-            dim for dim in variable._dims if dim.startswith("band") and dim != "band"
+            dim for dim in variable._dims if dim.startswith("band") and dim != "band"  # noqa: E501
         ]
         if band_dim:
             variable._dims = variable._parse_dimensions(
@@ -615,7 +622,7 @@ class LPJmLDataSet(xr.Dataset):
             )
 
         # get the corresponding "band" index and delete all other band indexes
-        band_idx = [key for key in coords if key.startswith("band") and key != "band"]
+        band_idx = [key for key in coords if key.startswith("band") and key != "band"]  # noqa: E501
         if band_idx:
             for key in band_idx:
                 if name not in key:
@@ -644,11 +651,12 @@ class LPJmLDataSet(xr.Dataset):
         if name.startswith("band") and name != "band":
             name = "band"
 
-        return LPJmLData(variable, coords, name=name, indexes=indexes, fastpath=True)
+        return LPJmLData(variable, coords, name=name, indexes=indexes, fastpath=True)  # noqa: E501
 
     def to_dict(self, data="list", encoding=False):
         """
-        Convert this dataset to a dictionary following xarray naming conventions.
+        Convert this dataset to a dictionary following xarray naming
+        conventions.
 
         Converts all variables and attributes to native Python objects.
         Useful for converting to JSON. To avoid datetime incompatibility,
@@ -656,13 +664,14 @@ class LPJmLDataSet(xr.Dataset):
 
         Parameters
         ----------
-        data : bool or {"list", "array", "lpjmldata"}, optional, default: "list"
+        data : bool or {"list", "array", "lpjmldata"}, optional, default:
+        "list"
             Whether to include the actual data in the dictionary.
             - If set to ``False``, returns just the schema.
             - If set to ``"array"``, returns data as the underlying array type.
             - If set to ``"list"`` (or ``True`` for backwards compatibility),
-              returns data in lists of Python data types. For efficient "list" output,
-              use ``ds.compute().to_dict(data="list")``.
+              returns data in lists of Python data types. For efficient "list"
+              output, use ``ds.compute().to_dict(data="list")``.
         encoding : bool, optional, default: False
             Whether to include the Dataset's encoding in the dictionary.
 
@@ -683,7 +692,8 @@ class LPJmLDataSet(xr.Dataset):
         return super().to_dict(data=data, encoding=encoding)
 
     def transform(self, to="lon_lat"):
-        """Transform all LPJmLData variables to the requested spatial layout."""
+        """Transform all LPJmLData variables to the requested spatial
+        layout."""
 
         transformed = {}
         for name, data in self.data_vars.items():
@@ -717,8 +727,8 @@ class LPJmLDataSet(xr.Dataset):
         By default LPJmL conventions are applied: every variable is aligned on
         the LPJmL grid and written to a dedicated ``<prefix>_<var>.nc4`` file
         (``per_variable=True``). Set ``per_variable=False`` to emit a single
-        multi-variable file. Pass ``lpjml_style=False`` to defer entirely to the
-        underlying :meth:`xarray.Dataset.to_netcdf`.
+        multi-variable file. Pass ``lpjml_style=False`` to defer entirely to
+        the underlying :meth:`xarray.Dataset.to_netcdf`.
         """
 
         kwargs = dict(kwargs)
@@ -810,7 +820,7 @@ def read_data(file_name, var_name=None, multiple_bands=False):
             data.coords["time"].attrs["units"] = unit
             data.coords["time"] = date_time.year
 
-        other_dims = [dim for dim in data.dims if dim not in ["lat", "lon", "time"]]
+        other_dims = [dim for dim in data.dims if dim not in ["lat", "lon", "time"]]  # noqa: E501
 
         # handle multiple bands
         if var_name and multiple_bands:
@@ -980,7 +990,7 @@ class LPJmLMetaData:
             summary_list = [summary]
             summary_list.extend(
                 [
-                    f"  * {torepr}{(13-len(torepr))*' '} {getattr(self, torepr)}"
+                    f"  * {torepr}{(13-len(torepr))*' '} {getattr(self, torepr)}"  # noqa: E501
                     for torepr in other_attr
                 ]
             )
@@ -1030,7 +1040,8 @@ def _netcdf_encoding(
 
 
 def _grid_aligned_dataset(ds: xr.Dataset) -> xr.Dataset:
-    """Return dataset where all cell variables are converted to lon/lat grids."""
+    """Return dataset where all cell variables are converted to lon/lat
+    grids."""
 
     data_vars = {}
     for name, data in ds.data_vars.items():
@@ -1281,7 +1292,7 @@ def get_headersize(filename):
     header = read_header(filename, to_dict=True)
     version = header["header"]["version"]
     if version < 1 or version > 4:
-        raise ValueError("Invalid header version. Expecting value between 1 and 4.")
+        raise ValueError("Invalid header version. Expecting value between 1 and 4.")  # noqa: E501
 
     headersize = len(header["name"]) + {1: 7, 2: 9, 3: 11, 4: 13}[version] * 4
     return headersize

@@ -1,4 +1,5 @@
 import os
+import subprocess
 from datetime import datetime
 from pathlib import Path
 from subprocess import CalledProcessError, PIPE, Popen, run
@@ -8,6 +9,97 @@ from pycoupler.config import read_config
 import multiprocessing as mp
 
 from pycoupler.utils import warn_deprecated_alias
+
+
+def kill_stale_lpjml_processes(port=None, verbose=False):
+    """Kill stale LPJmL processes that may be left over from previous runs.
+
+    This function identifies and terminates LPJmL processes that are no longer
+    needed, which can happen when simulations crash or are interrupted.
+
+    Parameters
+    ----------
+    port : int, optional
+        If provided, also kill any process using this port. Defaults to None.
+    verbose : bool, optional
+        If True, print information about killed processes. Defaults to False.
+
+    Returns
+    -------
+    int
+        Number of processes killed, or -1 if an error occurred.
+    """
+    killed_count = 0
+
+    # Kill processes by name (lpjml)
+    try:
+        # Find LPJmL processes by name
+        result = subprocess.run(
+            ["pgrep", "-f", "bin/lpjml"],
+            capture_output=True,
+            text=True,
+            timeout=5,
+        )
+        if result.returncode == 0 and result.stdout.strip():
+            pids = result.stdout.strip().split("\n")
+            for pid in pids:
+                if pid.strip():
+                    try:
+                        subprocess.run(
+                            ["kill", "-9", pid.strip()],
+                            timeout=5,
+                            capture_output=True,
+                        )
+                        killed_count += 1
+                        if verbose:
+                            print(f"Killed LPJmL process with PID {pid.strip()}")  # noqa: E501
+                    except subprocess.TimeoutExpired:
+                        pass
+    except (
+        subprocess.TimeoutExpired,
+        subprocess.CalledProcessError,
+        FileNotFoundError,
+    ):
+        pass
+
+    # Also kill processes on the specified port
+    if port is not None:
+        try:
+            result = subprocess.run(
+                ["lsof", "-ti", f":{port}"],
+                capture_output=True,
+                text=True,
+                timeout=5,
+            )
+            if result.returncode == 0 and result.stdout.strip():
+                pids = result.stdout.strip().split("\n")
+                for pid in pids:
+                    if pid.strip():
+                        try:
+                            subprocess.run(
+                                ["kill", "-9", pid.strip()],
+                                timeout=5,
+                                capture_output=True,
+                            )
+                            killed_count += 1
+                            if verbose:
+                                print(
+                                    f"Killed process on port {port} "
+                                    f"with PID {pid.strip()}"
+                                )
+                        except subprocess.TimeoutExpired:
+                            pass
+        except (
+            subprocess.TimeoutExpired,
+            subprocess.CalledProcessError,
+            FileNotFoundError,
+        ):
+            pass
+
+    if verbose and killed_count > 0:
+        print(f"Total killed: {killed_count} process(es)")
+
+    return killed_count
 
 
 def operate_lpjml(config_file, std_to_file=False):
@@ -26,7 +118,7 @@ def operate_lpjml(config_file, std_to_file=False):
     config = read_config(config_file)
 
     if not os.path.isdir(config.model_path):
-        raise ValueError(f"Folder of model_path '{config.model_path}' does not exist!")
+        raise ValueError(f"Folder of model_path '{config.model_path}' does not exist!")  # noqa: E501
 
     output_path = f"{config.sim_path}/output/{config.sim_name}"
 
@@ -78,7 +170,7 @@ def operate_lpjml(config_file, std_to_file=False):
         raise CalledProcessError(p.returncode, p.args)
 
 
-def start_lpjml(config_file, std_to_file=False):
+def start_lpjml(config_file, std_to_file=False, cleanup_stale=True, port=2224):
     """Run LPJmL using a generated (class LpjmlConfig) config file.
     Similar to R function `lpjmlKit::run_lpjml`.
 
@@ -89,7 +181,17 @@ def start_lpjml(config_file, std_to_file=False):
     std_to_file : bool, optional
         If True, stdout and stderr are written to files in the output folder.
         Defaults to False.
+    cleanup_stale : bool, optional
+        If True, kill any stale LPJmL processes before starting a new one.
+        This prevents "Another copan:LPJmL process is already running" errors.
+        Defaults to True.
+    port : int, optional
+        The coupling port to clean up. Only used if cleanup_stale is True.
+        Defaults to 2224.
     """
+    if cleanup_stale:
+        kill_stale_lpjml_processes(port=port, verbose=False)
+
     process = mp.Process(target=operate_lpjml, args=(config_file, std_to_file))
     process.start()
 
@@ -142,8 +244,8 @@ def submit_lpjml(
         More information at <https://www.pik-potsdam.de/en> and
         <https://slurm.schedmd.com/sbatch.html>.
     dependency : int/str, optional
-        If there is a job that should be processed first (e.g. spinup) then pass
-        its job id here.
+        If there is a job that should be processed first (e.g. spinup) then
+        pass its job id here.
     blocking : int, optional
         Cores to be blocked. More information at
         <https://www.pik-potsdam.de/en> and
@@ -169,7 +271,7 @@ def submit_lpjml(
 
     config = read_config(config_file)
     if not os.path.isdir(config.model_path):
-        raise ValueError(f"Folder of model_path '{config.model_path}' does not exist!")
+        raise ValueError(f"Folder of model_path '{config.model_path}' does not exist!")  # noqa: E501
 
     output_path = f"{config.sim_path}/output/{config.sim_name}"
 
@@ -298,23 +400,23 @@ config_file="{config_file}"
             f"{job_submission_output}"
         )
 
-    return job_submission_output.split("Submitted batch job ")[1].split("\n")[0]
+    return job_submission_output.split("Submitted batch job ")[1].split("\n")[0]  # noqa: E501
 
 
-def _patch_slurm_and_submit(slurm_jcf_path: Path, couple_file: str | None, dependency):
+def _patch_slurm_and_submit(slurm_jcf_path: Path, couple_file: str | None, dependency): # noqa: E501
     """Ensure the coupling helper is waited on before submitting the job.
 
-    Older LPJmL versions background the coupler without waiting for it. We patch
-    the generated `slurm.jcf` to add `couple_pid` handling if it is missing and
-    then submit the job ourselves via `sbatch`.
+    Older LPJmL versions background the coupler without waiting for it. We
+    patch the generated `slurm.jcf` to add `couple_pid` handling if it is
+    missing and then submit the job ourselves via `sbatch`.
     """
 
     if couple_file is None:
-        raise RuntimeError("Coupling file path is required for coupled submissions.")
+        raise RuntimeError("Coupling file path is required for coupled submissions.")  # noqa: E501
 
     if not slurm_jcf_path.exists():
         raise FileNotFoundError(
-            f"lpjsubmit did not create expected job file at '{slurm_jcf_path}'."
+            f"lpjsubmit did not create expected job file at '{slurm_jcf_path}'."  # noqa: E501
         )
 
     slurm_text = slurm_jcf_path.read_text()
@@ -393,7 +495,7 @@ def check_lpjml(config_file):
     """
     config = read_config(config_file)
     if not os.path.isdir(config.model_path):
-        raise ValueError(f"Folder of model_path '{config.model_path}' does not exist!")
+        raise ValueError(f"Folder of model_path '{config.model_path}' does not exist!")  # noqa: E501
     if os.path.isfile(f"{config.model_path}/bin/lpjcheck"):
         proc_status = run(
             ["./bin/lpjcheck", config_file],
