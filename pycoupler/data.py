@@ -14,6 +14,7 @@ import xarray.core.utils as utils
 from pycoupler.utils import read_json
 
 DEFAULT_NETCDF_FILL_VALUE = np.float32(-999.0)
+DEFAULT_NETCDF_FILL_VALUE_INT = -9999
 
 
 def _suppress_coordinate_fill(dataset: xr.Dataset) -> None:
@@ -464,13 +465,12 @@ class LPJmLData(xr.DataArray):
             lpjml = lpjml.transform("lon_lat")
 
         global_attrs = _ensure_cf_metadata(lpjml)
-        dataset = lpjml.to_dataset()
+        var_name = lpjml.name or "__lpjml_data__"
+        dataset = lpjml.to_dataset(name=var_name)
         _suppress_coordinate_fill(dataset)
         if global_attrs:
             dataset.attrs.update(dict(global_attrs))
         dataset.attrs.setdefault("Conventions", "CF-1.8")
-
-        var_name = lpjml.name or "__lpjml_data__"
         dtype = lpjml.dtype
         encoding: dict[str, dict[str, object]] = {}
 
@@ -480,7 +480,7 @@ class LPJmLData(xr.DataArray):
             if np.issubdtype(dtype, np.floating):
                 target_fill = DEFAULT_NETCDF_FILL_VALUE
             elif np.issubdtype(dtype, np.integer):
-                target_fill = -999
+                target_fill = DEFAULT_NETCDF_FILL_VALUE_INT
         if target_fill is not None:
             enc["_FillValue"] = target_fill
 
@@ -1054,7 +1054,7 @@ def _netcdf_encoding(
         if np.issubdtype(dtype, np.floating):
             encoding["_FillValue"] = DEFAULT_NETCDF_FILL_VALUE
         elif np.issubdtype(dtype, np.integer):
-            encoding["_FillValue"] = -9999
+            encoding["_FillValue"] = DEFAULT_NETCDF_FILL_VALUE_INT
 
     if compression and np.issubdtype(dtype, np.number):
         encoding["zlib"] = True

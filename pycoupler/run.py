@@ -45,17 +45,19 @@ def kill_stale_lpjml_processes(port=None, verbose=False):
             for pid in pids:
                 if pid.strip():
                     try:
-                        subprocess.run(
+                        kill_result = subprocess.run(
                             ["kill", "-9", pid.strip()],
                             timeout=5,
                             capture_output=True,
                         )
-                        killed_count += 1
-                        if verbose:
-                            print(
-                                f"Killed LPJmL process with PID {pid.strip()}"
-                            )  # noqa: E501
+                        if kill_result.returncode == 0:
+                            killed_count += 1
+                            if verbose:
+                                print(
+                                    f"Killed LPJmL process with PID {pid.strip()}"
+                                )  # noqa: E501
                     except subprocess.TimeoutExpired:
+                        # Ignore timeout errors during best-effort port cleanup.
                         pass
     except (
         subprocess.TimeoutExpired,
@@ -78,18 +80,20 @@ def kill_stale_lpjml_processes(port=None, verbose=False):
                 for pid in pids:
                     if pid.strip():
                         try:
-                            subprocess.run(
+                            kill_result = subprocess.run(
                                 ["kill", "-9", pid.strip()],
                                 timeout=5,
                                 capture_output=True,
                             )
-                            killed_count += 1
-                            if verbose:
-                                print(
-                                    f"Killed process on port {port} "
-                                    f"with PID {pid.strip()}"
-                                )
+                            if kill_result.returncode == 0:
+                                killed_count += 1
+                                if verbose:
+                                    print(
+                                        f"Killed process on port {port} "
+                                        f"with PID {pid.strip()}"
+                                    )
                         except subprocess.TimeoutExpired:
+                            # Ignore timeout errors during best-effort port cleanup.
                             pass
         except (
             subprocess.TimeoutExpired,

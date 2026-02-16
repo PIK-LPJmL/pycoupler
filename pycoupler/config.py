@@ -282,6 +282,7 @@ class LpjmlConfig(SubConfig):
         coupled_input,
         coupled_output,
         sim_name="coupled",
+        *,
         coupled_config=None,
         dependency=None,
         coupled_year=None,

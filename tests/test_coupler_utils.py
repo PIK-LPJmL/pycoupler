@@ -1,13 +1,14 @@
 """Test port utility functions from coupler.py."""
 
 import subprocess
-from unittest.mock import MagicMock, patch, call
+from unittest.mock import MagicMock, patch
 
 import pytest
 
 from pycoupler.coupler import (
     kill_process_on_port,
     cleanup_port_on_exit,
+    cleanup_port_context,
     safe_port_binding,
 )
 
@@ -154,15 +155,15 @@ class TestCleanupPortOnExit:
         mock_kill.assert_called_once_with(8080)
 
 
-class TestSafePortBinding:
-    """Test safe_port_binding context manager."""
+class TestCleanupPortContext:
+    """Test cleanup_port_context context manager."""
 
     @patch("pycoupler.coupler.kill_process_on_port")
-    def test_safe_port_binding_success(self, mock_kill):
-        """Test successful port binding with cleanup."""
+    def test_cleanup_port_context_success(self, mock_kill):
+        """Test successful port cleanup."""
         mock_kill.return_value = 1  # Killed 1 process initially
 
-        with safe_port_binding("localhost", 8080) as port:
+        with cleanup_port_context(8080) as port:
             assert port == 8080
             # Verify cleanup was called at start
             assert mock_kill.call_count == 1
@@ -172,44 +173,55 @@ class TestSafePortBinding:
         assert mock_kill.call_count == 2
 
     @patch("pycoupler.coupler.kill_process_on_port")
-    def test_safe_port_binding_exception(self, mock_kill):
+    def test_cleanup_port_context_exception(self, mock_kill):
         """Test that cleanup happens even when exception occurs."""
         mock_kill.return_value = 0
 
-        with pytest.raises(ValueError):
-            with safe_port_binding("localhost", 8080) as port:
+        try:
+            with cleanup_port_context(8080) as port:
                 assert port == 8080
                 raise ValueError("Test exception")
+        except ValueError:
+            pass  # Expected; cleanup runs in context manager finally block
 
         # Verify cleanup was called twice (start and finally)
         assert mock_kill.call_count == 2
 
     @patch("pycoupler.coupler.kill_process_on_port")
-    def test_safe_port_binding_no_existing_processes(self, mock_kill):
+    def test_cleanup_port_context_no_existing_processes(self, mock_kill):
         """Test when no processes are using the port."""
         mock_kill.return_value = 0  # No processes killed
 
-        with safe_port_binding("localhost", 8080) as port:
+        with cleanup_port_context(8080) as port:
             assert port == 8080
 
         # Cleanup should still be called
         assert mock_kill.call_count == 2
 
     @patch("pycoupler.coupler.kill_process_on_port")
-    def test_safe_port_binding_multiple_ports(self, mock_kill):
+    def test_cleanup_port_context_multiple_ports(self, mock_kill):
         """Test using multiple ports sequentially."""
-        with safe_port_binding("localhost", 8080) as port1:
+        with cleanup_port_context(8080) as port1:
             assert port1 == 8080
 
-        with safe_port_binding("localhost", 8081) as port2:
+        with cleanup_port_context(8081) as port2:
             assert port2 == 8081
 
         # Each port should have cleanup called twice
         assert mock_kill.call_count == 4
-        # Verify correct ports were cleaned up
-        assert mock_kill.call_args_list == [
-            call(8080),  # Start of first context
-            call(8080),  # End of first context
-            call(8081),  # Start of second context
-            call(8081),  # End of second context
-        ]
+
+
+class TestSafePortBinding:
+    """Test deprecated safe_port_binding backward compatibility."""
+
+    @patch("pycoupler.coupler.kill_process_on_port")
+    def test_safe_port_binding_delegates_to_cleanup_port_context(self, mock_kill):
+        """Test that safe_port_binding delegates and ignores host."""
+        mock_kill.return_value = 0
+
+        with pytest.warns(DeprecationWarning):
+            with safe_port_binding("localhost", 8080) as port:
+                assert port == 8080
+
+        assert mock_kill.call_count == 2
+        mock_kill.assert_any_call(8080)

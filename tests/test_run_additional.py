@@ -1,13 +1,166 @@
 """Additional tests for run.py functions that need more coverage."""
 
 import os
+import subprocess
 from unittest.mock import MagicMock, patch, mock_open
 from subprocess import CalledProcessError, PIPE
 
 import pytest
 
-from pycoupler.run import operate_lpjml, start_lpjml, run_lpjml
+from pycoupler.run import (
+    operate_lpjml,
+    start_lpjml,
+    run_lpjml,
+    kill_stale_lpjml_processes,
+)
 from pycoupler.utils import warn_deprecated_alias
+
+
+class TestKillStaleLpjmlProcesses:
+    """Test kill_stale_lpjml_processes function."""
+
+    @patch("pycoupler.run.subprocess.run")
+    def test_kill_stale_lpjml_processes_by_name(self, mock_run):
+        """Test killing LPJmL processes by pgrep."""
+        mock_pgrep = MagicMock()
+        mock_pgrep.returncode = 0
+        mock_pgrep.stdout = "12345\n67890\n"
+
+        mock_kill = MagicMock()
+        mock_kill.returncode = 0
+
+        mock_run.side_effect = [mock_pgrep, mock_kill, mock_kill]
+
+        result = kill_stale_lpjml_processes(port=None, verbose=False)
+
+        assert result == 2
+        assert mock_run.call_count == 3
+        mock_run.assert_any_call(
+            ["pgrep", "-f", "bin/lpjml"],
+            capture_output=True,
+            text=True,
+            timeout=5,
+        )
+
+    @patch("pycoupler.run.subprocess.run")
+    def test_kill_stale_lpjml_processes_with_port(self, mock_run):
+        """Test killing processes on a specific port."""
+        mock_pgrep = MagicMock()
+        mock_pgrep.returncode = 0
+        mock_pgrep.stdout = ""
+
+        mock_lsof = MagicMock()
+        mock_lsof.returncode = 0
+        mock_lsof.stdout = "11111\n"
+
+        mock_kill = MagicMock()
+        mock_kill.returncode = 0
+
+        mock_run.side_effect = [mock_pgrep, mock_lsof, mock_kill]
+
+        result = kill_stale_lpjml_processes(port=2224, verbose=False)
+
+        assert result == 1
+        mock_run.assert_any_call(
+            ["lsof", "-ti", ":2224"],
+            capture_output=True,
+            text=True,
+            timeout=5,
+        )
+
+    @patch("pycoupler.run.subprocess.run")
+    def test_kill_stale_lpjml_processes_verbose(self, mock_run):
+        """Test verbose output when processes are killed."""
+        mock_pgrep = MagicMock()
+        mock_pgrep.returncode = 0
+        mock_pgrep.stdout = "12345\n"
+
+        mock_kill = MagicMock()
+        mock_kill.returncode = 0
+
+        mock_run.side_effect = [mock_pgrep, mock_kill]
+
+        with patch("builtins.print") as mock_print:
+            result = kill_stale_lpjml_processes(port=None, verbose=True)
+
+        assert result == 1
+        mock_print.assert_any_call("Killed LPJmL process with PID 12345")
+        mock_print.assert_any_call("Total killed: 1 process(es)")
+
+    @patch("pycoupler.run.subprocess.run")
+    def test_kill_stale_lpjml_processes_no_processes(self, mock_run):
+        """Test when no processes are found."""
+        mock_pgrep = MagicMock()
+        mock_pgrep.returncode = 0
+        mock_pgrep.stdout = ""
+
+        mock_run.return_value = mock_pgrep
+
+        result = kill_stale_lpjml_processes(port=None, verbose=False)
+
+        assert result == 0
+        assert mock_run.call_count == 1
+
+    @patch("pycoupler.run.subprocess.run")
+    def test_kill_stale_lpjml_processes_pgrep_fails(self, mock_run):
+        """Test when pgrep fails (e.g. no pgrep on Windows)."""
+        mock_run.side_effect = FileNotFoundError("pgrep not found")
+
+        result = kill_stale_lpjml_processes(port=None, verbose=False)
+
+        assert result == 0
+
+    @patch("pycoupler.run.subprocess.run")
+    def test_kill_stale_lpjml_processes_kill_fails_no_count(self, mock_run):
+        """Test that failed kill does not increment count."""
+        mock_pgrep = MagicMock()
+        mock_pgrep.returncode = 0
+        mock_pgrep.stdout = "12345\n"
+
+        mock_kill = MagicMock()
+        mock_kill.returncode = 1  # kill failed (e.g. process already gone)
+
+        mock_run.side_effect = [mock_pgrep, mock_kill]
+
+        result = kill_stale_lpjml_processes(port=None, verbose=False)
+
+        assert result == 0
+
+    @patch("pycoupler.run.subprocess.run")
+    def test_kill_stale_lpjml_processes_kill_timeout(self, mock_run):
+        """Test that TimeoutExpired during kill is ignored."""
+        mock_pgrep = MagicMock()
+        mock_pgrep.returncode = 0
+        mock_pgrep.stdout = "12345\n"
+
+        mock_run.side_effect = [mock_pgrep, subprocess.TimeoutExpired("kill", 5)]
+
+        result = kill_stale_lpjml_processes(port=None, verbose=False)
+
+        assert result == 0
+
+    @patch("pycoupler.run.subprocess.run")
+    def test_kill_stale_lpjml_processes_port_verbose(self, mock_run):
+        """Test verbose output when killing process on port."""
+        mock_pgrep = MagicMock()
+        mock_pgrep.returncode = 0
+        mock_pgrep.stdout = ""
+
+        mock_lsof = MagicMock()
+        mock_lsof.returncode = 0
+        mock_lsof.stdout = "99999\n"
+
+        mock_kill = MagicMock()
+        mock_kill.returncode = 0
+
+        mock_run.side_effect = [mock_pgrep, mock_lsof, mock_kill]
+
+        with patch("builtins.print") as mock_print:
+            result = kill_stale_lpjml_processes(port=2224, verbose=True)
+
+        assert result == 1
+        mock_print.assert_any_call("Killed process on port 2224 with PID 99999")
+        mock_print.assert_any_call("Total killed: 1 process(es)")
 
 
 class TestOperateLpjml:
@@ -182,6 +335,37 @@ class TestStartLpjml:
         mock_process.start.assert_called_once()
         # Verify correct process was returned
         assert result == mock_process
+
+    @patch("multiprocessing.Process")
+    @patch("pycoupler.run.kill_stale_lpjml_processes")
+    def test_start_lpjml_with_cleanup_stale(self, mock_kill, mock_process_class):
+        """Test start_lpjml calls kill_stale_lpjml_processes when cleanup_stale=True."""
+
+        mock_process = MagicMock()
+        mock_process_class.return_value = mock_process
+
+        result = start_lpjml(
+            "/fake/config.json",
+            std_to_file=False,
+            cleanup_stale=True,
+            port=2224,
+        )
+
+        mock_kill.assert_called_once_with(port=2224, verbose=False)
+        mock_process.start.assert_called_once()
+        assert result == mock_process
+
+    @patch("multiprocessing.Process")
+    @patch("pycoupler.run.kill_stale_lpjml_processes")
+    def test_start_lpjml_without_cleanup_stale(self, mock_kill, mock_process_class):
+        """Test start_lpjml skips cleanup when cleanup_stale=False."""
+
+        mock_process = MagicMock()
+        mock_process_class.return_value = mock_process
+
+        start_lpjml("/fake/config.json", cleanup_stale=False)
+
+        mock_kill.assert_not_called()
 
 
 class TestRunLpjml:

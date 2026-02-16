@@ -13,7 +13,6 @@ import numpy as np
 import pandas as pd
 import xarray as xr
 
-from subprocess import run
 from enum import Enum
 
 from pycoupler.config import read_config
@@ -25,6 +24,7 @@ from pycoupler.data import (
     read_meta,
     read_data,
     read_header,
+    DEFAULT_NETCDF_FILL_VALUE_INT,
 )
 from pycoupler.utils import get_countries
 
@@ -44,13 +44,15 @@ def kill_process_on_port(port):
             for pid in pids:
                 if pid.strip():
                     try:
-                        subprocess.run(
+                        kill_result = subprocess.run(
                             ["kill", "-9", pid.strip()],
                             timeout=5,
                             capture_output=True,
                         )
-                        killed_count += 1
+                        if kill_result.returncode == 0:
+                            killed_count += 1
                     except subprocess.TimeoutExpired:
+                        # Ignore timeout errors during best-effort port cleanup.
                         pass
             return killed_count
         return 0
@@ -72,8 +74,12 @@ def cleanup_port_on_exit(port):
 
 
 @contextmanager
-def safe_port_binding(host, port):
-    """Context manager for safe port binding with automatic cleanup."""
+def cleanup_port_context(port):
+    """Context manager that cleans up processes on the port on entry and exit.
+
+    Does not bind or verify the port; use this to ensure stale processes are
+    killed before and after a block that uses the port.
+    """
     # Clean up any existing processes on the port first
     kill_process_on_port(port)
 
@@ -82,6 +88,22 @@ def safe_port_binding(host, port):
     finally:
         # Clean up on exit
         kill_process_on_port(port)
+
+
+def safe_port_binding(host, port):
+    """Deprecated. Use :func:`cleanup_port_context` instead.
+
+    The host parameter is ignored. Kept for backward compatibility.
+    """
+    import warnings
+
+    warnings.warn(
+        "safe_port_binding(host, port) is deprecated; host is ignored. "
+        "Use cleanup_port_context(port) instead.",
+        DeprecationWarning,
+        stacklevel=2,
+    )
+    return cleanup_port_context(port)
 
 
 # class for testing purposes
@@ -617,12 +639,10 @@ class LPJmLCoupler:
             arrays
         """
         # read all historic outputs
+        output_dict = {}
         output_years = list()
         for year in self.get_historic_years():
-            if year == self._config.outputyear:
-                output_dict = self.read_output(year=year, to_xarray=False)
-                output_years.append(year)
-            elif year > self._config.outputyear:
+            if year >= self._config.outputyear:
                 output_dict = append_to_dict(
                     output_dict, self.read_output(year=year, to_xarray=False)
                 )
@@ -630,7 +650,9 @@ class LPJmLCoupler:
 
         if not output_dict:
             raise ValueError(
-                f"No historic output found for year {self._config.outputyear}"
+                f"No historic output found. outputyear {self._config.outputyear} "
+                f"was not encountered in get_historic_years() "
+                f"(e.g., outputyear < firstyear)."
             )
 
         for key in output_dict:
@@ -1030,7 +1052,7 @@ class LPJmLCoupler:
                 f"{temp_dir}/1_{file_name_tmp}",
             ]
             if not hasattr(sys, "_called_from_test"):
-                run(cut_clm_start, stdout=open(os.devnull, "wb"))
+                subprocess.run(cut_clm_start, stdout=open(os.devnull, "wb"))
 
             # predefine cut clm command for reusage
             # cannot deal with overwriting a temp file with same name
@@ -1042,7 +1064,7 @@ class LPJmLCoupler:
                 f"{temp_dir}/2_{file_name_tmp}",
             ]
             if not hasattr(sys, "_called_from_test"):
-                run(cut_clm_end, stdout=open(os.devnull, "wb"))
+                subprocess.run(cut_clm_end, stdout=open(os.devnull, "wb"))
 
             # a flag for multi (categorical) band input - if true, set
             #   "-landuse"
@@ -1077,7 +1099,7 @@ class LPJmLCoupler:
             conversion_cmd = [arg for arg in conversion_cmd if arg is not None]
 
             if not hasattr(sys, "_called_from_test"):
-                run(conversion_cmd)
+                subprocess.run(conversion_cmd)
             else:
                 return "tested"
             # remove the temporary clm (binary) files, 1_* is not created in
@@ -1338,7 +1360,7 @@ class LPJmLCoupler:
 
             # Fill array with missing values
             if self._output_types[static_id].type == int:
-                tmp_static[:] = -9999
+                tmp_static[:] = DEFAULT_NETCDF_FILL_VALUE_INT
             else:
                 tmp_static[:] = np.nan
 
@@ -1416,9 +1438,9 @@ class LPJmLCoupler:
             dtype=self._output_types[index].type,
         )
 
-        # Check if data array is of type integer, use -9999 for nan
+        # Check if data array is of type integer, use fill value for missing
         if self._output_types[index].type == int:
-            output_tmpl[:] = -9999
+            output_tmpl[:] = DEFAULT_NETCDF_FILL_VALUE_INT
         else:
             output_tmpl[:] = np.nan
 
