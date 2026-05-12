@@ -31,29 +31,66 @@ from pycoupler.utils import get_countries
 # Port cleanup utilities ==================================================== #
 
 
-def kill_process_on_port(port):
-    """Kill any process using the specified port."""
+def kill_process_on_port(port, grace_period=2.0):
+    """Terminate any process using the specified port.
+
+    First tries SIGTERM for graceful shutdown, then SIGKILL if needed.
+    This avoids MPI "BAD TERMINATION" messages when processes are killed.
+
+    Parameters
+    ----------
+    port : int
+        Port number to clean up.
+    grace_period : float
+        Seconds to wait for graceful exit before using SIGKILL.
+    """
+    import time
+
     try:
         # Find processes using the port
         result = subprocess.run(
             ["lsof", "-ti", f":{port}"], capture_output=True, text=True, timeout=5
         )
         if result.returncode == 0 and result.stdout.strip():
-            pids = result.stdout.strip().split("\n")
+            pids = [p.strip() for p in result.stdout.strip().split("\n") if p.strip()]
+            if not pids:
+                return 0
+
+            # First try SIGTERM (graceful shutdown)
+            for pid in pids:
+                try:
+                    subprocess.run(
+                        ["kill", "-15", pid],
+                        timeout=2,
+                        capture_output=True,
+                    )
+                except (subprocess.TimeoutExpired, Exception):
+                    pass
+
+            # Wait for processes to exit gracefully
+            time.sleep(grace_period)
+
+            # Check which processes are still running and kill them
             killed_count = 0
             for pid in pids:
-                if pid.strip():
-                    try:
-                        kill_result = subprocess.run(
-                            ["kill", "-9", pid.strip()],
-                            timeout=5,
+                try:
+                    # Check if process still exists
+                    check = subprocess.run(
+                        ["kill", "-0", pid],
+                        timeout=1,
+                        capture_output=True,
+                    )
+                    if check.returncode == 0:
+                        # Process still alive, use SIGKILL
+                        subprocess.run(
+                            ["kill", "-9", pid],
+                            timeout=2,
                             capture_output=True,
                         )
-                        if kill_result.returncode == 0:
-                            killed_count += 1
-                    except subprocess.TimeoutExpired:
-                        # Ignore timeout errors during best-effort port cleanup.
-                        pass
+                        killed_count += 1
+                except (subprocess.TimeoutExpired, Exception):
+                    pass
+
             return killed_count
         return 0
     except (
@@ -258,14 +295,18 @@ class LPJmlValueType(Enum):
 
 
 class LPJmLToken(Enum):
-    """Available tokens"""
+    """Available tokens (names follow LPJmL ``token_names`` in
+    ``send_token_coupler.c``: GET_DATA … PUT_INIT_DATA).
+    """
 
-    SEND_INPUT: int = 0  # Receiving data from COPAN
-    READ_OUTPUT: int = 1  # Sending data to COPAN
-    SEND_INPUT_SIZE: int = 2  # Receiving data size from COPAN
-    READ_OUTPUT_SIZE: int = 3  # Sending data size to COPAN
-    END_COUPLING: int = 4  # Ending communication
+    SEND_INPUT: int = 0  # GET_DATA — LPJmL requests coupled input
+    READ_OUTPUT: int = 1  # PUT_DATA — LPJmL sends output to COPAN
+    SEND_INPUT_SIZE: int = 2  # GET_DATA_SIZE
+    READ_OUTPUT_SIZE: int = 3  # PUT_DATA_SIZE
+    END_COUPLING: int = 4  # END_DATA — normal shutdown
     GET_STATUS: int = 5  # Check status of COPAN
+    FAIL_DATA: int = 6  # LPJmL stopped early or on error (see close_coupler)
+    PUT_INIT_DATA: int = 7  # Init meta (coupler protocol version > 3)
 
 
 def read_token(channel):
@@ -282,7 +323,13 @@ class CopanStatus(Enum):
 
 
 def opentdt(host, port):
-    """open channel and validate connection to LPJmL"""
+    """open channel and validate connection to LPJmL
+    
+    Note: Always binds to 0.0.0.0 (all interfaces) to accept connections
+    from any network interface. This is required for HPC/MPI environments
+    where LPJmL connects using the compute node's hostname rather than
+    localhost.
+    """
     if hasattr(sys, "_called_from_test"):
         channel = test_channel()
     else:
@@ -292,8 +339,11 @@ def opentdt(host, port):
         # create an INET, STREAMing socket
         serversocket = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
         serversocket.setsockopt(socket.SOL_SOCKET, socket.SO_REUSEADDR, 1)
-        # bind the socket to a public host, and a well-known port
-        serversocket.bind((host, port))
+        # Always bind to 0.0.0.0 to accept connections from any interface
+        # LPJmL's lpjsubmit uses -couple $(hostname) which resolves to the
+        # compute node's hostname, not localhost
+        bind_host = "0.0.0.0"
+        serversocket.bind((bind_host, port))
         # become a server socket
         serversocket.listen(5)
         # accept connections from outside
@@ -354,13 +404,14 @@ class LPJmLCoupler:
         Path to LPJmL configuration file containing simulation details.
     version : int, default 3
         Coupler protocol version, must match LPJmL internal coupler version.
-    host : str, default "localhost"
-        Host address where LPJmL server is running.
+    host : str, default "0.0.0.0"
+        Host address to bind the socket. Use "0.0.0.0" to accept connections
+        from any interface (required for HPC/MPI environments).
     port : int, default 2224
         Port number for socket connection.
     """
 
-    def __init__(self, config_file, version=3, host="localhost", port=2224):
+    def __init__(self, config_file, version=3, host="0.0.0.0", port=2224):
         """Constructor method"""
 
         # read configuration file
@@ -1244,11 +1295,30 @@ class LPJmLCoupler:
         else:
             None
 
+    def _raise_on_fail_data(self, received_token: LPJmLToken) -> None:
+        """LPJmL sent FAIL_DATA (simulation ended abnormally)."""
+        if received_token is not LPJmLToken.FAIL_DATA:
+            return
+        lpjml_err = None
+        if getattr(self, "version", 3) >= 4:
+            lpjml_err = read_int(self._channel)
+        self.close()
+        suffix = (
+            f" LPJmL error code: {lpjml_err}." if lpjml_err is not None else ""
+        )
+        raise RuntimeError(
+            "LPJmL ended coupling with FAIL_DATA (simulation did not complete "
+            "through lastyear). Check LPJmL stdout/stderr for the stop reason."
+            + suffix
+        )
+
     def _check_token(self, token):
         """check if read token matches the expected token"""
 
         # check if read token matches expected token and return read token
         received_token = read_token(self._channel)
+        if received_token is LPJmLToken.FAIL_DATA:
+            self._raise_on_fail_data(received_token)
 
         if received_token is not token:
             self.close()
@@ -1334,7 +1404,9 @@ class LPJmLCoupler:
 
     def _communicate_status(self):
         """Check if LPJmL token equals GET_STATUS, send OK or ERROR"""
-        check_token = LPJmLToken(read_int(self._channel))
+        check_token = read_token(self._channel)
+        if check_token is LPJmLToken.FAIL_DATA:
+            self._raise_on_fail_data(check_token)
         if check_token == LPJmLToken.GET_STATUS:
             if self._ninput != 0 and self._noutput != 0:
                 send_int(self._channel, CopanStatus.COPAN_OK.value)
