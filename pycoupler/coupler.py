@@ -920,26 +920,24 @@ class LPJmLCoupler:
                 cut_start_year = start_year
                 cut_end = cut_end_year = min(meta_data.lastyear, end_year)
 
-            cut_clm_start = [
-                f"{self._config.model_path}/bin/cutclm",
+            cut_clm_start_args = [
                 str(cut_start_year),
                 sock_inputs[key]["name"],
                 f"{temp_dir}/1_{file_name_tmp}",
             ]
             if not hasattr(sys, "_called_from_test"):
-                run(cut_clm_start, stdout=open(os.devnull, "wb"))
+                self.config.run_model_bin("cutclm", *cut_clm_start_args)
 
             # predefine cut clm command for reusage
             # cannot deal with overwriting a temp file with same name
-            cut_clm_end = [
-                f"{self._config.model_path}/bin/cutclm",
+            cut_clm_end_args = [
                 "-end",
                 str(cut_end_year),
                 f"{temp_dir}/1_{file_name_tmp}",
                 f"{temp_dir}/2_{file_name_tmp}",
             ]
             if not hasattr(sys, "_called_from_test"):
-                run(cut_clm_end, stdout=open(os.devnull, "wb"))
+                self.config.run_model_bin("cutclm", *cut_clm_end_args)
 
             # a flag for multi (categorical) band input - if true, set
             #   "-landuse"
@@ -960,8 +958,7 @@ class LPJmLCoupler:
             else:
                 grid_file = f"{self.config.inpath}/{self.config.input.coord.name}"
             # convert clm input to netcdf files
-            conversion_cmd = [
-                f"{self._config.model_path}/bin/clm2cdf",
+            conversion_cmd_args = [
                 is_int,
                 is_multiband,
                 key,
@@ -970,11 +967,11 @@ class LPJmLCoupler:
                 f"{input_path}/{key}.nc",
             ]
 
-            if None in conversion_cmd:
-                conversion_cmd.remove(None)
+            if None in conversion_cmd_args:
+                conversion_cmd_args.remove(None)
 
             if not hasattr(sys, "_called_from_test"):
-                run(conversion_cmd)
+                self.config.run_model_bin("clm2cdf", *conversion_cmd_args)
             else:
                 return "tested"
             # remove the temporary clm (binary) files, 1_* is not created in

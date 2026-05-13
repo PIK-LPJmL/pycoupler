@@ -1,14 +1,18 @@
 """Classes and functions to handle LPJmL configurations and related operations"""
 
+import logging
 import os
+import shutil
 import sys
-import subprocess
 import json
-from subprocess import run
+from subprocess import DEVNULL, CompletedProcess, Popen, run as run_subprocess
+from typing import Any, override
 from ruamel.yaml import YAML
 
 from pycoupler.utils import read_json, get_countries, create_subdirs, detect_io_type
 from pycoupler.data import read_header
+
+logger = logging.getLogger(__name__)
 
 
 class SubConfig:
@@ -120,6 +124,115 @@ class LpjmlConfig(SubConfig):
             sub_config.__dict__["changed"] = []
         self.__dict__.update(sub_config.__dict__)
 
+    def run_model_bin(
+        self,
+        binary: str,
+        *args: str,
+        detach: bool = False,
+        # pyright: ignore[reportExplicitAny]
+        subprocess_args: dict[str, Any] = {},
+    ) -> CompletedProcess[bytes] | Popen[str]:
+        """Runs the LPJmL model binaries in the configured environment
+
+        Parameters
+        ----------
+        binary
+            Name of the binary to run. It should be available
+            in the PATH or in the `bin` folder at `self.model_path`.
+        subprocess_args, optional
+            Commands to pass to subprocess.run or subprocess.Popen. Defaults:
+                - `capture_output`: False
+                - `check`: True
+                - `env`: Passes the current runtime environment as well as the
+                    LPJmL related runtime variables LPJINPATH, LPJOUTPATH, LPJROOT,
+                    LPJRESTARTPATH (from :func:`~get_runtime_env`)
+        detach
+            TODO
+        *args
+            Arguments to pass to the binary as strings
+
+        Returns
+        -------
+            The CompletedProcess object of the spawned subprocess.
+        """
+
+        default_args: dict[str, Any] = {
+            "env": os.environ | self.get_runtime_env(ensure_paths=False),
+            "capture_output": False,
+            "check": True,
+        }
+
+        if self.model_path:
+            if not os.path.exists(self.model_path):
+                raise FileNotFoundError("The given model_path does not exist.")
+            command = os.path.join(self.model_path, "bin", binary)
+        else:
+            # If the model_path was not set, we expect the binaries to be added to the PATH
+            command = shutil.which(binary)
+            logger.debug(f'Using {binary} found at "{command}"')
+            if not command:
+                raise ValueError(
+                    f"The tool '{binary}' is not available in the PATH and no model_path was given."
+                )
+
+        if detach:
+            return Popen([command, *args], **subprocess_args)
+        else:
+            # pyright: ignore[reportExplicitAny]
+            return run_subprocess([command, *args], **(default_args | subprocess_args))
+
+    def get_runtime_env(self, ensure_paths=True):
+        return {
+            "LPJROOT": self.model_path,
+            "LPJINPATH": self.get_input_folder(),
+            "LPJOUTPATH": self.get_output_folder(ensure=ensure_paths),
+            "LPJRESTARTPATH": self.get_restart_folder(ensure=ensure_paths),
+        }
+
+    def get_output_folder(self, ensure: bool = False) -> str:
+        output_folder = os.path.join(self.sim_path, "output", self.sim_name)
+        if ensure:
+            os.makedirs(output_folder, exist_ok=True)
+        return output_folder
+
+    def get_input_filepath(self, input_file_name: str) -> str:
+        return (
+            input_file_name
+            if os.path.isfile(input_file_name)
+            else os.path.join(self.get_input_folder(), input_file_name)
+        )
+
+    def get_input_folder(self) -> str:
+        input_path = ""
+
+        if self.inpath:
+            if not os.path.isdir(self.inpath):
+                raise FileNotFoundError(
+                    "The input path, set in `inpath` does not exist."
+                )
+            input_path = self.inpath
+            logger.debug(f"Using config.inpath '{self.inpath}' as input path.")
+        elif os.environ["LPJINPATH"]:
+            if not os.path.isdir(os.environ["LPJINPATH"]):
+                raise FileNotFoundError(
+                    "The input path, set in `LPJINPATH` does not exist."
+                )
+                input_path = os.environ["LPJINPATH"]
+            logger.debug(
+                f"Using LPJINPATH '{os.environ['LPJINPATH']}' from runtime environtment  as input path."
+            )
+        else:
+            logger.warning(
+                "No default input path available in config file or environment."
+            )
+        return input_path
+
+    def get_restart_folder(self, ensure: bool = False) -> str:
+        restart_folder = os.path.join(self.sim_path, "restart")
+        if ensure:
+            os.makedirs(restart_folder, exist_ok=True)
+        return restart_folder
+
     def get_output_avail(self, id_only=True, to_dict=False):
         """
         Get available output (outputvar) names or objects.
@@ -203,13 +316,14 @@ class LpjmlConfig(SubConfig):
             Name of the simulation.
         """
         self.sim_name = sim_name
+        # TODO: Remove
         self.sim_path = create_subdirs(sim_path, self.sim_name)
-        output_path = f"{sim_path}/output/{self.sim_name}"
+        output_path = self.get_output_folder(ensure=True)
 
         # set output writing
         self._set_outputpath(output_path)
         # set restart directory to restart from in subsequent historic run
-        self._set_restart(path=f"{sim_path}/restart")
+        self._set_restart(path=self.get_restart_folder(ensure=True))
 
     def set_transient(
         self,
@@ -253,7 +367,7 @@ class LpjmlConfig(SubConfig):
         """
         self.sim_name = sim_name
         self.sim_path = create_subdirs(sim_path, self.sim_name)
-        output_path = f"{sim_path}/output/{self.sim_name}"
+        output_path = self.get_output_folder(ensure=True)
         # set time range for historic run
         self._set_timerange(
             start_year=start_year, end_year=end_year, write_start_year=start_year
@@ -267,9 +381,11 @@ class LpjmlConfig(SubConfig):
             append_output=append_output,
         )
         # set start from directory to start from spinup run
-        self._set_startfrom(path=f"{sim_path}/restart", dependency=dependency)
+        self._set_startfrom(
+            path=self.get_restart_folder(ensure=True), dependency=dependency
+        )
         # set restart directory to restart from in subsequent transient run
-        self._set_restart(path=f"{sim_path}/restart")
+        self._set_restart(path=self.get_restart_folder(ensure=True))
 
     def set_coupled(
         self,
@@ -328,7 +444,7 @@ class LpjmlConfig(SubConfig):
         """
         self.sim_name = sim_name
         self.sim_path = create_subdirs(sim_path, self.sim_name)
-        output_path = f"{sim_path}/output/{self.sim_name}"
+        output_path = self.get_output_folder(ensure=True)
 
         # set time range for coupled run
         self._set_timerange(
@@ -356,7 +472,9 @@ class LpjmlConfig(SubConfig):
             model_name=model_name,
         )
         # set start from directory to start from historic run
-        self._set_startfrom(path=f"{sim_path}/restart", dependency=dependency)
+        self._set_startfrom(
+            path=self.get_restart_folder(ensure=True), dependency=dependency
+        )
 
     def _set_output(
         self,
@@ -517,23 +635,13 @@ class LpjmlConfig(SubConfig):
                 self.endgrid = 2
             elif self.input.soil.fmt in ["json", "meta"]:
                 self.endgrid = (
-                    read_json(
-                        (
-                            self.input.soil.name
-                            if os.path.isfile(self.input.soil.name)
-                            else f"{self.inpath}/{self.input.soil.name}"
-                        )
-                    )["ncell"]
+                    read_json(self.get_input_filepath(self.input.soil.name))["ncell"]
                     - 1
                 )
             else:
                 self.endgrid = (
                     read_header(
-                        (
-                            self.input.soil.name
-                            if os.path.isfile(self.input.soil.name)
-                            else f"{self.inpath}/{self.input.soil.name}"
-                        ),
+                        self.get_input_filepath(self.input.soil.name),
                         to_dict=True,
                     )["header"]["ncell"]
                     - 1
@@ -645,7 +753,7 @@ class LpjmlConfig(SubConfig):
         """
         self.coupled_config = read_yaml(file_name, CoupledConfig)
 
-    def regrid(self, sim_path, model_path=None, country_code="BEL", overwrite=False):
+    def regrid(self, sim_path, country_code="BEL", overwrite=False):
         """
         Regrid LPJmL configuration file to a new country.
 
@@ -654,9 +762,6 @@ class LpjmlConfig(SubConfig):
         sim_path : str
             Directory to check whether required subfolders exist. If not,
             create corresponding folders (input, output, restart).
-        model_path : str, optional
-            Path to LPJmL_internal (lpjml repository). If None, uses
-            self.model_path.
         country_code : str, default "BEL"
             Country code of country to regrid to.
         overwrite : bool, default False
@@ -664,18 +769,13 @@ class LpjmlConfig(SubConfig):
 
         Raises
         ------
-        OSError
-            If sim_path or model_path do not exist, or if required grid files
+        FileNotFoundError
+            If sim_path does not exist, or if required grid files
             are missing.
         """
 
         if not os.path.exists(sim_path):
-            raise OSError(f"Path '{sim_path}' does not exist.")
-
-        if hasattr(self, "model_path"):
-            model_path = self.model_path
-        elif not model_path or not os.path.exists(model_path):
-            raise OSError(f"Path '{model_path}' does not exist.")
+            raise FileNotFoundError(f"Path '{sim_path}' does not exist.")
 
         # get available countries of LPJmL
         countries = get_countries()
@@ -690,17 +790,13 @@ class LpjmlConfig(SubConfig):
             None,
         ).lower()
 
-        grid_file = (
-            self.input.coord.name
-            if os.path.isfile(self.input.coord.name)
-            or hasattr(sys, "_called_from_test")
-            else f"{self.inpath}/{self.input.coord.name}"
-        )
+        grid_file = self.get_input_filepath(self.input.coord.name)
 
         # proxy check if regrid was already performed
         if country in self.input.coord.name:
             return
 
+        # TODO: Mount in container!
         country_grid_file = (
             f"{sim_path}/input/{country}_{os.path.basename(self.input.coord.name)}"
         )
@@ -710,22 +806,15 @@ class LpjmlConfig(SubConfig):
         ):
 
             if not os.path.isfile(grid_file):
-                raise OSError(f"Grid file '{grid_file}' does not exist.")
+                raise FileNotFoundError(f"Grid file '{grid_file}' does not exist.")
 
             # extract country specific grid
-            run(
-                [
-                    f"{model_path}/bin/getcountry",
-                    (
-                        self.input.countrycode.name
-                        if os.path.isfile(self.input.countrycode.name)
-                        else f"{self.inpath}/{self.input.countrycode.name}"
-                    ),
-                    grid_file,
-                    country_grid_file,
-                    country_code,
-                ],
-                check=True,
+            self.run_model_bin(
+                "getcountry",
+                self.get_input_filepath(self.input.countrycode.name),
+                grid_file,
+                country_grid_file,
+                country_code,
             )
 
         self.input.coord.fmt = (
@@ -735,12 +824,7 @@ class LpjmlConfig(SubConfig):
         )
         self.input.coord.name = country_grid_file
 
-        lakes_fn_string = (
-            self.input.lakes.name
-            if os.path.isfile(self.input.lakes.name)
-            or hasattr(sys, "_called_from_test")
-            else f"{self.inpath}/{self.input.lakes.name}"
-        )
+        lakes_fn_string = self.get_input_filepath(self.input.lakes.name)
         # extract country specific lakes file from meta file
         if self.input.lakes.fmt == "meta" and not hasattr(sys, "_called_from_test"):
             lakes_filename = read_json(lakes_fn_string)["filename"]
@@ -765,16 +849,13 @@ class LpjmlConfig(SubConfig):
                 raise OSError(f"Lakes file '{lakes_file}' does not exist.")
 
             # regrid lakes file to country specific grid
-            run(
-                [
-                    f"{model_path}/bin/regridsoil",
-                    grid_file,
-                    country_grid_file,
-                    lakes_file,
-                    country_lakes_file,
-                ],
-                check=True,
-                stdout=open(os.devnull, "wb"),
+            self.run_model_bin(
+                "regridsoil",
+                grid_file,
+                country_grid_file,
+                lakes_file,
+                country_lakes_file,
+                stdout=DEVNULL,
             )
 
         self.input.lakes.fmt = (
@@ -795,12 +876,7 @@ class LpjmlConfig(SubConfig):
             ):
                 continue
 
-            input_file = (
-                config_input.name
-                if os.path.isfile(config_input.name)
-                or hasattr(sys, "_called_from_test")
-                else f"{self.inpath}/{config_input.name}"
-            )
+            input_file = self.get_input_filepath(config_input.name)
 
             country_input_file = (
                 f"{sim_path}/input/{country}_{os.path.basename(input_file)}"
@@ -822,16 +898,16 @@ class LpjmlConfig(SubConfig):
                     regrid_func = "regridclm"
 
                 # regrid all other input files to country specific grid
-                regrid_cmd = [
-                    f"{model_path}/bin/{regrid_func}",
+                self.run_model_bin(
+                    "regrid_func",
                     grid_file,
                     self.input.coord.name,
                     input_file,
                     country_input_file,
-                ]
+                    stdout=DEVNULL,
+                )
                 # if additional_arg:
                 #     regrid_cmd.insert(1, additional_arg)
-                run(regrid_cmd, check=True, stdout=open(os.devnull, "wb"))
 
             config_input.fmt = (
                 detect_io_type(country_input_file)
@@ -851,12 +927,7 @@ class LpjmlConfig(SubConfig):
 
         output_dir = f"{self.sim_path}/output/{self.sim_name}"
 
-        grid_file = (
-            self.input.coord.name
-            if os.path.isfile(self.input.coord.name)
-            or hasattr(sys, "_called_from_test")
-            else f"{self.inpath}/{self.input.coord.name}"
-        )
+        grid_file = self.get_input_filepath(self.input.coord.name)
 
         grid_name = os.path.basename(grid_file)
 
@@ -884,8 +955,7 @@ class LpjmlConfig(SubConfig):
 
         for output in output_details:
             # convert netcdf output to netcdf files
-            conversion_cmd = [
-                f"{self.model_path}/bin/cdf2bin",
+            conversion_args = [
                 # "-units", output.unit,
                 "-var",
                 output.var,
@@ -896,11 +966,11 @@ class LpjmlConfig(SubConfig):
                 f"{output_dir}/{output.name}.nc4",
             ]
 
-            if None in conversion_cmd:
-                conversion_cmd.remove(None)
+            if None in conversion_args:
+                conversion_args.remove(None)
 
             if not hasattr(sys, "_called_from_test"):
-                run(conversion_cmd)
+                self.run_model_bin("cdf2bin", *conversion_args)
 
             nc4_meta_dict = read_json(f"{output_dir}/{output.name}.nc4.json")
 
@@ -1039,7 +1109,7 @@ def parse_config(
     cmd.append(file_name)
 
     # Subprocess call of cmd - return stdout
-    json_str = subprocess.run(cmd, capture_output=True)
+    json_str = run_subprocess(cmd, capture_output=True)
 
     # Convert to dict
     lpjml_config = json.loads(json_str.stdout, object_hook=config_class)
