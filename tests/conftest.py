@@ -74,7 +74,7 @@ def lpjml_config_json(
         ]
         with new_config.open("w") as f:
             json.dump(conf_d, f)
-            return str(new_config)
+            return new_config
 
 
 @pytest.fixture()
