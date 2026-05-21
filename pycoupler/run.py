@@ -266,7 +266,6 @@ config_file="{config_file}"
     submit_status = run(
         sbatch_cmd,
         cwd=config.sim_path,
-        env=submit_env,
         capture_output=True,
         check=True,
         text=True,

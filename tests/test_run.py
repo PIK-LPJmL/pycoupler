@@ -29,6 +29,23 @@ class TestLpjSubmit:
             ),
         )
 
+    @pytest.fixture(autouse=True)
+    def mock_sbatch(self, fp, request):
+        # We expect chmod to actually modify permissions
+        if hasattr(request, "param") and request.param == "no mocking":
+            return
+        # Register a fake process for lpjsubmit
+        # (see https://pytest-subprocess.readthedocs.io/en/latest/usage.html#non-exact-command-matching) # noqa: E501
+        return fp.register(
+            [fp.program("sbatch"), fp.any()],
+            stdout="Submitted batch job 42",
+            returncode=(
+                1
+                if hasattr(request, "param") and request.param == "non-zero errorcode"
+                else 0
+            ),
+        )
+
     @pytest.fixture()
     def mock_venv(self, tmp_path_factory, request):
         if hasattr(request, "param") and request.param == "none":
@@ -93,6 +110,7 @@ class TestLpjSubmit:
                     fp.any(max=1, min=1),
                     "-e",
                     fp.any(max=1, min=1),
+                    "-norun",
                     "-wtime",
                     self.wtime,
                     "-couple",
@@ -103,6 +121,9 @@ class TestLpjSubmit:
             )
             == 1
         ), "lpjsubmit should be called exactly once with correct parameters"
+        assert (
+            fp.call_count([fp.program("sbatch")]) == 1
+        ), "sbatch should be called exactly once with correct parameters"
 
     @pytest.mark.parametrize(
         "mock_venv",
