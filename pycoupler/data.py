@@ -484,9 +484,10 @@ def read_data(file_name, var_name=None, multiple_bands=False):
 
         if var_name:
             data = data[var_name]
-            data = LPJmLData(data)
+            data = LPJmLData(data, attrs=data.attrs, coords=data.coords)
         else:
-            data = LPJmLDataSet(data)
+            # Copying needs to be explicit in xarray: https://github.com/pydata/xarray/issues/11095
+            data = LPJmLDataSet(data.data_vars, attrs=data.attrs, coords=data.coords)
 
         return data
 

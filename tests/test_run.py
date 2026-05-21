@@ -29,6 +29,23 @@ class TestLpjSubmit:
             ),
         )
 
+    @pytest.fixture(autouse=True)
+    def mock_sbatch(self, fp, request):
+        # We expect chmod to actually modify permissions
+        if hasattr(request, "param") and request.param == "no mocking":
+            return
+        # Register a fake process for lpjsubmit
+        # (see https://pytest-subprocess.readthedocs.io/en/latest/usage.html#non-exact-command-matching) # noqa: E501
+        return fp.register(
+            [fp.program("sbatch"), fp.any()],
+            stdout="Submitted batch job 42",
+            returncode=(
+                1
+                if hasattr(request, "param") and request.param == "non-zero errorcode"
+                else 0
+            ),
+        )
+
     @pytest.fixture()
     def mock_venv(self, tmp_path_factory, request):
         if hasattr(request, "param") and request.param == "none":
@@ -45,11 +62,11 @@ class TestLpjSubmit:
         self,
         mock_venv,
         sim_path,
-        config_coupled,
+        config_coupled_file,
         request,
     ):
         return submit_lpjml(
-            config_coupled,
+            config_coupled_file,
             group=self.group,
             sclass=self.sclass,
             ntasks=self.ntasks,
@@ -79,7 +96,7 @@ class TestLpjSubmit:
         # The test does nothing, we expect the fail in the fixtures
         pass
 
-    def test_command(self, sim_path, config_coupled, fp, submit):
+    def test_command(self, sim_path, config_coupled_file, fp, submit):
         run_script_path = sim_path / "output/coupled_test/copan_lpjml.sh"
         assert (
             fp.call_count(
@@ -93,16 +110,20 @@ class TestLpjSubmit:
                     fp.any(max=1, min=1),
                     "-e",
                     fp.any(max=1, min=1),
+                    "-norun",
                     "-wtime",
                     self.wtime,
                     "-couple",
                     str(run_script_path),
                     str(self.ntasks),
-                    config_coupled,
+                    config_coupled_file,
                 ]
             )
             == 1
         ), "lpjsubmit should be called exactly once with correct parameters"
+        assert (
+            fp.call_count([fp.program("sbatch")]) == 1
+        ), "sbatch should be called exactly once with correct parameters"
 
     @pytest.mark.parametrize(
         "mock_venv",
@@ -113,7 +134,9 @@ class TestLpjSubmit:
         ],
         indirect=True,
     )
-    def test_run_script(self, sim_path, config_coupled, mock_venv, request, submit):
+    def test_run_script(
+        self, sim_path, config_coupled_file, mock_venv, request, submit
+    ):
         run_script_path = sim_path / "output/coupled_test/copan_lpjml.sh"
         assert run_script_path.is_file(), "run script should have been created"
         assert (
@@ -125,7 +148,7 @@ class TestLpjSubmit:
                 == f"""#!/bin/bash
 
 # Define the path to the config file
-config_file="{config_coupled}"
+config_file="{config_coupled_file}"
 
 # Call the Python script with the config file as an argument
 {f"{mock_venv}/bin/python" if mock_venv else "python3"} {self.couple_script} \
