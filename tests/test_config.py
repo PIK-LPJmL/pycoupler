@@ -1,5 +1,6 @@
 """Test the LPJmLConfig class."""
 
+from pathlib import Path
 from pycoupler.config import read_config, read_yaml, CoupledConfig, parse_config
 import json
 import pytest
@@ -72,11 +73,15 @@ def test_set_historic_config(test_path):
 
 
 def test_set_coupled_config(
-    lpjml_config_json, config_coupled_json, model_path, sim_path, output_path
+    lpjml_config_json: Path,
+    config_coupled_json: Path,
+    model_path: Path,
+    sim_path: Path,
+    output_path: Path
 ):
     """Test the set_config method of the LPJmLCoupler class."""
     # create config for coupled run
-    config_coupled = read_config(model_path=model_path, file_name=lpjml_config_json)
+    config_coupled = read_config(model_path=str(model_path), file_name=str(lpjml_config_json))
 
     config_coupled.startgrid = 27410
     config_coupled.endgrid = 27411
@@ -180,7 +185,7 @@ def test_read_yaml(test_path):
     assert coupled_config.lpjml_settings.iso_country_code is False
 
 
-def test_read_config(test_path):
+def test_read_config(test_path: Path):
     coupled_config = read_config(
         f"{test_path}/data/config_coupled_test.json", to_dict=True
     )
@@ -194,12 +199,12 @@ def test_read_config(test_path):
     assert coupled_config.__class__.__name__ == "LpjmlConfig"
 
 
-def test_parse_config(lpjml_config_json):
-    coupled_config = parse_config(lpjml_config_json)
+def test_parse_config(lpjml_config_json: Path):
+    coupled_config = parse_config(str(lpjml_config_json))
     assert coupled_config["model_path"] == "LPJmL_internal"
     assert coupled_config["coupled_model"] is None
 
-    coupled_config = parse_config(lpjml_config_json, config_class=CoupledConfig)
+    coupled_config = parse_config(str(lpjml_config_json), config_class=CoupledConfig)
     assert coupled_config.__class__.__name__ == "CoupledConfig"
 
 
@@ -213,8 +218,8 @@ def test_parse_config(lpjml_config_json):
     ],
     ids=["no_id", "duplicate_id", "no_errors"],
 )
-def lpjml_config_wrong_ids(request, lpjml_config_json):
-    with open(lpjml_config_json, "r+") as conf:
+def lpjml_config_wrong_ids(request, lpjml_config_json: Path):
+    with lpjml_config_json.open("r+") as conf:
         conf_d = json.load(fp=conf)
         conf_d["input"] = {
             "test": request.param,
@@ -226,8 +231,8 @@ def lpjml_config_wrong_ids(request, lpjml_config_json):
     return str(lpjml_config_json)
 
 
-def test_wrong_ids(lpjml_config_wrong_ids, sim_path):
-    config_coupled = read_config(lpjml_config_wrong_ids)
+def test_wrong_ids(lpjml_config_wrong_ids, sim_path: Path):
+    config_coupled = read_config(str(lpjml_config_wrong_ids))
 
     with pytest.warns(UserWarning):
         config_coupled._ensure_input_ids()
