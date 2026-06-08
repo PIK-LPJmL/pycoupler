@@ -444,7 +444,7 @@ class LPJmLCoupler:
         if match_period and start_year >= end_year:
             raise ValueError(
                 f"No historic years available. Simulated year {start_year} "
-                f"is greater than coupled year {end_year}."
+                f"is greater than or equal to coupled year {end_year}."
             )
         current_year = start_year
         while current_year < end_year:
