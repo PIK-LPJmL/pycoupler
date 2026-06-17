@@ -231,3 +231,7 @@ def test_wrong_ids(lpjml_config_wrong_ids, sim_path: Path):
         assert "id" in inp, "Not every entry has an ID"
         ids.append(inp["id"])
     assert len(ids) == len(set(ids)), "IDs are not unique"
+
+
+# TODO: Test run_model_bin + runtime environment setup
+# TODO: Test get_bind_paths
