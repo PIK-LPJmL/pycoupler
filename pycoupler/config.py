@@ -2,6 +2,7 @@
 
 import logging
 import os
+from pathlib import Path
 import shutil
 import sys
 import json
@@ -187,6 +188,7 @@ class LpjmlConfig(SubConfig):
             "LPJINPATH": self.get_input_folder(),
             "LPJOUTPATH": self.get_output_folder(ensure=ensure_paths),
             "LPJRESTARTPATH": self.get_restart_folder(ensure=ensure_paths),
+            "APPTAINER_BIND": ",".join(str(bind) for bind in self.get_bind_paths()),
         }
 
     def get_output_folder(self, ensure: bool = False) -> str:
@@ -217,7 +219,7 @@ class LpjmlConfig(SubConfig):
                 raise FileNotFoundError(
                     "The input path, set in `LPJINPATH` does not exist."
                 )
-                input_path = os.environ["LPJINPATH"]
+            input_path = os.environ["LPJINPATH"]
             logger.debug(
                 f"Using LPJINPATH '{os.environ['LPJINPATH']}' from runtime environtment  as input path."
             )
@@ -232,6 +234,38 @@ class LpjmlConfig(SubConfig):
         if ensure:
             os.makedirs(restart_folder, exist_ok=True)
         return restart_folder
+
+    def get_bind_paths(self) -> list[Path]:
+        binds = []
+        input_folder = self.get_input_folder()
+        output_folder = self.get_output_folder()
+        restart_folder = self.get_restart_folder()
+        if input_folder:
+            binds.append(Path(input_folder))
+        if output_folder:
+            binds.append(Path(output_folder))
+        if restart_folder:
+            binds.append(Path(restart_folder))
+
+        for o in self.output:
+            output_file_path = Path(o.file.name)
+            print(o.file.name)
+            if output_file_path.is_absolute():
+                # The file path is not relative to the output folder, which is always in binds
+                if not any(output_file_path.is_relative_to(bind) for bind in binds):
+                    # The file is not contained in a path already included in binds
+                    binds.append(output_file_path)
+
+        for i in self.input.to_dict().values():
+            input_file_path = Path(i["name"])
+            print(i["name"])
+            if input_file_path.is_absolute():
+                # The file path is not relative to the input folder, which is always in binds
+                if not any(input_file_path.is_relative_to(bind) for bind in binds):
+                    # The file is not contained in a path already included in binds
+                    binds.append(input_file_path)
+
+        return binds
 
     def get_output_avail(self, id_only=True, to_dict=False):
         """

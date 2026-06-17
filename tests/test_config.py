@@ -185,3 +185,7 @@ def test_parse_config(lpjml_config, model_path):
 
     coupled_config = parse_config(lpjml_config, config_class=CoupledConfig)
     assert coupled_config.__class__.__name__ == "CoupledConfig"
+
+
+# TODO: Test run_model_bin + runtime environment setup
+# TODO: Test get_bind_paths
