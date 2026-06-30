@@ -632,7 +632,7 @@ class LPJmLCoupler:
             current_cell += 1
 
     def code_to_name(self, to_iso_alpha_3=False):
-        """Convert country indices to cell names
+        """Convert country indices to ISO alpha-3 codes or country names
 
         Parameters
         ----------
@@ -642,7 +642,7 @@ class LPJmLCoupler:
         """
         for static_output in self._static_ids.values():
 
-            if static_output not in ["country", "region"]:
+            if static_output != "country":
                 continue
 
             getattr(self, static_output).values = getattr(
@@ -674,6 +674,10 @@ class LPJmLCoupler:
             )(  # noqa
                 getattr(self, f"{static_output}").values
             )
+
+    def country_id_to_code(self):
+        """Convert country indices to ISO alpha-3 codes"""
+        self.code_to_name(to_iso_alpha_3=True)
 
     def read_historic_output(self, to_xarray=True):
         """Read historic output from LPJmL
@@ -726,19 +730,31 @@ class LPJmLCoupler:
         else:
             return output_dict
 
-    def close(self):
-        """Close socket channel and clean up port"""
+    def close(self, force_kill=False):
+        """Close socket channel.
+
+        Parameters
+        ----------
+        force_kill : bool, optional
+            If True, forcefully kill any processes still using the port.
+            Default is False, which allows LPJmL to exit gracefully and
+            finalize its output files. Only set to True for error recovery
+            or cleanup of crashed simulations.
+        """
         if hasattr(self, "_channel") and self._channel:
             self._channel.close()
 
-        # Clean up any processes still using the port
-        if hasattr(self, "_config") and hasattr(self._config, "coupled_port"):
-            kill_process_on_port(self._config.coupled_port)
+        # Only kill processes if explicitly requested (e.g., error recovery)
+        # Normal shutdown should let LPJmL finalize its outputs gracefully
+        if force_kill:
+            if hasattr(self, "_config") and hasattr(self._config, "coupled_port"):
+                kill_process_on_port(self._config.coupled_port)
 
     def __del__(self):
         """Destructor to ensure cleanup on object deletion"""
         try:
-            self.close()
+            # Don't force kill on normal destruction - let LPJmL exit gracefully
+            self.close(force_kill=False)
         except Exception:
             pass  # Ignore errors during cleanup
 
@@ -1166,7 +1182,7 @@ class LPJmLCoupler:
         # Check coupler protocol version
         self.version = read_int(self._channel)
         if self.version != version:
-            self.close()
+            self.close(force_kill=True)
             raise ValueError(
                 f"Invalid coupler version {version}, must be {self.version}"
             )
@@ -1185,7 +1201,7 @@ class LPJmLCoupler:
         if self._ncell != len(
             range(self._config.startgrid, self._config.endgrid + 1)
         ):  # noqa: E501
-            self.close()
+            self.close(force_kill=True)
             raise ValueError(
                 f"Invalid number of cells received ({self._ncell}), must be"
                 f" {self._config.ncell} according to configuration."
@@ -1208,7 +1224,7 @@ class LPJmLCoupler:
         input_sockets = self._config.get_input_sockets()
 
         if self._ninput != len(input_sockets):
-            self.close()
+            self.close(force_kill=True)
             raise ValueError(
                 f"Invalid number of input streams received ({self._ninput}),"
                 f" must be {len(input_sockets)} according to"
@@ -1239,7 +1255,7 @@ class LPJmLCoupler:
         output_sockets = self._config.get_output_sockets()
 
         if self._noutput != len(output_sockets):
-            self.close()
+            self.close(force_kill=True)
             raise ValueError(
                 f"Invalid number of output streams received ({self._noutput})"
                 f", must be {len(output_sockets)} according to"
@@ -1302,7 +1318,7 @@ class LPJmLCoupler:
         lpjml_err = None
         if getattr(self, "version", 3) >= 4:
             lpjml_err = read_int(self._channel)
-        self.close()
+        self.close(force_kill=True)
         suffix = (
             f" LPJmL error code: {lpjml_err}." if lpjml_err is not None else ""
         )
@@ -1321,7 +1337,7 @@ class LPJmLCoupler:
             self._raise_on_fail_data(received_token)
 
         if received_token is not token:
-            self.close()
+            self.close(force_kill=True)
             raise ValueError(
                 f"Received LPJmLToken {received_token.name} is not {token.name}"  # noqa: E501
             )  # noqa
@@ -1331,7 +1347,7 @@ class LPJmLCoupler:
 
         received_index = read_int(self._channel)
         if received_index != index:
-            self.close()
+            self.close(force_kill=True)
             raise ValueError(
                 f"The expected index: {index} does not "
                 + f"match the received index: {received_index}"
@@ -1342,7 +1358,7 @@ class LPJmLCoupler:
 
         received_year = read_int(self._channel)
         if received_year != year:
-            self.close()
+            self.close(force_kill=True)
             raise ValueError(
                 f"The expected year: {year} does not "
                 + f"match the received year: {received_year}"
@@ -1357,7 +1373,7 @@ class LPJmLCoupler:
             # Send number of bands
             send_int(self._channel, val=input_bands[index])
         else:
-            self.close()
+            self.close(force_kill=True)
             raise ValueError(f"Input of input ID {index} not supported.")
 
     def _set_input_types(self, index):
@@ -1381,7 +1397,7 @@ class LPJmLCoupler:
             if sock_id in input_ids
         }
         if len(socket_ids) != len(valid_inputs):
-            self.close()
+            self.close(force_kill=True)
             raise ValueError(
                 f"Configurated sockets {sockets.keys()} not defined in"
                 + f" {LPJmLInputType.names}!"
@@ -1411,7 +1427,7 @@ class LPJmLCoupler:
             if self._ninput != 0 and self._noutput != 0:
                 send_int(self._channel, CopanStatus.COPAN_OK.value)
             else:
-                self.close()
+                self.close(force_kill=True)
                 send_int(self._channel, CopanStatus.COPAN_ERR.value)
                 raise ValueError("No inputs OR outputs defined.")
         else:
@@ -1571,7 +1587,7 @@ class LPJmLCoupler:
 
         # Ensure it's a numpy array
         if not isinstance(input_data, np.ndarray):
-            self.close()
+            self.close(force_kill=True)
             raise TypeError(
                 f"Input data for '{input_name}' could not be converted to numpy array. "  # noqa: E501
                 + f"Got type: {type(input_data)}"
@@ -1590,7 +1606,7 @@ class LPJmLCoupler:
             ):
                 input_data = np.around(input_data).astype(np.int64)
             else:
-                self.close()
+                self.close(force_kill=True)
                 raise TypeError(
                     f"Unsupported type: {input_data.dtype} "
                     + "Please supply a numpy array with data type: "
@@ -1607,7 +1623,7 @@ class LPJmLCoupler:
                 if (
                     bands == 1 and not np.shape(input_data)[0] == self._ncell
                 ):  # noqa: E501
-                    self.close()
+                    self.close(force_kill=True)
                     raise ValueError(
                         "The dimensions of the supplied data: "
                         + f"{np.shape(input_data)} does not match the "

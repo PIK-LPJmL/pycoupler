@@ -438,6 +438,11 @@ class LpjmlConfig(SubConfig):
                     self.output[pos].file.timestep = temporal_resolution[
                         out.id
                     ]  # noqa: E501
+                # default to annual if not defined for output
+                elif (isinstance(temporal_resolution, dict)
+                    and out.id not in temporal_resolution.keys()
+                ):
+                    self.output[pos].file.timestep = "annual"
 
                 if out.id not in nonvariable_outputs:
                     self.output[pos].file.fmt = file_format
