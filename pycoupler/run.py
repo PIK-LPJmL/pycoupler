@@ -23,7 +23,7 @@ def operate_lpjml(config_file, std_to_file=False, wait_for_exit=True):
 
     config = read_config(config_file)
 
-    if config.model_path and not os.path.isdir(config.model_path):
+    if hasattr(config, "model_path") and not os.path.isdir(config.model_path):
         raise ValueError(f"Folder of model_path '{config.model_path}' does not exist!")
 
     output_path = f"{config.sim_path}/output/{config.sim_name}"
@@ -46,8 +46,7 @@ def operate_lpjml(config_file, std_to_file=False, wait_for_exit=True):
             "I_MPI_DAPL_FABRIC": "shm:sh",
         }
         | config.get_runtime_env(),
-        # This might be None, running in the current directory:
-        "cwd": config.model_path,
+        "cwd": getattr(config, "model_path", None), # None means current directory
         "text": True,
     }
 
@@ -245,7 +244,7 @@ config_file="{config_file}"
     # call lpjsubmit via subprocess and return status if successfull
     submit_file_status = config.run_model_bin(
         "lpjsubmit",
-        *submit_args,
+        **submit_args,
         subprocess_args={
             "capture_output": True,
             "cwd": config.sim_path,
@@ -293,15 +292,15 @@ def check_lpjml(config_file):
         Path to `LPJmL_internal` (lpjml repository)
     """
     config = read_config(config_file)
-    if config.model_path and not os.path.isdir(config.model_path):
+    if hasattr(config, "model_path") and not os.path.isdir(config.model_path):
         raise ValueError(f"Folder of model_path '{config.model_path}' does not exist!")
 
     proc_status = config.run_model_bin(
         "lpjcheck",
-        [config_file],
+        config_file,
         subprocess_args={
             # ensure_paths is false, because this is just a check and should have no side effects
-            "cwd": config.model_path,
+            "cwd": getattr(config, "model_path", None),
             "check": False,
             "capture_output": True,
             "text": True,
@@ -313,3 +312,4 @@ def check_lpjml(config_file):
     else:
         print(proc_status.stdout)
         print(proc_status.stderr)
+        # TODO: raise an exception here
