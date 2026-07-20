@@ -4,18 +4,31 @@ import json
 from fuzzywuzzy import fuzz, process
 
 
-def get_countries():
+def get_countries(key=None):
     """Current workaround to get countries defined in LPJmL.
+
+    Parameters
+    ----------
+    key : str, default None
+        What attribute to set as the key in the dictionary. If None, the key will be the
+        country id from lpjml.
 
     Returns
     -------
     dict
-        Dictionary with countries and their codes.
+        Dictionary with country names as the keys and the codes as the values.
     """
     with (importlib.resources.files(__package__) / "countries.json").open(
         "r"
     ) as countries:
-        return json.load(countries)
+        country_dict = json.load(countries)
+    if key in country_dict['0']:
+        country_dict = {
+            country[key]: country | {"id": id} for id, country in country_dict.items()
+        }
+    elif key is not None:
+        raise KeyError(f"Key '{key}' is not available as a country index.")
+    return country_dict
 
 
 def search_country(query):
@@ -28,12 +41,14 @@ def search_country(query):
 
     Returns
     -------
-    str
-        The matching country code.
+    str or None
+        The matching country code or None, if no match was found.
     """
-    countries = get_countries()
-    name, _ = process.extractOne(query, countries.keys(), scorer=fuzz.ratio)
-    return countries[name]["code"]
+    countries = get_countries("name")
+    found_name, _ = process.extractOne(query, countries.keys(), scorer=fuzz.ratio)
+    if found_name:
+        return countries[found_name]
+    return None
 
 
 def read_json(file_name, object_hook=None):

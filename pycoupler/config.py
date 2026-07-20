@@ -6,6 +6,7 @@ from pathlib import Path
 import shutil
 import sys
 import json
+import re
 from subprocess import DEVNULL, CompletedProcess, Popen, run as run_subprocess
 from typing import Any, override, TypedDict, Literal
 from ruamel.yaml import YAML
@@ -826,28 +827,26 @@ class LpjmlConfig(SubConfig):
         if not os.path.exists(sim_path):
             raise FileNotFoundError(f"Path '{sim_path}' does not exist.")
 
-        # get available countries of LPJmL
-        countries = get_countries()
+         # get available countries of LPJmL
+        countries = get_countries("alpha-3")
 
         # get country name from country code
-        country = next(
-            (
-                countries[country]["name"]
-                for country in countries
-                if (countries[country]["code"] == country_code)
-            ),
-            None,
-        ).lower()
+        country_name = countries.get(country_code, {}).get("name")
+        if not country_name:
+            raise KeyError(f"Invalid country code '{country_code}' or broken country table.")
+
+        # Make country name file name friendly
+        country_filename = re.sub(r'\W', '_', country_name.lower())
 
         grid_file = self.get_datafile_from_input(self.input.coord)
 
         # proxy check if regrid was already performed
-        if country in self.input.coord.name:
+        if country_filename in self.input.coord.name:
             return
 
         # TODO: Mount in container!
         country_grid_file = (
-            f"{sim_path}/input/{country}_{os.path.basename(grid_file)}"
+            f"{sim_path}/input/{country_filename}_{os.path.basename(grid_file)}"
         )
         # check if country specific input files already exist
         if (not os.path.isfile(country_grid_file) or overwrite) and not hasattr(
@@ -878,7 +877,7 @@ class LpjmlConfig(SubConfig):
         lakes_file = self.get_datafile_from_input(self.input.lakes)
 
         country_lakes_file = (
-            f"{sim_path}/input/{country}_{os.path.basename(lakes_file)}"
+            f"{sim_path}/input/{country_filename}_{os.path.basename(lakes_file)}"
         )
 
         # check if country specific input files already exist
@@ -917,7 +916,7 @@ class LpjmlConfig(SubConfig):
             input_file = self.get_datafile_from_input(config_input)
 
             country_input_file = (
-                f"{sim_path}/input/{country}_{os.path.basename(input_file)}"
+                f"{sim_path}/input/{country_filename}_{os.path.basename(input_file)}"
             )
 
             # check if country specific input files already exist

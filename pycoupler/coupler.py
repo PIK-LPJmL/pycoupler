@@ -504,39 +504,36 @@ class LPJmLCoupler:
             If True, convert country indices to ISO alpha-3 codes, else return
             country names
         """
-        for static_output in self._static_ids.values():
+        # Only convert these particular static outputs
+        outputs_to_change = set(["country", "region"])
 
-            if static_output not in ["country", "region"]:
-                continue
+        for static_output in outputs_to_change - set(self._static_ids.values()):
 
-            getattr(self, static_output).values = getattr(
-                self, static_output
-            ).values.astype(str)
-            name_dict = {
-                str(reg["id"]): reg["name"]
-                for reg in self._config.to_dict()[f"{static_output}par"]
-            }
-            if static_output == "country" and to_iso_alpha_3:
+            string_values = getattr(self, static_output).values.astype(str)
+
+            if static_output == "country":
                 country_dict = get_countries()
-                name_dict = {
-                    idx: country_dict[reg]["code"] for idx, reg in name_dict.items()
-                }
-                getattr(self, f"{static_output}").attrs[
-                    "long_name"
-                ] = f"{static_output} iso alpha-3 code"
-            else:
-                getattr(self, f"{static_output}").attrs[
-                    "long_name"
-                ] = f"{static_output} name"
-
-            def replace_values(x):
-                return name_dict[x] if x in name_dict else x
-
-            getattr(self, f"{static_output}").values = np.vectorize(
-                replace_values
-            )(  # noqa
-                getattr(self, f"{static_output}").values
-            )
+                getattr(self, static_output).values = np.array([
+                    country_dict[id]["alpha-3"]
+                    if to_iso_alpha_3
+                    else country_dict[id]["name"]
+                    if id in country_dict else id
+                    for id in string_values
+                ])
+            elif static_output == "region":
+                config = self._config.to_dict()
+                if "regionpar" in config:
+                    name_dict = {
+                        str(reg["id"]): reg["name"]
+                        for reg in config["regionpar"]
+                    }
+                    getattr(self, static_output).values = np.array([
+                        name_dict[id] if id in name_dict else id for id in string_values
+                    ])
+            
+            getattr(self, static_output).attrs[
+                "long_name"
+            ] = f"{static_output} iso alpha-3 code" if to_iso_alpha_3 and static_output == "country" else f"{static_output} name"
 
     def read_historic_output(self, to_xarray=True):
         """Read historic output from LPJmL
