@@ -906,11 +906,11 @@ class LpjmlConfig(SubConfig):
             # extract country specific grid
             self.run_model_bin(
                 "getcountry",
+                "-json",
                 self.get_datafile_from_input(self.input.countrycode),
                 grid_file,
                 country_grid_file,
                 country_code,
-                "--json"
             )
 
         # self.input.coord.fmt = (
@@ -938,11 +938,11 @@ class LpjmlConfig(SubConfig):
             # regrid lakes file to country specific grid
             self.run_model_bin(
                 "regridsoil",
+                "-json",
                 grid_file,
                 country_grid_file,
                 lakes_file,
                 country_lakes_file,
-                "--json"
             )
 
         self.input.lakes.fmt = "meta"
@@ -984,11 +984,11 @@ class LpjmlConfig(SubConfig):
                 # regrid all other input files to country specific grid
                 self.run_model_bin(
                     regrid_func,
+                    "-json",
                     grid_file,
                     coord_file,
                     input_file,
                     country_input_file,
-                    "--json"
                 )
                 # if additional_arg:
                 #     regrid_cmd.insert(1, additional_arg)
@@ -1150,7 +1150,11 @@ class LpjmlConfig(SubConfig):
 
 
 def parse_config(
-    file_name="./lpjml_config.json", spin_up=False, macros=None, config_class=None
+    file_name="./lpjml_config.json",
+    spin_up=False,
+    macros=None,
+    config_class=None,
+    in_container=False
 ):
     """
     Precompile lpjml_config.json and return LpjmlConfig object or dict.
@@ -1169,6 +1173,10 @@ def parse_config(
         Macro(s) to provide in the form of "-DMACRO" or list of macros.
     config_class : class, optional
         Class of config object to be returned. If None, returns dict.
+    in_container : bool, default False
+        If True, expects the path to be inside the LPJML container given in the
+        LPJML_CONTAINER environment variable. It then runs the command for the
+        C preporcessor in the container.
 
     Returns
     -------
@@ -1178,6 +1186,9 @@ def parse_config(
     """
     # precompile command
     cmd = ["cpp", "-P"]
+    if in_container:
+        cmd = ["apptainer", "-s", "exec", os.environ["LPJML_CONTAINER"]] + cmd
+
     # add arguments
     if not spin_up:
         cmd.append("-DFROM_RESTART")
@@ -1198,7 +1209,7 @@ def parse_config(
 
 
 def read_config(
-    file_name, model_path=None, spin_up=False, macros=None, to_dict=False
+    file_name, model_path=None, spin_up=False, macros=None, to_dict=False, parse_in_container=False
 ):  # noqa
     """
     Read LPJmL configuration files and return as LpjmlConfig object or dict.
@@ -1217,6 +1228,10 @@ def read_config(
     to_dict : bool, default False
         If True, a dictionary is returned. If False, an LpjmlConfig object is
         returned.
+    parse_in_container : bool, default False
+        If True, expects the path to be inside the LPJML container given in the
+        LPJML_CONTAINER environment variable. It then runs the command for the
+        C preporcessor in the container.
 
     Returns
     -------
@@ -1238,7 +1253,7 @@ def read_config(
     # If not possible, precompile and parse JSON
     except json.decoder.JSONDecodeError:
         lpjml_config = parse_config(
-            file_name, spin_up=spin_up, macros=macros, config_class=config
+            file_name, spin_up=spin_up, macros=macros, config_class=config, in_container=parse_in_container
         )
 
     # Convert first level to LpjmlConfig object
