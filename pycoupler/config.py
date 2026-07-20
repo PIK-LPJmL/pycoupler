@@ -864,6 +864,7 @@ class LpjmlConfig(SubConfig):
                 grid_file,
                 country_grid_file,
                 country_code,
+                "--json"
             )
 
         # self.input.coord.fmt = (
@@ -871,8 +872,8 @@ class LpjmlConfig(SubConfig):
         #     if not hasattr(sys, "_called_from_test")
         #     else "clm"
         # )
-        self.input.coord.fmt = "clm"
-        self.input.coord.name = country_grid_file
+        self.input.coord.fmt = "meta"
+        self.input.coord.name = f"{country_grid_file}.json"
 
         lakes_file = self.get_datafile_from_input(self.input.lakes)
 
@@ -895,14 +896,11 @@ class LpjmlConfig(SubConfig):
                 country_grid_file,
                 lakes_file,
                 country_lakes_file,
+                "--json"
             )
 
-        self.input.lakes.fmt = (
-            detect_io_type(country_lakes_file)
-            if not hasattr(sys, "_called_from_test")
-            else "raw"
-        )
-        self.input.lakes.name = country_lakes_file
+        self.input.lakes.fmt = "meta"
+        self.input.lakes.name = f"{lakes_file}.json"
 
         coord_file = self.get_datafile_from_input(self.input.coord)
         # loop over all used input files to regrid them to country specific
@@ -944,16 +942,13 @@ class LpjmlConfig(SubConfig):
                     coord_file,
                     input_file,
                     country_input_file,
+                    "--json"
                 )
                 # if additional_arg:
                 #     regrid_cmd.insert(1, additional_arg)
 
-            config_input.fmt = (
-                detect_io_type(country_input_file)
-                if not hasattr(sys, "_called_from_test")
-                else "clm"
-            )
-            config_input.name = country_input_file
+            config_input.fmt = "meta"
+            config_input.name = f"{country_input_file}.json"
 
         self._set_grid_explicitly(only_all=False)
 
@@ -973,7 +968,7 @@ class LpjmlConfig(SubConfig):
         if not os.path.isfile(f"{output_dir}/{grid_name}") and not hasattr(
             sys, "_called_from_test"
         ):
-            run(f"tail -c +44 {grid_file} > {output_dir}/{grid_name}", shell=True)
+            run_subprocess(f"tail -c +44 {grid_file} > {output_dir}/{grid_name}", shell=True)
 
         grid_file = f"{output_dir}/{grid_name}"
 
