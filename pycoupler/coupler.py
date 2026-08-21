@@ -1008,8 +1008,12 @@ class LPJmLCoupler:
                 {band_dim: [str(i + 1) for i in range(len(band_names))]}
             )
         elif (
-            len(band_names) % len(self.config.cftmap) == 0
-            or len(band_names) % len(self.config.landusemap) == 0
+            hasattr(self.config, "cftmap")
+            and hasattr(self.config, "landusemap")
+            and (
+                len(band_names) % len(self.config.cftmap) == 0
+                or len(band_names) % len(self.config.landusemap) == 0
+            )
         ):
             if len(band_names) % len(self.config.cftmap) == 0:
                 len_irr_systems = len(band_names) // len(self.config.cftmap)
@@ -1039,6 +1043,11 @@ class LPJmLCoupler:
                 ]  # {irr}
 
             y = x.assign_coords({band_dim: combined_list})
+        else:
+            # No cftmap/landusemap available, use numeric band names
+            y = x.assign_coords(
+                {band_dim: [str(i + 1) for i in range(len(band_names))]}
+            )
         return y
 
     def _copy_input(self, start_year, end_year):
@@ -1081,7 +1090,12 @@ class LPJmLCoupler:
 
             if not hasattr(sys, "_called_from_test"):
                 # read meta data of input file
-                meta_data = read_header(sock_inputs[key]["name"])
+                input_name = sock_inputs[key]["name"]
+                input_fmt = sock_inputs[key].get("fmt", "clm")
+                if input_fmt == "meta" or input_name.endswith(".json"):
+                    meta_data = read_meta(input_name)
+                else:
+                    meta_data = read_header(input_name)
             else:
                 meta_data = read_meta(
                     f"{os.environ['TEST_PATH']}/data/input/{key}.nc.json"
@@ -1112,12 +1126,17 @@ class LPJmLCoupler:
                 cut_start_year = start_year
                 cut_end = cut_end_year = min(meta_data.lastyear, end_year)
 
-            cut_clm_start = [
-                f"{self._config.model_path}/bin/cutclm",
+            # Determine if input is a meta file
+            is_meta_input = input_fmt == "meta" or input_name.endswith(".json")
+
+            cut_clm_start = [f"{self._config.model_path}/bin/cutclm"]
+            if is_meta_input:
+                cut_clm_start.append("-metafile")
+            cut_clm_start.extend([
                 str(cut_start_year),
                 sock_inputs[key]["name"],
                 f"{temp_dir}/1_{file_name_tmp}",
-            ]
+            ])
             if not hasattr(sys, "_called_from_test"):
                 subprocess.run(cut_clm_start, stdout=open(os.devnull, "wb"))
 
@@ -1153,6 +1172,11 @@ class LPJmLCoupler:
                 grid_file = (
                     f"{self.config.inpath}/{self.config.input.coord.name}"  # noqa: E501
                 )
+            # If grid is a meta file, extract the binary path
+            if grid_file.endswith(".json"):
+                grid_meta = read_meta(grid_file)
+                grid_dir = os.path.dirname(grid_file)
+                grid_file = os.path.join(grid_dir, grid_meta.filename)
             # convert clm input to netcdf files
             conversion_cmd = [
                 f"{self._config.model_path}/bin/clm2cdf",

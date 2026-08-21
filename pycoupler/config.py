@@ -120,6 +120,40 @@ class LpjmlConfig(SubConfig):
         if "changed" not in sub_config.__dict__:
             sub_config.__dict__["changed"] = []
         self.__dict__.update(sub_config.__dict__)
+        self._cftmap = None  # Lazy-loaded from landuse meta file
+
+    @property
+    def cftmap(self):
+        """Get CFT (Crop Functional Type) map from landuse input meta file.
+
+        Returns the 'map' field from the landuse JSON meta file, which contains
+        the list of crop names in band order.
+        """
+        if self._cftmap is not None:
+            return self._cftmap
+
+        # Try to load from landuse meta file
+        if hasattr(self, "input") and hasattr(self.input, "landuse"):
+            landuse_name = self.input.landuse.name
+            if not landuse_name.startswith("/"):
+                landuse_name = f"{self.inpath}/{landuse_name}"
+
+            if landuse_name.endswith(".json"):
+                try:
+                    meta = read_json(landuse_name)
+                    if "map" in meta:
+                        self._cftmap = meta["map"]
+                        return self._cftmap
+                except Exception:
+                    pass
+
+        # Fallback: return None or a default
+        return None
+
+    @property
+    def landusemap(self):
+        """Alias for cftmap - the landuse map from the landuse input meta file."""
+        return self.cftmap
 
     def get_output_avail(self, id_only=True, to_dict=False):
         """
@@ -731,7 +765,29 @@ class LpjmlConfig(SubConfig):
         if country in self.input.coord.name:
             return
 
-        country_grid_file = f"{sim_path}/input/{country}_{os.path.basename(self.input.coord.name)}"  # noqa: E501
+        # Determine if files are actually JSON meta files (by extension)
+        grid_basename = os.path.basename(grid_file)
+        grid_is_json_meta = grid_basename.endswith(".json")
+
+        # For JSON meta files, extract the actual binary grid file path
+        if grid_is_json_meta:
+            grid_basename = grid_basename[:-5]
+            # Read meta JSON to get the binary filename
+            grid_dir = os.path.dirname(grid_file)
+            grid_binary_name = read_json(grid_file)["filename"]
+            grid_file_binary = os.path.join(grid_dir, grid_binary_name)
+        else:
+            grid_file_binary = grid_file
+
+        countrycode_file = (
+            self.input.countrycode.name
+            if os.path.isfile(self.input.countrycode.name)
+            else f"{self.inpath}/{self.input.countrycode.name}"
+        )
+        countrycode_is_json_meta = countrycode_file.endswith(".json")
+
+        country_grid_file = f"{sim_path}/input/{country}_{grid_basename}"
+
         # check if country specific input files already exist
         if (
             not os.path.isfile(country_grid_file) or overwrite
@@ -742,28 +798,32 @@ class LpjmlConfig(SubConfig):
             if not os.path.isfile(grid_file):
                 raise OSError(f"Grid file '{grid_file}' does not exist.")
 
-            # extract country specific grid
-            run(
-                [
-                    f"{model_path}/bin/getcountry",
-                    (
-                        self.input.countrycode.name
-                        if os.path.isfile(self.input.countrycode.name)
-                        else f"{self.inpath}/{self.input.countrycode.name}"
-                    ),
-                    grid_file,
-                    country_grid_file,
-                    country_code,
-                ],
-                check=True,
-            )
+            getcountry_cmd = [f"{model_path}/bin/getcountry"]
+            # Add -json flag if countrycode is a JSON meta file
+            if countrycode_is_json_meta:
+                getcountry_cmd.append("-json")
+            # getcountry usage: countryfile outfile country...
+            # (no separate grid file - grid is extracted from countryfile)
+            getcountry_cmd.extend([
+                countrycode_file,
+                country_grid_file,
+                country_code,
+            ])
 
-        self.input.coord.fmt = (
-            detect_io_type(country_grid_file)
-            if not hasattr(sys, "_called_from_test")
-            else "clm"
-        )
-        self.input.coord.name = country_grid_file
+            # extract country specific grid
+            run(getcountry_cmd, check=True)
+
+        # For meta files, the output format is "meta" with .clm.json file
+        if grid_is_json_meta:
+            self.input.coord.fmt = "meta"
+            self.input.coord.name = f"{country_grid_file}.json"
+        else:
+            self.input.coord.fmt = (
+                detect_io_type(country_grid_file)
+                if not hasattr(sys, "_called_from_test")
+                else "clm"
+            )
+            self.input.coord.name = country_grid_file
 
         lakes_fn_string = (
             self.input.lakes.name
@@ -771,22 +831,16 @@ class LpjmlConfig(SubConfig):
             or hasattr(sys, "_called_from_test")
             else f"{self.inpath}/{self.input.lakes.name}"
         )
-        # extract country specific lakes file from meta file
-        if self.input.lakes.fmt == "meta" and not hasattr(
-            sys, "_called_from_test"
-        ):  # noqa: E501
-            lakes_filename = read_json(lakes_fn_string)["filename"]
 
-            lakes_file = lakes_fn_string
-            lakes_file = (
-                f"{lakes_file[:lakes_file.rfind('/')+1]}{lakes_filename}"  # noqa: E501
-            )
-        else:
-            lakes_file = lakes_fn_string
+        # Determine if file is actually a JSON meta file (by extension)
+        lakes_basename = os.path.basename(lakes_fn_string)
+        lakes_is_json_meta = lakes_basename.endswith(".json")
 
-        country_lakes_file = (
-            f"{sim_path}/input/{country}_{os.path.basename(lakes_file)}"
-        )
+        # For meta files, output base name without .json suffix
+        if lakes_is_json_meta:
+            lakes_basename = lakes_basename[:-5]
+
+        country_lakes_file = f"{sim_path}/input/{country}_{lakes_basename}"
 
         # check if country specific input files already exist
         if (
@@ -795,35 +849,67 @@ class LpjmlConfig(SubConfig):
             sys, "_called_from_test"
         ):
 
-            if not os.path.isfile(lakes_file):
-                raise OSError(f"Lakes file '{lakes_file}' does not exist.")
+            if not os.path.isfile(lakes_fn_string):
+                raise OSError(f"Lakes file '{lakes_fn_string}' does not exist.")
+
+            # Get the country grid file path without .json for regrid commands
+            country_grid_clm = country_grid_file
+            if country_grid_clm.endswith(".json"):
+                country_grid_clm = country_grid_clm[:-5]
 
             # regrid lakes file to country specific grid
-            run(
-                [
-                    f"{model_path}/bin/regridsoil",
-                    grid_file,
-                    country_grid_file,
-                    lakes_file,
-                    country_lakes_file,
-                ],
-                check=True,
-                stdout=open(os.devnull, "wb"),
-            )
+            if lakes_is_json_meta:
+                # Use regridclm with -metafile for JSON meta format
+                run(
+                    [
+                        f"{model_path}/bin/regridclm",
+                        "-metafile",
+                        country_grid_clm,
+                        lakes_fn_string,
+                        country_lakes_file,
+                    ],
+                    check=True,
+                    stdout=open(os.devnull, "wb"),
+                )
+            else:
+                # Plain binary file: use regridsoil
+                # regridsoil args: orig_grid target_grid input_file output_file
+                run(
+                    [
+                        f"{model_path}/bin/regridsoil",
+                        grid_file_binary,
+                        country_grid_clm,
+                        lakes_fn_string,
+                        country_lakes_file,
+                    ],
+                    check=True,
+                    stdout=open(os.devnull, "wb"),
+                )
 
-        self.input.lakes.fmt = (
-            detect_io_type(country_lakes_file)
-            if not hasattr(sys, "_called_from_test")
-            else "raw"
-        )
-        self.input.lakes.name = country_lakes_file
+        # Update config with new file path
+        if lakes_is_json_meta:
+            self.input.lakes.fmt = "meta"
+            self.input.lakes.name = f"{country_lakes_file}.json"
+        else:
+            self.input.lakes.fmt = (
+                detect_io_type(country_lakes_file)
+                if not hasattr(sys, "_called_from_test")
+                else "raw"
+            )
+            self.input.lakes.name = country_lakes_file
+
+        # Get the country grid file path for regrid commands (without .json)
+        country_grid_clm = country_grid_file
+        if country_grid_clm.endswith(".json"):
+            country_grid_clm = country_grid_clm[:-5]
 
         # loop over all used input files to regrid them to country specific
         #   grid
         for config_key, config_input in self.input:
 
+            input_fmt = getattr(config_input, "fmt", None)
             if (
-                getattr(config_input, "fmt", None) != "clm"
+                input_fmt not in ["clm", "meta"]
                 or config_key in ["coord", "lakes"]
                 or getattr(config_input, "name", None) == "DUMMYLOCATION"
             ):
@@ -836,9 +922,16 @@ class LpjmlConfig(SubConfig):
                 else f"{self.inpath}/{config_input.name}"
             )
 
-            country_input_file = (
-                f"{sim_path}/input/{country}_{os.path.basename(input_file)}"
-            )
+            # Determine if file is actually a JSON meta file (by extension)
+            # Config may say fmt="meta" but file could be plain .clm binary
+            input_basename = os.path.basename(input_file)
+            is_json_meta = input_basename.endswith(".json")
+
+            # For meta files, output base name without .json suffix
+            if is_json_meta:
+                input_basename = input_basename[:-5]
+
+            country_input_file = f"{sim_path}/input/{country}_{input_basename}"
 
             # check if country specific input files already exist
             if (
@@ -857,22 +950,40 @@ class LpjmlConfig(SubConfig):
                 else:
                     regrid_func = "regridclm"
 
-                # regrid all other input files to country specific grid
-                regrid_cmd = [
-                    f"{model_path}/bin/{regrid_func}",
-                    grid_file,
-                    self.input.coord.name,
-                    input_file,
-                    country_input_file,
-                ]
-                # if additional_arg:
-                #     regrid_cmd.insert(1, additional_arg)
+                # Build regrid command
+                regrid_cmd = [f"{model_path}/bin/{regrid_func}"]
+                if is_json_meta:
+                    # With -metafile: 3 args (target_grid, input_meta, output)
+                    regrid_cmd.append("-metafile")
+                    regrid_cmd.extend([
+                        country_grid_clm,
+                        input_file,
+                        country_input_file,
+                    ])
+                else:
+                    # Without -metafile: 4 args (source_grid, target_grid, input, output)
+                    # Use binary grid file (extracted from meta JSON if needed)
+                    regrid_cmd.extend([
+                        grid_file_binary,
+                        country_grid_clm,
+                        input_file,
+                        country_input_file,
+                    ])
                 run(regrid_cmd, check=True, stdout=open(os.devnull, "wb"))
 
-            # Keep original fmt ("clm"): regridclm always outputs clm format.
-            # Re-detecting via detect_io_type() can misclassify (e.g.
-            # slope files as "text" when first bytes are printable ASCII).
-            config_input.name = country_input_file
+            # Update config with new file path and format
+            if is_json_meta:
+                # Meta files: point to the .clm.json file
+                config_input.name = f"{country_input_file}.json"
+                config_input.fmt = "meta"
+            else:
+                # Plain binary files: regridclm outputs clm format
+                config_input.name = country_input_file
+                # Only change fmt if original was "meta" (pointing to non-JSON file)
+                # Otherwise keep original format (clm, raw, etc.)
+                if input_fmt == "meta":
+                    config_input.fmt = "clm"
+
             if (
                 os.path.isfile(country_input_file)
                 and os.path.getsize(country_input_file) == 0
