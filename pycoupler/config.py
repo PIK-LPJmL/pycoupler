@@ -10,6 +10,7 @@ import re
 from subprocess import DEVNULL, CompletedProcess, Popen, run as run_subprocess
 from typing import Any, override, TypedDict, Literal
 from ruamel.yaml import YAML
+from packaging.version import Version
 
 from pycoupler.utils import read_json, get_countries, create_subdirs, detect_io_type
 from pycoupler.data import read_header
@@ -206,12 +207,12 @@ class LpjmlConfig(SubConfig):
 
     def get_datafile_from_input(self, input: Input) -> str:
         if input.fmt == "meta":
-            datafile_path = Path(self.get_input_filepath(input.name))
-            with datafile_path.open() as f:
+            metafile = Path(self.get_input_filepath(input["name"]))
+            with metafile.open() as f:
                 metadata = json.load(f)
-            return str(datafile_path.parent / metadata["filename"]) if not Path(metadata["filename"]).is_absolute() else metadata["filename"]
+            return str(metafile.parent / metadata["filename"]) if not Path(metadata["filename"]).is_absolute() else metadata["filename"]
         else:
-            return self.get_input_filepath(input.name)
+            return self.get_input_filepath(input["name"])
 
     def get_input_filepath(self, input_file_name: str) -> str:
         return (
@@ -856,14 +857,28 @@ class LpjmlConfig(SubConfig):
             if not os.path.isfile(grid_file):
                 raise FileNotFoundError(f"Grid file '{grid_file}' does not exist.")
 
+            if Version(self.version) >= Version("6.1.3"):
+                # Version 6.1.3 changes the getcountry API to read country data from
+                # the meta file and removes the grid file
+                # (see https://gitlab.pik-potsdam.de/lpjml/LPJmL_internal/-/merge_requests/289)
+                getcountry_args = [
+                    self.get_datafile_from_input(self.input.countrycode),
+                    grid_file
+                ]
+            elif self.input.countrycode.fmt == "meta":
+                getcountry_args = [
+                    self.get_input_filepath(self.input.countrycode.name),
+                ]
+            else:
+                raise Exception("Wrong config: LPJmL >= 6.3.1 requires the countrycode input to be a metafile.")
+
+            getcountry_args += [country_grid_file, country_code] 
+
             # extract country specific grid
             self.run_model_bin(
                 "getcountry",
                 "-json",
-                self.get_datafile_from_input(self.input.countrycode),
-                grid_file,
-                country_grid_file,
-                country_code,
+                **getcountry_args
             )
 
         # self.input.coord.fmt = (
