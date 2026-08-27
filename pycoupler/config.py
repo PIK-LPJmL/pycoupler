@@ -8,7 +8,7 @@ import sys
 import json
 import re
 from subprocess import DEVNULL, CompletedProcess, Popen, run as run_subprocess
-from typing import Any, override, TypedDict, Literal
+from typing import Any, TypedDict, Literal
 from ruamel.yaml import YAML
 from packaging.version import Version
 
@@ -108,10 +108,10 @@ class SubConfig:
 
 
 
-class Input(TypedDict):
-    name: str
-    fmt: Literal["clm", "cdf", "meta", "txt", "raw", "fms", "sock"]
-    id: int
+# class Input(TypedDict):
+#     name: str
+#     fmt: Literal["clm", "cdf", "meta", "txt", "raw", "fms", "sock"]
+#     id: int
 
 class LpjmlConfig(SubConfig):
     """
@@ -205,14 +205,14 @@ class LpjmlConfig(SubConfig):
             os.makedirs(output_folder, exist_ok=True)
         return output_folder
 
-    def get_datafile_from_input(self, input: Input) -> str:
+    def get_datafile_from_input(self, input: SubConfig) -> str:
         if input.fmt == "meta":
-            metafile = Path(self.get_input_filepath(input["name"]))
+            metafile = Path(self.get_input_filepath(input.name))
             with metafile.open() as f:
                 metadata = json.load(f)
             return str(metafile.parent / metadata["filename"]) if not Path(metadata["filename"]).is_absolute() else metadata["filename"]
         else:
-            return self.get_input_filepath(input["name"])
+            return self.get_input_filepath(input.name)
 
     def get_input_filepath(self, input_file_name: str) -> str:
         return (
@@ -857,7 +857,7 @@ class LpjmlConfig(SubConfig):
             if not os.path.isfile(grid_file):
                 raise FileNotFoundError(f"Grid file '{grid_file}' does not exist.")
 
-            if Version(self.version) >= Version("6.1.3"):
+            if Version(self.version) < Version("6.1.3"):
                 # Version 6.1.3 changes the getcountry API to read country data from
                 # the meta file and removes the grid file
                 # (see https://gitlab.pik-potsdam.de/lpjml/LPJmL_internal/-/merge_requests/289)
@@ -878,7 +878,7 @@ class LpjmlConfig(SubConfig):
             self.run_model_bin(
                 "getcountry",
                 "-json",
-                **getcountry_args
+                *getcountry_args
             )
 
         # self.input.coord.fmt = (
@@ -934,13 +934,15 @@ class LpjmlConfig(SubConfig):
                 f"{sim_path}/input/{country_filename}_{os.path.basename(input_file)}"
             )
 
+            regridded = False
+
             # check if country specific input files already exist
             if (not os.path.isfile(country_input_file) or overwrite) and not hasattr(
                 sys, "_called_from_test"
             ):
 
                 if not os.path.isfile(input_file):
-                    raise OSError(f"Input file '{input_file}' does not exist.")
+                    raise FileNotFoundError(1, f"Input file does not exist for input '{config_key}'", input_file)
 
                 if config_key == "drainage":
                     regrid_func = "regriddrain"
@@ -961,8 +963,35 @@ class LpjmlConfig(SubConfig):
                 # if additional_arg:
                 #     regrid_cmd.insert(1, additional_arg)
 
-            config_input.fmt = "meta"
-            config_input.name = f"{country_input_file}.json"
+                regridded = True
+
+            country_input_meta_path = Path(f"{country_input_file}.json")
+            if country_input_meta_path.is_file():
+                if regridded:
+                    # The regridding utils do not copy the mapping metadata to the new metadata file.
+                    with open(f"{country_input_file}.json", "r+") as country_input_meta:
+                        try:
+                            country_metadata = json.load(country_input_meta)
+                        except json.decoder.JSONDecodeError as e:
+                            # The meta file contains no json
+                            # TODO: Can we assume the format is clm?
+                            config_input_fmt = "clm"
+                            config_input.name = country_input_file
+                            continue
+                        if "map" not in country_metadata and config_input.fmt == "meta":
+                            with open(self.get_input_filepath(config_input.name), "r") as global_input_meta:
+                                global_metadata = json.load(global_input_meta)
+                            if "map" in global_metadata:
+                                country_metadata["map"] = global_metadata["map"]
+                                country_input_meta.seek(0)
+                                json.dump(country_metadata, country_input_meta, indent=4)
+
+                config_input.fmt = "meta"
+                config_input.name = str(country_input_meta_path)
+            else:
+                # TODO: Can we assume the format is clm?
+                config_input_fmt = "clm"
+                config_input.name = country_input_file
 
         self._set_grid_explicitly(only_all=False)
 
