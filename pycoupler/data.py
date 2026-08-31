@@ -8,6 +8,7 @@ import xarray as xr
 from scipy.spatial import KDTree
 from xarray.core.variable import Variable
 import xarray.core.utils as utils
+import warnings
 
 from pycoupler.utils import read_json
 
@@ -32,6 +33,7 @@ class LPJmLInputType:
     """
 
     __input_types__ = None  # This will hold the configuration data
+    ids_to_names = {}
 
     def __init__(self, id=None, name=None):
         """Initialize the instance with an id (index)."""
@@ -41,32 +43,38 @@ class LPJmLInputType:
             )
 
         if id is not None:
-            # Find the corresponding input id from the provided id
-            self.__dict__.update(
-                next(
-                    value.update({"name": key}) or value
-                    for key, value in LPJmLInputType.__input_types__.items()
-                    if value["id"] == id
-                )
-            )
+            name = LPJmLInputType.ids_to_names.get(id, None)
+            input_type = LPJmLInputType.__input_types__.get(name, None)
+            if input_type:
+                self.name = name
+                self.id = input_type["id"]
+                self.filename = input_type.get("name", None)
+                self.fmt = input_type.get("fmt", None)
+            else:
+                raise ValueError(f"Provided id '{id}' has no registered input type.")
         elif name is not None:
-            # Find the corresponding input name from the provided name
-            self.__dict__.update(
-                next(
-                    value.update({"name": key}) or value
-                    for key, value in LPJmLInputType.__input_types__.items()
-                    if key == name
-                )
-            )
+            input_type = LPJmLInputType.__input_types__.get(name, None)
+            if input_type:
+                self.name = name
+                self.id = input_type["id"]
+                self.filename = input_type.get("name", None)
+                self.fmt = input_type.get("fmt", None)
+            else:
+                raise ValueError(f"Provided name '{name}' is not a registered input type.")
         else:
             raise ValueError("Either 'id' or 'name' must be provided.")
 
     @classmethod
     def load_config(cls, config):
         """Load input types from the provided config."""
-        cls.__input_types__ = config.input.to_dict()
-        cls.names = list(cls.__input_types__.keys())
-        cls.ids = [value["id"] for value in cls.__input_types__.values()]
+        cls.__input_types__ = {}
+        cls.ids_to_names = {}
+        for name, input_type in config.input.to_dict().items():
+            if "id" in input_type:
+                cls.ids_to_names[input_type["id"]] = name
+                cls.__input_types__[name] = input_type
+            else:
+                warnings.warn(f"Input type '{name}' is missing the required id field. It will be ignored.")
 
     @property
     def nband(self):
