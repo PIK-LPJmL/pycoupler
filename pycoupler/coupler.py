@@ -1043,7 +1043,7 @@ class LPJmLCoupler:
             self._input_ids = {
                 input_sockets[inp]["id"]: inp
                 for inp in input_sockets
-                if input_sockets[inp]["id"] in LPJmLInputType.ids
+                if input_sockets[inp]["id"] in LPJmLInputType.ids_to_names
             }
 
             # send number of bands for each output data stream
@@ -1172,7 +1172,7 @@ class LPJmLCoupler:
         sockets = self._config.get_input_sockets()
         socket_ids = [sock_id["id"] for sock_id in sockets.values()]
         # filter input names
-        input_ids = [inp for inp in LPJmLInputType.ids]
+        input_ids = [inp for inp in LPJmLInputType.ids_to_names]
 
         # check if input is defined in LPJmLInputType (band size required)
         valid_inputs = {
@@ -1184,7 +1184,7 @@ class LPJmLCoupler:
             self.close()
             raise ValueError(
                 f"Configurated sockets {sockets.keys()} not defined in"
-                + f" {LPJmLInputType.names}!"
+                + f" {LPJmLInputType.ids_to_names.values()}!"
             )
         return valid_inputs
 
