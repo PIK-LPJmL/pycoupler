@@ -4,6 +4,7 @@ import os
 import sys
 import subprocess
 import json
+import warnings
 from subprocess import run
 from ruamel.yaml import YAML
 
@@ -329,6 +330,34 @@ class LpjmlConfig(SubConfig):
         self.sim_name = sim_name
         self.sim_path = create_subdirs(sim_path, self.sim_name)
         output_path = f"{sim_path}/output/{self.sim_name}"
+
+        # Set ids for all inputs in case they are missing
+        available_ids = set()
+        min_id = len(self.input.to_dict()) + 10
+        
+        def find_new_id():
+            nonlocal min_id
+            new_id = min_id + 1
+            while new_id in available_ids:
+                new_id += 1
+            min_id = new_id
+            return new_id
+
+        for key, inp in self.input.to_dict().items():
+            if "id" not in inp:
+                # Missing id
+                warnings.warn(f"Input '{key}' is missing an id. Setting a new one for now.")
+                id = find_new_id()
+                setattr(getattr(self.input, key), "id", id)
+            elif inp["id"] in available_ids:
+                # Duplicate id
+                id = find_new_id()
+                warnings.warn(f"Inputs contain duplicate ids. Violating input: '{key}' (id: '{inp["id"]}')")
+                setattr(getattr(self.input, key), "id", id)
+            else:
+                id = inp["id"]
+
+            available_ids |= {id}
 
         # set time range for coupled run
         self._set_timerange(
