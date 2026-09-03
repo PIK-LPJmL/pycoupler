@@ -4,7 +4,6 @@ from pycoupler.config import read_config, read_yaml, CoupledConfig, parse_config
 import json
 import pytest
 
-from tests.conftest import output_path, sim_inputs
 
 def test_set_spinup_config(test_path):
     """Test the set_config method of the LPJmLCoupler class."""
@@ -72,12 +71,12 @@ def test_set_historic_config(test_path):
     assert config_historic.double_harvest is False
 
 
-def test_set_coupled_config(lpjml_config_json, config_coupled_json, model_path, sim_path, output_path):
+def test_set_coupled_config(
+    lpjml_config_json, config_coupled_json, model_path, sim_path, output_path
+):
     """Test the set_config method of the LPJmLCoupler class."""
     # create config for coupled run
-    config_coupled = read_config(
-        model_path=model_path, file_name=lpjml_config_json
-    )
+    config_coupled = read_config(model_path=model_path, file_name=lpjml_config_json)
 
     config_coupled.startgrid = 27410
     config_coupled.endgrid = 27411
@@ -166,6 +165,7 @@ def test_set_coupled_config(lpjml_config_json, config_coupled_json, model_path, 
         "region",  # noqa
     }.issubset(set(config_coupled.get_output()))
 
+
 def test_read_yaml(test_path):
     coupled_config = read_yaml(f"{test_path}/data/config.yaml", CoupledConfig)
 
@@ -199,37 +199,39 @@ def test_parse_config(lpjml_config_json):
     assert coupled_config["model_path"] == "LPJmL_internal"
     assert coupled_config["coupled_model"] is None
 
-    coupled_config = parse_config(
-        lpjml_config_json, config_class=CoupledConfig
-    )
+    coupled_config = parse_config(lpjml_config_json, config_class=CoupledConfig)
     assert coupled_config.__class__.__name__ == "CoupledConfig"
 
 
-@pytest.fixture(params=[
-    {"fmt": "clm", "name": "test/test.clm"},
-    {"id": 1, "fmt": "clm", "name": "test/test.clm"},
-    pytest.param({"id": 2, "fmt": "clm", "name": "test/test.clm"}, marks=pytest.mark.xfail),
-], ids=["no_id", "duplicate_id", "no_errors"])
+@pytest.fixture(
+    params=[
+        {"fmt": "clm", "name": "test/test.clm"},
+        {"id": 1, "fmt": "clm", "name": "test/test.clm"},
+        pytest.param(
+            {"id": 2, "fmt": "clm", "name": "test/test.clm"}, marks=pytest.mark.xfail
+        ),
+    ],
+    ids=["no_id", "duplicate_id", "no_errors"],
+)
 def lpjml_config_wrong_ids(request, lpjml_config_json):
     with open(lpjml_config_json, "r+") as conf:
         conf_d = json.load(fp=conf)
         conf_d["input"] = {
             "test": request.param,
-            "test2": {"id": 1, "fmt": "clm", "name": "input/test2.clm"}
+            "test2": {"id": 1, "fmt": "clm", "name": "input/test2.clm"},
         }
         conf.seek(0)
         json.dump(conf_d, conf)
         conf.truncate()
     return str(lpjml_config_json)
 
+
 def test_wrong_ids(lpjml_config_wrong_ids, sim_path):
-    config_coupled = read_config(
-        lpjml_config_wrong_ids
-    )
+    config_coupled = read_config(lpjml_config_wrong_ids)
 
     with pytest.warns(UserWarning):
         config_coupled._ensure_input_ids()
-    
+
     inputs = config_coupled.input.to_dict()
     ids = []
     for inp in inputs.values():

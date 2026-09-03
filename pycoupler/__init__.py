@@ -32,7 +32,6 @@ from .utils import (
     detect_io_type,
 )
 
-
 __all__ = [
     "LpjmlConfig",
     "CoupledConfig",

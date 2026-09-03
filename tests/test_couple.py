@@ -43,9 +43,7 @@ def test_lpjml_coupler(model_path, sim_path, lpjml_coupler):
     assert lpjml_coupler.sim_years == []
     assert lpjml_coupler.coupled_years == []
     assert [year for year in lpjml_coupler.get_coupled_years()] == []
-    assert (
-        repr(lpjml_coupler)
-        == f"""<pycoupler.LPJmLCoupler>
+    assert repr(lpjml_coupler) == f"""<pycoupler.LPJmLCoupler>
 Simulation:  (version: 3, localhost:<none>)
   * sim_year   2050
   * ncell      2
@@ -85,7 +83,6 @@ Configuration:
     * input (coupled)   ['with_tillage']
     * output (coupled)  ['grid', 'pft_harvestc', 'cftfrac', 'soilc_agr_layer', 'hdate', 'country', 'region']
   """  # noqa
-    )
 
 
 def test_lpjml_coupler_codes_name(lpjml_coupler):
