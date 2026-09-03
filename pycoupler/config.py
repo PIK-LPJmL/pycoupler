@@ -558,7 +558,7 @@ class LpjmlConfig(SubConfig):
             self.start_coupling = start_year
         else:
             self.start_coupling = self.firstyear
-    
+
     def _ensure_input_ids(self) -> None:
         """
         Ensure that all inputs in the config have a unique id.
@@ -568,7 +568,7 @@ class LpjmlConfig(SubConfig):
         input_dict = self.input.to_dict()
         # As a guess of the next free id, use the number of inputs + 1
         next_free_id = len(input_dict) + 1
-        
+
         def find_new_id():
             nonlocal next_free_id
             new_id = next_free_id
@@ -580,13 +580,17 @@ class LpjmlConfig(SubConfig):
         for key, inp in input_dict.items():
             if "id" not in inp:
                 # Missing id
-                warnings.warn(f"Input '{key}' is missing an id. Setting a new one for now.")
+                warnings.warn(
+                    f"Input '{key}' is missing an id. Setting a new one for now."
+                )
                 id = find_new_id()
                 setattr(getattr(self.input, key), "id", id)
             elif inp["id"] in available_ids:
                 # Duplicate id
                 id = find_new_id()
-                warnings.warn(f"Inputs contain duplicate ids. Violating input: '{key}' (id: '{inp["id"]}')")
+                warnings.warn(
+                    f"Inputs contain duplicate ids. Violating input: '{key}' (id: '{inp["id"]}')"
+                )
                 setattr(getattr(self.input, key), "id", id)
             else:
                 id = inp["id"]
@@ -1176,12 +1180,10 @@ class CoupledConfig(SubConfig):
 
         for key, value in self.__dict__.items():
             if isinstance(value, SubConfig):
-                summary += (
-                    f"""{'  ' * sub_repr}* {key}: {value.__repr__(
+                summary += f"""{'  ' * sub_repr}* {key}: {
+                    value.__repr__(
                         sub_repr + 1, order + 1
-                    )}""".strip()
-                    + spacing
-                )
+                    )}""".strip() + spacing
             else:
                 summary += (
                     f"{'  ' * sub_repr}* {key:<20} {value}".strip() + spacing

@@ -113,16 +113,16 @@ class TestLpjSubmit:
         ],
         indirect=True,
     )
-    def test_run_script(self, sim_path, config_coupled_json, mock_venv, request, submit):
+    def test_run_script(
+        self, sim_path, config_coupled_json, mock_venv, request, submit
+    ):
         run_script_path = sim_path / "output/coupled_test/copan_lpjml.sh"
         assert run_script_path.is_file(), "run script should have been created"
         assert (
             run_script_path.stat().st_mode & 0o0100
         ), "run script should be executable"
         with run_script_path.open("r") as f:
-            assert (
-                f.read()
-                == f"""#!/bin/bash
+            assert f.read() == f"""#!/bin/bash
 
 # Define the path to the config file
 config_file="{config_coupled_json}"
@@ -131,4 +131,3 @@ config_file="{config_coupled_json}"
 {f"{mock_venv}/bin/python" if mock_venv else "python3"} {self.couple_script} \
 $config_file
 """
-            )

@@ -60,7 +60,9 @@ class LPJmLInputType:
                 self.filename = input_type.get("name", None)
                 self.fmt = input_type.get("fmt", None)
             else:
-                raise ValueError(f"Provided name '{name}' is not a registered input type.")
+                raise ValueError(
+                    f"Provided name '{name}' is not a registered input type."
+                )
         else:
             raise ValueError("Either 'id' or 'name' must be provided.")
 
@@ -74,7 +76,9 @@ class LPJmLInputType:
                 cls.ids_to_names[input_type["id"]] = name
                 cls.__input_types__[name] = input_type
             else:
-                warnings.warn(f"Input type '{name}' is missing the required id field. It will be ignored.")
+                warnings.warn(
+                    f"Input type '{name}' is missing the required id field. It will be ignored."
+                )
 
     @property
     def nband(self):
