@@ -444,7 +444,7 @@ class LPJmLCoupler:
         if match_period and start_year >= end_year:
             raise ValueError(
                 f"No historic years available. Simulated year {start_year} "
-                f"is greater than coupled year {end_year}."
+                f"is greater than or equal to coupled year {end_year}."
             )
         current_year = start_year
         while current_year < end_year:
@@ -504,39 +504,36 @@ class LPJmLCoupler:
             If True, convert country indices to ISO alpha-3 codes, else return
             country names
         """
-        for static_output in self._static_ids.values():
+        # Only convert these particular static outputs
+        outputs_to_change = set(["country", "region"])
 
-            if static_output not in ["country", "region"]:
-                continue
+        for static_output in outputs_to_change - set(self._static_ids.values()):
 
-            getattr(self, static_output).values = getattr(
-                self, static_output
-            ).values.astype(str)
-            name_dict = {
-                str(reg["id"]): reg["name"]
-                for reg in self._config.to_dict()[f"{static_output}par"]
-            }
-            if static_output == "country" and to_iso_alpha_3:
+            string_values = getattr(self, static_output).values.astype(str)
+
+            if static_output == "country":
                 country_dict = get_countries()
-                name_dict = {
-                    idx: country_dict[reg]["code"] for idx, reg in name_dict.items()
-                }
-                getattr(self, f"{static_output}").attrs[
-                    "long_name"
-                ] = f"{static_output} iso alpha-3 code"
-            else:
-                getattr(self, f"{static_output}").attrs[
-                    "long_name"
-                ] = f"{static_output} name"
-
-            def replace_values(x):
-                return name_dict[x] if x in name_dict else x
-
-            getattr(self, f"{static_output}").values = np.vectorize(
-                replace_values
-            )(  # noqa
-                getattr(self, f"{static_output}").values
-            )
+                getattr(self, static_output).values = np.array([
+                    country_dict[id]["alpha-3"]
+                    if to_iso_alpha_3
+                    else country_dict[id]["name"]
+                    if id in country_dict else id
+                    for id in string_values
+                ])
+            elif static_output == "region":
+                config = self._config.to_dict()
+                if "regionpar" in config:
+                    name_dict = {
+                        str(reg["id"]): reg["name"]
+                        for reg in config["regionpar"]
+                    }
+                    getattr(self, static_output).values = np.array([
+                        name_dict[id] if id in name_dict else id for id in string_values
+                    ])
+            
+            getattr(self, static_output).attrs[
+                "long_name"
+            ] = f"{static_output} iso alpha-3 code" if to_iso_alpha_3 and static_output == "country" else f"{static_output} name"
 
     def read_historic_output(self, to_xarray=True):
         """Read historic output from LPJmL
@@ -920,26 +917,24 @@ class LPJmLCoupler:
                 cut_start_year = start_year
                 cut_end = cut_end_year = min(meta_data.lastyear, end_year)
 
-            cut_clm_start = [
-                f"{self._config.model_path}/bin/cutclm",
+            cut_clm_start_args = [
                 str(cut_start_year),
                 sock_inputs[key]["name"],
                 f"{temp_dir}/1_{file_name_tmp}",
             ]
             if not hasattr(sys, "_called_from_test"):
-                run(cut_clm_start, stdout=open(os.devnull, "wb"))
+                self.config.run_model_bin("cutclm", *cut_clm_start_args)
 
             # predefine cut clm command for reusage
             # cannot deal with overwriting a temp file with same name
-            cut_clm_end = [
-                f"{self._config.model_path}/bin/cutclm",
+            cut_clm_end_args = [
                 "-end",
                 str(cut_end_year),
                 f"{temp_dir}/1_{file_name_tmp}",
                 f"{temp_dir}/2_{file_name_tmp}",
             ]
             if not hasattr(sys, "_called_from_test"):
-                run(cut_clm_end, stdout=open(os.devnull, "wb"))
+                self.config.run_model_bin("cutclm", *cut_clm_end_args)
 
             # a flag for multi (categorical) band input - if true, set
             #   "-landuse"
@@ -960,8 +955,7 @@ class LPJmLCoupler:
             else:
                 grid_file = f"{self.config.inpath}/{self.config.input.coord.name}"
             # convert clm input to netcdf files
-            conversion_cmd = [
-                f"{self._config.model_path}/bin/clm2cdf",
+            conversion_cmd_args = [
                 is_int,
                 is_multiband,
                 key,
@@ -970,11 +964,11 @@ class LPJmLCoupler:
                 f"{input_path}/{key}.nc",
             ]
 
-            if None in conversion_cmd:
-                conversion_cmd.remove(None)
+            if None in conversion_cmd_args:
+                conversion_cmd_args.remove(None)
 
             if not hasattr(sys, "_called_from_test"):
-                run(conversion_cmd)
+                self.config.run_model_bin("clm2cdf", *conversion_cmd_args)
             else:
                 return "tested"
             # remove the temporary clm (binary) files, 1_* is not created in
