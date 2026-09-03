@@ -331,33 +331,9 @@ class LpjmlConfig(SubConfig):
         self.sim_path = create_subdirs(sim_path, self.sim_name)
         output_path = f"{sim_path}/output/{self.sim_name}"
 
-        # Set ids for all inputs in case they are missing
-        available_ids = set()
-        min_id = len(self.input.to_dict()) + 10
-        
-        def find_new_id():
-            nonlocal min_id
-            new_id = min_id + 1
-            while new_id in available_ids:
-                new_id += 1
-            min_id = new_id
-            return new_id
-
-        for key, inp in self.input.to_dict().items():
-            if "id" not in inp:
-                # Missing id
-                warnings.warn(f"Input '{key}' is missing an id. Setting a new one for now.")
-                id = find_new_id()
-                setattr(getattr(self.input, key), "id", id)
-            elif inp["id"] in available_ids:
-                # Duplicate id
-                id = find_new_id()
-                warnings.warn(f"Inputs contain duplicate ids. Violating input: '{key}' (id: '{inp["id"]}')")
-                setattr(getattr(self.input, key), "id", id)
-            else:
-                id = inp["id"]
-
-            available_ids |= {id}
+        # The coupling depends on ids in the inputs.cjson,
+        # therefore, they need to be set, if they are missing
+        self._ensure_input_ids()
 
         # set time range for coupled run
         self._set_timerange(
@@ -582,6 +558,42 @@ class LpjmlConfig(SubConfig):
             self.start_coupling = start_year
         else:
             self.start_coupling = self.firstyear
+    
+    def _ensure_input_ids(self) -> None:
+        """
+        Ensure that all inputs in the config have a unique id.
+        Warns on missing or duplicate ids, but sets new ones.
+        """
+        available_ids = set()
+        input_dict = self.input.to_dict()
+        # As a guess of the next free id, use the number of inputs + 1
+        next_free_id = len(input_dict) + 1
+        
+        def find_new_id():
+            nonlocal next_free_id
+            new_id = next_free_id
+            while new_id in available_ids:
+                new_id += 1
+            next_free_id = new_id + 1
+            return new_id
+
+        for key, inp in input_dict.items():
+            if "id" not in inp:
+                # Missing id
+                warnings.warn(f"Input '{key}' is missing an id. Setting a new one for now.")
+                id = find_new_id()
+                setattr(getattr(self.input, key), "id", id)
+            elif inp["id"] in available_ids:
+                # Duplicate id
+                id = find_new_id()
+                warnings.warn(f"Inputs contain duplicate ids. Violating input: '{key}' (id: '{inp["id"]}')")
+                setattr(getattr(self.input, key), "id", id)
+            else:
+                id = inp["id"]
+                if id >= next_free_id:
+                    next_free_id = id + 1
+
+            available_ids |= {id}
 
     def _set_input_sockets(self, inputs=[]):
         """Set sockets for inputs and outputs (via corresponding ids)"""

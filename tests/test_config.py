@@ -1,7 +1,10 @@
 """Test the LPJmLConfig class."""
 
 from pycoupler.config import read_config, read_yaml, CoupledConfig, parse_config
+import json
+import pytest
 
+from tests.conftest import output_path, sim_inputs
 
 def test_set_spinup_config(test_path):
     """Test the set_config method of the LPJmLCoupler class."""
@@ -69,11 +72,11 @@ def test_set_historic_config(test_path):
     assert config_historic.double_harvest is False
 
 
-def test_set_coupled_config(test_path):
+def test_set_coupled_config(lpjml_config_json, config_coupled_json, model_path, sim_path, output_path):
     """Test the set_config method of the LPJmLCoupler class."""
     # create config for coupled run
     config_coupled = read_config(
-        model_path=f"{test_path}/data", file_name="lpjml_config.json"
+        model_path=model_path, file_name=lpjml_config_json
     )
 
     config_coupled.startgrid = 27410
@@ -81,7 +84,7 @@ def test_set_coupled_config(test_path):
 
     # set coupled run configuration
     config_coupled.set_coupled(
-        sim_path=f"{test_path}/data",
+        sim_path=sim_path,
         sim_name="coupled_test",
         dependency="historic_run",
         start_year=2001,
@@ -128,10 +131,10 @@ def test_set_coupled_config(test_path):
 
     # create config for coupled run
     check_config_coupled = read_config(
-        model_path=f"{test_path}/data", file_name="config_coupled_test.json"
+        model_path=model_path, file_name=config_coupled_json
     )
     # update with actual output path (test directory)
-    check_config_coupled._set_outputpath(f"{test_path}/data/output/coupled_test")
+    check_config_coupled._set_outputpath(output_path)
 
     # align both config objects
     check_config_coupled.restart_filename = config_coupled.restart_filename
@@ -145,11 +148,12 @@ def test_set_coupled_config(test_path):
 
     assert (
         repr(config_coupled)
-        == f"<pycoupler.LpjmlConfig>\nSettings:      lpjml v5.8\n  (general)\n  * sim_name   coupled_test\n  * firstyear  2001\n  * lastyear   2050\n  * startgrid  27410\n  * endgrid    27411\n  * landuse    yes\n  (changed)\n  * model_path           {test_path}/data\n  * sim_path             {test_path}/data\n  * outputyear           2022\n  * output_metafile      True\n  * grid_type            float\n  * write_restart        False\n  * nspinup              0\n  * float_grid           True\n  * restart_filename     {test_path}/data/restart/restart_historic_run.lpj\n  * outputyear           2022\n  * radiation            cloudiness\n  * fix_co2              True\n  * fix_co2_year         2018\n  * fix_climate          True\n  * fix_climate_cycle    11\n  * fix_climate_year     2013\n  * river_routing        False\n  * tillage_type         read\n  * residue_treatment    fixed_residue_remove\n  * double_harvest       False\n  * intercrop            True\nCoupled model:        copan:CORE\n  * start_coupling    2023\n  * input (coupled)   ['with_tillage']\n  * output (coupled)  ['grid', 'pft_harvestc', 'cftfrac', 'soilc_agr_layer', 'hdate', 'country', 'region']\n"  # noqa
+        == f"<pycoupler.LpjmlConfig>\nSettings:      lpjml v5.8\n  (general)\n  * sim_name   coupled_test\n  * firstyear  2001\n  * lastyear   2050\n  * startgrid  27410\n  * endgrid    27411\n  * landuse    yes\n  (changed)\n  * model_path           {str(model_path)}\n  * sim_path             {str(sim_path)}\n  * outputyear           2022\n  * output_metafile      True\n  * grid_type            float\n  * write_restart        False\n  * nspinup              0\n  * float_grid           True\n  * restart_filename     {str(sim_path)}/restart/restart_historic_run.lpj\n  * outputyear           2022\n  * radiation            cloudiness\n  * fix_co2              True\n  * fix_co2_year         2018\n  * fix_climate          True\n  * fix_climate_cycle    11\n  * fix_climate_year     2013\n  * river_routing        False\n  * tillage_type         read\n  * residue_treatment    fixed_residue_remove\n  * double_harvest       False\n  * intercrop            True\nCoupled model:        copan:CORE\n  * start_coupling    2023\n  * input (coupled)   ['with_tillage']\n  * output (coupled)  ['grid', 'pft_harvestc', 'cftfrac', 'soilc_agr_layer', 'hdate', 'country', 'region']\n"  # noqa
     )  # noqa
+    assert config_coupled_dict["input"] == check_config_coupled_dict["input"]
     assert config_coupled_dict == check_config_coupled_dict
 
-    config_coupled.sim_path = f"{test_path}/data"
+    config_coupled.sim_path = sim_path
     assert config_coupled.convert_cdf_to_raw() == "tested"
 
     assert {
@@ -161,7 +165,6 @@ def test_set_coupled_config(test_path):
         "country",
         "region",  # noqa
     }.issubset(set(config_coupled.get_output()))
-
 
 def test_read_yaml(test_path):
     coupled_config = read_yaml(f"{test_path}/data/config.yaml", CoupledConfig)
@@ -191,12 +194,45 @@ def test_read_config(test_path):
     assert coupled_config.__class__.__name__ == "LpjmlConfig"
 
 
-def test_parse_config(test_path):
-    coupled_config = parse_config(f"{test_path}/data/lpjml_config.json")
+def test_parse_config(lpjml_config_json):
+    coupled_config = parse_config(lpjml_config_json)
     assert coupled_config["model_path"] == "LPJmL_internal"
     assert coupled_config["coupled_model"] is None
 
     coupled_config = parse_config(
-        f"{test_path}/data/lpjml_config.json", config_class=CoupledConfig
+        lpjml_config_json, config_class=CoupledConfig
     )
     assert coupled_config.__class__.__name__ == "CoupledConfig"
+
+
+@pytest.fixture(params=[
+    {"fmt": "clm", "name": "test/test.clm"},
+    {"id": 1, "fmt": "clm", "name": "test/test.clm"},
+    pytest.param({"id": 2, "fmt": "clm", "name": "test/test.clm"}, marks=pytest.mark.xfail),
+], ids=["no_id", "duplicate_id", "no_errors"])
+def lpjml_config_wrong_ids(request, lpjml_config_json):
+    with open(lpjml_config_json, "r+") as conf:
+        conf_d = json.load(fp=conf)
+        conf_d["input"] = {
+            "test": request.param,
+            "test2": {"id": 1, "fmt": "clm", "name": "input/test2.clm"}
+        }
+        conf.seek(0)
+        json.dump(conf_d, conf)
+        conf.truncate()
+    return str(lpjml_config_json)
+
+def test_wrong_ids(lpjml_config_wrong_ids, sim_path):
+    config_coupled = read_config(
+        lpjml_config_wrong_ids
+    )
+
+    with pytest.warns(UserWarning):
+        config_coupled._ensure_input_ids()
+    
+    inputs = config_coupled.input.to_dict()
+    ids = []
+    for inp in inputs.values():
+        assert "id" in inp, "Not every entry has an ID"
+        ids.append(inp["id"])
+    assert len(ids) == len(set(ids)), "IDs are not unique"

@@ -12,11 +12,11 @@ def test_path():
 
 
 @pytest.fixture
-def lpjml_coupler(config_coupled):
+def lpjml_coupler(config_coupled_json):
     os.environ["TEST_LINE_COUNTER"] = "0"
     # Using yield enables safe teardown of the fixture
     # (see https://docs.pytest.org/en/stable/how-to/fixtures.html#safe-teardowns)
-    yield LPJmLCoupler(config_file=config_coupled)
+    yield LPJmLCoupler(config_file=config_coupled_json)
     # Reset test line env variable
     os.environ["TEST_LINE_COUNTER"] = "0"
 
@@ -57,7 +57,7 @@ def outputpath_helper(output_dict, path):
 
 
 @pytest.fixture()
-def config_coupled(sim_path, model_path, test_path, sim_inputs, output_path):
+def config_coupled_json(sim_path, model_path, test_path, sim_inputs, output_path):
     new_config = sim_path / "config_coupled.json"
     with open(f"{test_path}/data/config_coupled_test.json") as conf:
         conf_d = json.load(conf)
@@ -68,7 +68,20 @@ def config_coupled(sim_path, model_path, test_path, sim_inputs, output_path):
         ]
         with new_config.open("w") as f:
             json.dump(conf_d, f)
-            return str(new_config)
+    return str(new_config)
+
+
+@pytest.fixture()
+def lpjml_config_json(sim_path, model_path, test_path, sim_inputs, output_path):
+    new_config = sim_path / "lpjml_config.json"
+    with open(f"{test_path}/data/lpjml_config.json") as conf:
+        conf_d = json.load(conf)
+        conf_d["output"] = [
+            outputpath_helper(out, str(output_path)) for out in conf_d["output"]
+        ]
+        with new_config.open("w") as f:
+            json.dump(conf_d, f)
+    return str(new_config)
 
 
 def pytest_configure(config):
