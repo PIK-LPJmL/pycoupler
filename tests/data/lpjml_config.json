@@ -15387,7 +15387,7 @@
       "name": "input_VERSION2/lwnet_erainterim_1901-2011.clm"
     },
     "lwdown": {
-      "id": 43,
+      "id": 45,
       "fmt": "clm",
       "name": "DUMMYLOCATION"
     },
@@ -15407,7 +15407,7 @@
       "name": "input_VERSION2/mwindspeed_1860-2100_67420.clm"
     },
     "tamp": {
-      "id": 3,
+      "id": 46,
       "fmt": "clm",
       "name": "CRUDATA_TS3_23/cru_ts3.23.1901.2014.dtr.dat.clm"
     },

@@ -45,11 +45,11 @@ class TestLpjSubmit:
         self,
         mock_venv,
         sim_path,
-        config_coupled,
+        config_coupled_json,
         request,
     ):
         return submit_lpjml(
-            config_coupled,
+            config_coupled_json,
             group=self.group,
             sclass=self.sclass,
             ntasks=self.ntasks,
@@ -79,7 +79,7 @@ class TestLpjSubmit:
         # The test does nothing, we expect the fail in the fixtures
         pass
 
-    def test_command(self, sim_path, config_coupled, fp, submit):
+    def test_command(self, sim_path, config_coupled_json, fp, submit):
         run_script_path = sim_path / "output/coupled_test/copan_lpjml.sh"
         assert (
             fp.call_count(
@@ -98,7 +98,7 @@ class TestLpjSubmit:
                     "-couple",
                     str(run_script_path),
                     str(self.ntasks),
-                    config_coupled,
+                    config_coupled_json,
                 ]
             )
             == 1
@@ -113,7 +113,7 @@ class TestLpjSubmit:
         ],
         indirect=True,
     )
-    def test_run_script(self, sim_path, config_coupled, mock_venv, request, submit):
+    def test_run_script(self, sim_path, config_coupled_json, mock_venv, request, submit):
         run_script_path = sim_path / "output/coupled_test/copan_lpjml.sh"
         assert run_script_path.is_file(), "run script should have been created"
         assert (
@@ -125,7 +125,7 @@ class TestLpjSubmit:
                 == f"""#!/bin/bash
 
 # Define the path to the config file
-config_file="{config_coupled}"
+config_file="{config_coupled_json}"
 
 # Call the Python script with the config file as an argument
 {f"{mock_venv}/bin/python" if mock_venv else "python3"} {self.couple_script} \
