@@ -14,8 +14,11 @@ The script will:
 2. Run tests with pytest
 3. Run linting with flake8
 4. Update CITATION.cff (if needed)
-5. Commit changes
+5. Commit CITATION.cff changes (if updated)
 6. Create Git tag
+
+Note: You should commit your changes manually before running this script.
+The script will only commit CITATION.cff updates automatically.
 """
 
 import sys
@@ -233,9 +236,12 @@ def main():
         print("  - Run tests with pytest")
         print("  - Run linting with flake8")
         print("  - Update CITATION.cff (if needed)")
-        print("  - Commit changes")
+        print("  - Commit CITATION.cff changes (if updated)")
         print("  - Delete existing local tag (if it exists)")
         print("  - Create Git tag")
+        print("")
+        print("Note: Commit your changes manually before running this script.")
+        print("The script will only commit CITATION.cff updates automatically.")
         print("")
         print("Prerequisites: Install dev dependencies first:")
         print("  pip install -e .[dev]")

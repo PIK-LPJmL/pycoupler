@@ -136,6 +136,8 @@ def test_set_coupled_config(test_path):
     # align both config objects
     check_config_coupled.restart_filename = config_coupled.restart_filename
     check_config_coupled.sim_path = config_coupled.sim_path
+    # align coupled_model (set_coupled sets it to 'copan' by default)
+    check_config_coupled.coupled_model = config_coupled.coupled_model
 
     # delete tracking enty changed from dict for comparison
     config_coupled_dict = config_coupled.to_dict()
@@ -145,7 +147,7 @@ def test_set_coupled_config(test_path):
 
     assert (
         repr(config_coupled)
-        == f"<pycoupler.LpjmlConfig>\nSettings:      lpjml v5.8\n  (general)\n  * sim_name   coupled_test\n  * firstyear  2001\n  * lastyear   2050\n  * startgrid  27410\n  * endgrid    27411\n  * landuse    yes\n  (changed)\n  * model_path           {test_path}/data\n  * sim_path             {test_path}/data\n  * outputyear           2022\n  * output_metafile      True\n  * grid_type            float\n  * write_restart        False\n  * nspinup              0\n  * float_grid           True\n  * restart_filename     {test_path}/data/restart/restart_historic_run.lpj\n  * outputyear           2022\n  * radiation            cloudiness\n  * fix_co2              True\n  * fix_co2_year         2018\n  * fix_climate          True\n  * fix_climate_cycle    11\n  * fix_climate_year     2013\n  * river_routing        False\n  * tillage_type         read\n  * residue_treatment    fixed_residue_remove\n  * double_harvest       False\n  * intercrop            True\nCoupled model:        copan:CORE\n  * start_coupling    2023\n  * input (coupled)   ['with_tillage']\n  * output (coupled)  ['grid', 'pft_harvestc', 'cftfrac', 'soilc_agr_layer', 'hdate', 'country', 'region']\n"  # noqa
+        == f"<pycoupler.LpjmlConfig>\nSettings:      lpjml v5.8\n  (general)\n  * sim_name   coupled_test\n  * firstyear  2001\n  * lastyear   2050\n  * startgrid  27410\n  * endgrid    27411\n  * landuse    yes\n  (changed)\n  * model_path           {test_path}/data\n  * sim_path             {test_path}/data\n  * outputyear           2022\n  * output_metafile      True\n  * grid_type            float\n  * write_restart        False\n  * nspinup              0\n  * float_grid           True\n  * restart_filename     {test_path}/data/restart/restart_historic_run.lpj\n  * outputyear           2022\n  * radiation            cloudiness\n  * fix_co2              True\n  * fix_co2_year         2018\n  * fix_climate          True\n  * fix_climate_cycle    11\n  * fix_climate_year     2013\n  * river_routing        False\n  * tillage_type         read\n  * residue_treatment    fixed_residue_remove\n  * double_harvest       False\n  * intercrop            True\nCoupled model:        copan\n  * start_coupling    2023\n  * input (coupled)   ['with_tillage']\n  * output (coupled)  ['grid', 'pft_harvestc', 'cftfrac', 'soilc_agr_layer', 'hdate', 'country', 'region']\n"  # noqa
     )  # noqa
     assert config_coupled_dict == check_config_coupled_dict
 

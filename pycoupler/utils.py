@@ -1,6 +1,26 @@
-import os
 import json
+import os
+import warnings
+
 from fuzzywuzzy import fuzz, process
+
+
+def warn_deprecated_alias(instance, old_name: str, new_name: str) -> None:
+    """Emit a standardized DeprecationWarning for attribute aliases."""
+
+    if callable(instance):
+        subject = old_name
+        replacement = new_name
+    else:
+        cls_name = instance.__class__.__name__
+        subject = f"{cls_name}.{old_name}"
+        replacement = f"{cls_name}.{new_name}"
+    warnings.warn(
+        f"{subject} is deprecated and will be removed in a future "
+        f"release; use {replacement} instead.",
+        DeprecationWarning,
+        stacklevel=3,
+    )
 
 
 def get_countries():

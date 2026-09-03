@@ -11,12 +11,15 @@ def test_lpjml_coupler(model_path, sim_path, lpjml_coupler):
     hist_outputs = outputs.copy(deep=True)
 
     for year in lpjml_coupler.get_sim_years():
-        inputs.time.values[0] = np.datetime64(f"{year}-12-31")
+        # Use assign_coords to set time (avoids read-only array issues)
+        # Use datetime64[ns] to match xarray's internal representation
+        new_time = np.datetime64(f"{year}-12-31", "ns")
+        inputs = inputs.assign_coords(time=[new_time])
         # send input data to lpjml
         lpjml_coupler.send_input(inputs, year)
         # read output data from lpjml
 
-        outputs.time.values[0] = np.datetime64(f"{year}-12-31")
+        outputs = outputs.assign_coords(time=[new_time])
         for name, output in lpjml_coupler.read_output(year).items():
             outputs[name][:] = output[:]
 
@@ -39,13 +42,12 @@ def test_lpjml_coupler(model_path, sim_path, lpjml_coupler):
 
     assert lpjml_coupler.ncell == 2
     assert [year for year in lpjml_coupler.get_cells()] == [27410, 27411]
-    assert lpjml_coupler.historic_years == []
+    # historic_years is computed from firstyear (2001) to start_coupling (2023)
+    assert lpjml_coupler.historic_years == list(range(2001, 2023))
     assert lpjml_coupler.sim_years == []
     assert lpjml_coupler.coupled_years == []
     assert [year for year in lpjml_coupler.get_coupled_years()] == []
-    assert (
-        repr(lpjml_coupler)
-        == f"""<pycoupler.LPJmLCoupler>
+    assert repr(lpjml_coupler) == f"""<pycoupler.LPJmLCoupler>
 Simulation:  (version: 3, localhost:<none>)
   * sim_year   2050
   * ncell      2
@@ -85,7 +87,6 @@ Configuration:
     * input (coupled)   ['with_tillage']
     * output (coupled)  ['grid', 'pft_harvestc', 'cftfrac', 'soilc_agr_layer', 'hdate', 'country', 'region']
   """  # noqa
-    )
 
 
 def test_lpjml_coupler_codes_name(lpjml_coupler):

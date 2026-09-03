@@ -1,4 +1,5 @@
-"""Classes and functions to handle LPJmL configurations and related operations"""
+"""Classes and functions to handle LPJmL configurations and related
+operations"""
 
 import os
 import sys
@@ -19,8 +20,8 @@ class SubConfig:
     Parameters
     ----------
     config_dict : dict
-        Dictionary (ideally an LPJmL config dictionary) used to build up a nested
-        LpjmLConfig class with corresponding fields.
+        Dictionary (ideally an LPJmL config dictionary) used to build up a
+        nested LpjmLConfig class with corresponding fields.
     """
 
     def __init__(self, config_dict):
@@ -119,6 +120,40 @@ class LpjmlConfig(SubConfig):
         if "changed" not in sub_config.__dict__:
             sub_config.__dict__["changed"] = []
         self.__dict__.update(sub_config.__dict__)
+        self._cftmap = None  # Lazy-loaded from landuse meta file
+
+    @property
+    def cftmap(self):
+        """Get CFT (Crop Functional Type) map from landuse input meta file.
+
+        Returns the 'map' field from the landuse JSON meta file, which contains
+        the list of crop names in band order.
+        """
+        if self._cftmap is not None:
+            return self._cftmap
+
+        # Try to load from landuse meta file
+        if hasattr(self, "input") and hasattr(self.input, "landuse"):
+            landuse_name = self.input.landuse.name
+            if not landuse_name.startswith("/"):
+                landuse_name = f"{self.inpath}/{landuse_name}"
+
+            if landuse_name.endswith(".json"):
+                try:
+                    meta = read_json(landuse_name)
+                    if "map" in meta:
+                        self._cftmap = meta["map"]
+                        return self._cftmap
+                except Exception:
+                    pass
+
+        # Fallback: return None or a default
+        return None
+
+    @property
+    def landusemap(self):
+        """Alias for cftmap - the landuse map from the landuse input meta file."""
+        return self.cftmap
 
     def get_output_avail(self, id_only=True, to_dict=False):
         """
@@ -239,14 +274,16 @@ class LpjmlConfig(SubConfig):
         dependency : str, optional
             Name of simulation to depend on (e.g., spinup run).
         temporal_resolution : str or dict, default "annual"
-            Temporal resolution for outputs. Can be a dict of temporal resolutions
-            corresponding to outputs or a str to set the same resolution for
-            all outputs. Choose between "annual", "monthly", "daily".
+            Temporal resolution for outputs. Can be a dict of temporal
+            resolutions corresponding to outputs or a str to set the same
+            resolution for all outputs. Choose between "annual", "monthly",
+            "daily".
         write_output : list, default []
             Output IDs to be written by LPJmL. Check available outputs with
             get_output_avail().
         write_file_format : str, default "cdf"
-            File format of output files. Choose between "raw", "clm", and "cdf".
+            File format of output files. Choose between "raw", "clm", and
+            "cdf".
         append_output : bool, default True
             If True, defined output entries are appended. If False, existing
             outputs are overwritten.
@@ -279,13 +316,14 @@ class LpjmlConfig(SubConfig):
         coupled_input,
         coupled_output,
         sim_name="coupled",
+        *,
+        coupled_config=None,
         dependency=None,
         coupled_year=None,
         temporal_resolution="annual",
         write_output=[],
         write_file_format="cdf",
         append_output=True,
-        model_name="copan:CORE",
     ):
         """
         Set configuration required for coupled model runs.
@@ -306,6 +344,8 @@ class LpjmlConfig(SubConfig):
             Provide output ID as identifier.
         sim_name : str, default "coupled"
             Name of the simulation.
+        coupled_config : str, optional
+            Path to coupled config file.
         dependency : str, optional
             Name of simulation to depend on (e.g., transient run).
         coupled_year : int, optional
@@ -319,12 +359,11 @@ class LpjmlConfig(SubConfig):
             Output IDs to be written by LPJmL. Check available outputs with
             get_output_avail().
         write_file_format : str, default "cdf"
-            File format of output files. Choose between "raw", "clm", and "cdf".
+            File format of output files. Choose between "raw", "clm", and
+            "cdf".
         append_output : bool, default True
             If True, defined output entries are appended. If False, existing
             outputs are overwritten.
-        model_name : str, default "copan:CORE"
-            Name of the coupled model.
         """
         self.sim_name = sim_name
         self.sim_path = create_subdirs(sim_path, self.sim_name)
@@ -350,13 +389,18 @@ class LpjmlConfig(SubConfig):
         )
         # set coupling parameters
         self._set_coupling(
-            inputs=coupled_input,
-            outputs=coupled_output,
-            start_year=coupled_year,
-            model_name=model_name,
+            inputs=coupled_input, outputs=coupled_output, start_year=coupled_year
         )
         # set start from directory to start from historic run
         self._set_startfrom(path=f"{sim_path}/restart", dependency=dependency)
+
+        # add coupled config if provided
+        if coupled_config:
+            self.add_config(coupled_config)
+            if hasattr(self.coupled_config, "model") and isinstance(
+                self.coupled_config.model, str
+            ):
+                self.coupled_model = self.coupled_config.model
 
     def _set_output(
         self,
@@ -401,7 +445,9 @@ class LpjmlConfig(SubConfig):
             outputs.append("grid")
 
         # create dict of outputvar names with indexes for iteration
-        outputvar_names = {ov.name: pos for pos, ov in enumerate(self.outputvar)}
+        outputvar_names = {
+            ov.name: pos for pos, ov in enumerate(self.outputvar)
+        }  # noqa: E501
         # extract dict of outputvar for manipulation
         outputvars = self.to_dict()["outputvar"]
 
@@ -423,7 +469,14 @@ class LpjmlConfig(SubConfig):
                     isinstance(temporal_resolution, dict)
                     and out.id in temporal_resolution.keys()
                 ):
-                    self.output[pos].file.timestep = temporal_resolution[out.id]
+                    self.output[pos].file.timestep = temporal_resolution[
+                        out.id
+                    ]  # noqa: E501
+                # default to annual if not defined for output
+                elif (isinstance(temporal_resolution, dict)
+                    and out.id not in temporal_resolution.keys()
+                ):
+                    self.output[pos].file.timestep = "annual"
 
                 if out.id not in nonvariable_outputs:
                     self.output[pos].file.fmt = file_format
@@ -539,10 +592,9 @@ class LpjmlConfig(SubConfig):
                     - 1
                 )
 
-    def _set_coupling(
-        self, inputs, outputs, start_year=None, model_name="copan:CORE"
-    ):  # noqa
-        """Coupled settings - no spinup, not write restart file and set sockets"""
+    def _set_coupling(self, inputs, outputs, start_year=None, model_name="copan"):
+        """Coupled settings - no spinup, not write restart file and set
+        sockets"""
         self.write_restart = False
         self.nspinup = 0
         self.float_grid = True
@@ -558,6 +610,8 @@ class LpjmlConfig(SubConfig):
         """Set sockets for inputs and outputs (via corresponding ids)"""
         for inp in inputs:
             sock_input = getattr(self.input, inp)
+            if not hasattr(sock_input, "__dict__"):
+                continue  # skip scalars (e.g. delta_year in LPJmL v6)
             if "id" not in sock_input.__dict__.keys():
                 raise ValueError("Please use a config with input ids.")
             sock_input.__dict__["socket"] = True
@@ -568,7 +622,9 @@ class LpjmlConfig(SubConfig):
             outputs.append("grid")
 
         # get names/ids only of outputs that are defined in outputvar
-        valid_outs = {out.name for out in self.outputvar if out.name in outputs}
+        valid_outs = {
+            out.name for out in self.outputvar if out.name in outputs
+        }  # noqa: E501
 
         # check if all outputs are valid
         nonvalid_outputs = list(set(outputs) - valid_outs)
@@ -579,7 +635,9 @@ class LpjmlConfig(SubConfig):
             )
         # get position of valid outputs in config output list
         output_pos = [
-            pos for pos, out in enumerate(self.output) if out.id in valid_outs
+            pos
+            for pos, out in enumerate(self.output)
+            if out.id in valid_outs  # noqa: E501
         ]
 
         # set socket to true for corresponding outputs
@@ -601,13 +659,17 @@ class LpjmlConfig(SubConfig):
             return [
                 inp
                 for inp in inputs
-                if ("socket" in inputs[inp]) and inputs[inp]["socket"]
+                if isinstance(inputs[inp], dict)
+                and ("socket" in inputs[inp])
+                and inputs[inp]["socket"]
             ]
         else:
             return {
                 inp: inputs[inp]
                 for inp in inputs
-                if ("socket" in inputs[inp]) and inputs[inp]["socket"]
+                if isinstance(inputs[inp], dict)
+                and ("socket" in inputs[inp])
+                and inputs[inp]["socket"]
             }
 
     def get_output_sockets(self, id_only=False):
@@ -645,7 +707,9 @@ class LpjmlConfig(SubConfig):
         """
         self.coupled_config = read_yaml(file_name, CoupledConfig)
 
-    def regrid(self, sim_path, model_path=None, country_code="BEL", overwrite=False):
+    def regrid(
+        self, sim_path, model_path=None, country_code="BEL", overwrite=False
+    ):  # noqa: E501
         """
         Regrid LPJmL configuration file to a new country.
 
@@ -701,39 +765,65 @@ class LpjmlConfig(SubConfig):
         if country in self.input.coord.name:
             return
 
-        country_grid_file = (
-            f"{sim_path}/input/{country}_{os.path.basename(self.input.coord.name)}"
+        # Determine if files are actually JSON meta files (by extension)
+        grid_basename = os.path.basename(grid_file)
+        grid_is_json_meta = grid_basename.endswith(".json")
+
+        # For JSON meta files, extract the actual binary grid file path
+        if grid_is_json_meta:
+            grid_basename = grid_basename[:-5]
+            # Read meta JSON to get the binary filename
+            grid_dir = os.path.dirname(grid_file)
+            grid_binary_name = read_json(grid_file)["filename"]
+            grid_file_binary = os.path.join(grid_dir, grid_binary_name)
+        else:
+            grid_file_binary = grid_file
+
+        countrycode_file = (
+            self.input.countrycode.name
+            if os.path.isfile(self.input.countrycode.name)
+            else f"{self.inpath}/{self.input.countrycode.name}"
         )
+        countrycode_is_json_meta = countrycode_file.endswith(".json")
+
+        country_grid_file = f"{sim_path}/input/{country}_{grid_basename}"
+
         # check if country specific input files already exist
-        if (not os.path.isfile(country_grid_file) or overwrite) and not hasattr(
+        if (
+            not os.path.isfile(country_grid_file) or overwrite
+        ) and not hasattr(  # noqa: E501
             sys, "_called_from_test"
         ):
 
             if not os.path.isfile(grid_file):
                 raise OSError(f"Grid file '{grid_file}' does not exist.")
 
-            # extract country specific grid
-            run(
-                [
-                    f"{model_path}/bin/getcountry",
-                    (
-                        self.input.countrycode.name
-                        if os.path.isfile(self.input.countrycode.name)
-                        else f"{self.inpath}/{self.input.countrycode.name}"
-                    ),
-                    grid_file,
-                    country_grid_file,
-                    country_code,
-                ],
-                check=True,
-            )
+            getcountry_cmd = [f"{model_path}/bin/getcountry"]
+            # Add -json flag if countrycode is a JSON meta file
+            if countrycode_is_json_meta:
+                getcountry_cmd.append("-json")
+            # getcountry usage: countryfile outfile country...
+            # (no separate grid file - grid is extracted from countryfile)
+            getcountry_cmd.extend([
+                countrycode_file,
+                country_grid_file,
+                country_code,
+            ])
 
-        self.input.coord.fmt = (
-            detect_io_type(country_grid_file)
-            if not hasattr(sys, "_called_from_test")
-            else "clm"
-        )
-        self.input.coord.name = country_grid_file
+            # extract country specific grid
+            run(getcountry_cmd, check=True)
+
+        # For meta files, the output format is "meta" with .clm.json file
+        if grid_is_json_meta:
+            self.input.coord.fmt = "meta"
+            self.input.coord.name = f"{country_grid_file}.json"
+        else:
+            self.input.coord.fmt = (
+                detect_io_type(country_grid_file)
+                if not hasattr(sys, "_called_from_test")
+                else "clm"
+            )
+            self.input.coord.name = country_grid_file
 
         lakes_fn_string = (
             self.input.lakes.name
@@ -741,57 +831,87 @@ class LpjmlConfig(SubConfig):
             or hasattr(sys, "_called_from_test")
             else f"{self.inpath}/{self.input.lakes.name}"
         )
-        # extract country specific lakes file from meta file
-        if self.input.lakes.fmt == "meta" and not hasattr(sys, "_called_from_test"):
-            lakes_filename = read_json(lakes_fn_string)["filename"]
 
-            lakes_file = lakes_fn_string
-            lakes_file = (
-                f"{lakes_file[:lakes_file.rfind('/')+1]}{lakes_filename}"  # noqa
-            )
-        else:
-            lakes_file = lakes_fn_string
+        # Determine if file is actually a JSON meta file (by extension)
+        lakes_basename = os.path.basename(lakes_fn_string)
+        lakes_is_json_meta = lakes_basename.endswith(".json")
 
-        country_lakes_file = (
-            f"{sim_path}/input/{country}_{os.path.basename(lakes_file)}"
-        )
+        # For meta files, output base name without .json suffix
+        if lakes_is_json_meta:
+            lakes_basename = lakes_basename[:-5]
+
+        country_lakes_file = f"{sim_path}/input/{country}_{lakes_basename}"
 
         # check if country specific input files already exist
-        if (not os.path.isfile(country_lakes_file) or overwrite) and not hasattr(
+        if (
+            not os.path.isfile(country_lakes_file) or overwrite
+        ) and not hasattr(  # noqa: E501
             sys, "_called_from_test"
         ):
 
-            if not os.path.isfile(lakes_file):
-                raise OSError(f"Lakes file '{lakes_file}' does not exist.")
+            if not os.path.isfile(lakes_fn_string):
+                raise OSError(f"Lakes file '{lakes_fn_string}' does not exist.")
+
+            # Get the country grid file path without .json for regrid commands
+            country_grid_clm = country_grid_file
+            if country_grid_clm.endswith(".json"):
+                country_grid_clm = country_grid_clm[:-5]
 
             # regrid lakes file to country specific grid
-            run(
-                [
-                    f"{model_path}/bin/regridsoil",
-                    grid_file,
-                    country_grid_file,
-                    lakes_file,
-                    country_lakes_file,
-                ],
-                check=True,
-                stdout=open(os.devnull, "wb"),
-            )
+            if lakes_is_json_meta:
+                # Use regridclm with -metafile for JSON meta format
+                run(
+                    [
+                        f"{model_path}/bin/regridclm",
+                        "-metafile",
+                        country_grid_clm,
+                        lakes_fn_string,
+                        country_lakes_file,
+                    ],
+                    check=True,
+                    stdout=open(os.devnull, "wb"),
+                )
+            else:
+                # Plain binary file: use regridsoil
+                # regridsoil args: orig_grid target_grid input_file output_file
+                run(
+                    [
+                        f"{model_path}/bin/regridsoil",
+                        grid_file_binary,
+                        country_grid_clm,
+                        lakes_fn_string,
+                        country_lakes_file,
+                    ],
+                    check=True,
+                    stdout=open(os.devnull, "wb"),
+                )
 
-        self.input.lakes.fmt = (
-            detect_io_type(country_lakes_file)
-            if not hasattr(sys, "_called_from_test")
-            else "raw"
-        )
-        self.input.lakes.name = country_lakes_file
+        # Update config with new file path
+        if lakes_is_json_meta:
+            self.input.lakes.fmt = "meta"
+            self.input.lakes.name = f"{country_lakes_file}.json"
+        else:
+            self.input.lakes.fmt = (
+                detect_io_type(country_lakes_file)
+                if not hasattr(sys, "_called_from_test")
+                else "raw"
+            )
+            self.input.lakes.name = country_lakes_file
+
+        # Get the country grid file path for regrid commands (without .json)
+        country_grid_clm = country_grid_file
+        if country_grid_clm.endswith(".json"):
+            country_grid_clm = country_grid_clm[:-5]
 
         # loop over all used input files to regrid them to country specific
         #   grid
         for config_key, config_input in self.input:
 
+            input_fmt = getattr(config_input, "fmt", None)
             if (
-                config_input.fmt != "clm"
+                input_fmt not in ["clm", "meta"]
                 or config_key in ["coord", "lakes"]
-                or (config_input.name == "DUMMYLOCATION")
+                or getattr(config_input, "name", None) == "DUMMYLOCATION"
             ):
                 continue
 
@@ -802,12 +922,21 @@ class LpjmlConfig(SubConfig):
                 else f"{self.inpath}/{config_input.name}"
             )
 
-            country_input_file = (
-                f"{sim_path}/input/{country}_{os.path.basename(input_file)}"
-            )
+            # Determine if file is actually a JSON meta file (by extension)
+            # Config may say fmt="meta" but file could be plain .clm binary
+            input_basename = os.path.basename(input_file)
+            is_json_meta = input_basename.endswith(".json")
+
+            # For meta files, output base name without .json suffix
+            if is_json_meta:
+                input_basename = input_basename[:-5]
+
+            country_input_file = f"{sim_path}/input/{country}_{input_basename}"
 
             # check if country specific input files already exist
-            if (not os.path.isfile(country_input_file) or overwrite) and not hasattr(
+            if (
+                not os.path.isfile(country_input_file) or overwrite
+            ) and not hasattr(  # noqa: E501
                 sys, "_called_from_test"
             ):
 
@@ -821,24 +950,49 @@ class LpjmlConfig(SubConfig):
                 else:
                     regrid_func = "regridclm"
 
-                # regrid all other input files to country specific grid
-                regrid_cmd = [
-                    f"{model_path}/bin/{regrid_func}",
-                    grid_file,
-                    self.input.coord.name,
-                    input_file,
-                    country_input_file,
-                ]
-                # if additional_arg:
-                #     regrid_cmd.insert(1, additional_arg)
+                # Build regrid command
+                regrid_cmd = [f"{model_path}/bin/{regrid_func}"]
+                if is_json_meta:
+                    # With -metafile: 3 args (target_grid, input_meta, output)
+                    regrid_cmd.append("-metafile")
+                    regrid_cmd.extend([
+                        country_grid_clm,
+                        input_file,
+                        country_input_file,
+                    ])
+                else:
+                    # Without -metafile: 4 args (source_grid, target_grid, input, output)
+                    # Use binary grid file (extracted from meta JSON if needed)
+                    regrid_cmd.extend([
+                        grid_file_binary,
+                        country_grid_clm,
+                        input_file,
+                        country_input_file,
+                    ])
                 run(regrid_cmd, check=True, stdout=open(os.devnull, "wb"))
 
-            config_input.fmt = (
-                detect_io_type(country_input_file)
-                if not hasattr(sys, "_called_from_test")
-                else "clm"
-            )
-            config_input.name = country_input_file
+            # Update config with new file path and format
+            if is_json_meta:
+                # Meta files: point to the .clm.json file
+                config_input.name = f"{country_input_file}.json"
+                config_input.fmt = "meta"
+            else:
+                # Plain binary files: regridclm outputs clm format
+                config_input.name = country_input_file
+                # Only change fmt if original was "meta" (pointing to non-JSON file)
+                # Otherwise keep original format (clm, raw, etc.)
+                if input_fmt == "meta":
+                    config_input.fmt = "clm"
+
+            if (
+                os.path.isfile(country_input_file)
+                and os.path.getsize(country_input_file) == 0
+                and not hasattr(sys, "_called_from_test")
+            ):
+                raise OSError(
+                    f"Regridded file '{country_input_file}' is empty. "
+                    "Delete it and run regrid(..., overwrite=True) to regenerate."  # noqa: E501
+                )
 
         self._set_grid_explicitly(only_all=False)
 
@@ -863,12 +1017,16 @@ class LpjmlConfig(SubConfig):
         if not os.path.isfile(f"{output_dir}/{grid_name}") and not hasattr(
             sys, "_called_from_test"
         ):
-            run(f"tail -c +44 {grid_file} > {output_dir}/{grid_name}", shell=True)
+            run(
+                f"tail -c +44 {grid_file} > {output_dir}/{grid_name}", shell=True
+            )  # noqa: E501
 
         grid_file = f"{output_dir}/{grid_name}"
 
         outputs = [
-            out for out in self.get_output(fmt="cdf", id_only=True) if out != "grid"
+            out
+            for out in self.get_output(fmt="cdf", id_only=True)
+            if out != "grid"  # noqa: E501
         ]
 
         if output_id:
@@ -962,7 +1120,7 @@ class LpjmlConfig(SubConfig):
             summary_list = [summary, "  (changed)"]
             summary_list.extend(
                 [
-                    f"  * {torepr}{(20-len(torepr))*' '} {getattr(self, torepr)}"
+                    f"  * {torepr}{(20-len(torepr))*' '} {getattr(self, torepr)}"  # noqa: E501
                     for torepr in changed_repr
                 ]
             )
@@ -1000,7 +1158,10 @@ class LpjmlConfig(SubConfig):
 
 
 def parse_config(
-    file_name="./lpjml_config.json", spin_up=False, macros=None, config_class=None
+    file_name="./lpjml_config.json",
+    spin_up=False,
+    macros=None,
+    config_class=None,  # noqa: E501
 ):
     """
     Precompile lpjml_config.json and return LpjmlConfig object or dict.
@@ -1056,7 +1217,8 @@ def read_config(
     Parameters
     ----------
     file_name : str
-        File name (including relative/absolute path) of the LPJmL configuration.
+        File name (including relative/absolute path) of the LPJmL
+        configuration.
     model_path : str, optional
         Path to model root directory. If provided, joined with file_name.
     spin_up : bool, default False
@@ -1135,12 +1297,9 @@ class CoupledConfig(SubConfig):
 
         for key, value in self.__dict__.items():
             if isinstance(value, SubConfig):
-                summary += (
-                    f"""{'  ' * sub_repr}* {key}: {value.__repr__(
-                        sub_repr + 1, order + 1
-                    )}""".strip()
-                    + spacing
-                )
+                summary += f"""{'  ' * sub_repr}* {key}: {value.__repr__(
+                    sub_repr + 1, order + 1
+                )}""".strip() + spacing
             else:
                 summary += (
                     f"{'  ' * sub_repr}* {key:<20} {value}".strip() + spacing
