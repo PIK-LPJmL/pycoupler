@@ -589,7 +589,7 @@ class LpjmlConfig(SubConfig):
                 # Duplicate id
                 id = find_new_id()
                 warnings.warn(
-                    f"Inputs contain duplicate ids. Violating input: '{key}' (id: '{inp["id"]}')"
+                    f"Inputs contain duplicate ids. Violating input: '{key}' (id: '{inp['id']}')"
                 )
                 setattr(getattr(self.input, key), "id", id)
             else:
