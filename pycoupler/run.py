@@ -244,7 +244,7 @@ config_file="{config_file}"
     # call lpjsubmit via subprocess and return status if successfull
     submit_file_status = config.run_model_bin(
         "lpjsubmit",
-        **submit_args,
+        *submit_args,
         subprocess_args={
             "capture_output": True,
             "cwd": config.sim_path,
