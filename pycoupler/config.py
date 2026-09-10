@@ -134,6 +134,44 @@ class LpjmlConfig(SubConfig):
         if "changed" not in sub_config.__dict__:
             sub_config.__dict__["changed"] = []
         self.__dict__.update(sub_config.__dict__)
+        self._cftmap = None  # Cache for the cftmap from the metadata json
+
+
+    # adapted from https://github.com/PIK-LPJmL/pycoupler/pull/17/changes#diff-867656148d976a4c48c4c7a333b0a4187e3c09a25ffd486151c350c985f6996aR123-R156
+    @property
+    def cftmap(self):
+        """Get CFT (Crop Functional Type) map from landuse input meta file.
+
+        Returns the 'map' field from the landuse JSON meta file, which contains
+        the list of crop names in band order.
+
+        This will be deprecated as soon as InSEEDS transitions to reading the metadata
+        files directly.
+        """
+        if self._cftmap is not None:
+            return self._cftmap
+
+        # TODO: This is a really dirty solutions that needs 
+        # to be removed when adressing #18
+        if "cftmap" in self.__dict__:
+            return self.__dict__["cftmap"]
+        elif hasattr(self, "input") and hasattr(self.input, "landuse"):
+            landuse_name = self.get_input_filepath(self.input.landuse.name)
+
+            if self.input.landuse.fmt == "meta":
+                meta = read_json(landuse_name)
+                if "map" in meta:
+                    self._cftmap = meta["map"]
+                    return self._cftmap
+                else:
+                    raise ValueError("CFT map could not be read from the metadata: Missing 'map' attribute.")
+        
+        raise ValueError("CFT map is not set in the config, but no metadata file is available.")
+        
+    @property
+    def landusemap(self):
+        """Alias for cftmap"""
+        return self.cftmap
 
     def run_model_bin(
         self,
@@ -208,13 +246,17 @@ class LpjmlConfig(SubConfig):
         return output_folder
 
     def get_datafile_from_input(self, input: SubConfig) -> str:
-        if input.fmt == "meta":
-            metafile = Path(self.get_input_filepath(input.name))
+        if isinstance(input, SubConfig):
+            # sometimes, dicts are also passed to the method, to we harmonize here
+            # (until #18 is implemented)
+            input = input.to_dict()
+        if  input.get("fmt") == "meta":
+            metafile = Path(self.get_input_filepath(input["name"]))
             with metafile.open() as f:
                 metadata = json.load(f)
             return str(metafile.parent / metadata["filename"]) if not Path(metadata["filename"]).is_absolute() else metadata["filename"]
         else:
-            return self.get_input_filepath(input.name)
+            return self.get_input_filepath(input["name"])
 
     def get_input_filepath(self, input_file_name: str) -> str:
         return (
@@ -884,6 +926,7 @@ class LpjmlConfig(SubConfig):
 
         # Make country name file name friendly
         country_filename = re.sub(r'\W', '_', country_name.lower())
+        print(country_filename)
 
         grid_file = self.get_datafile_from_input(self.input.coord)
 
@@ -903,27 +946,31 @@ class LpjmlConfig(SubConfig):
             if not os.path.isfile(grid_file):
                 raise FileNotFoundError(f"Grid file '{grid_file}' does not exist.")
 
+            getcountry_args = []
+
+            if Version(self.version) >= Version("5.10.0"):
+                getcountry_args += ["-json"]
+
             if Version(self.version) < Version("6.1.3"):
                 # Version 6.1.3 changes the getcountry API to read country data from
                 # the meta file and removes the grid file
                 # (see https://gitlab.pik-potsdam.de/lpjml/LPJmL_internal/-/merge_requests/289)
-                getcountry_args = [
+                getcountry_args += [
                     self.get_datafile_from_input(self.input.countrycode),
                     grid_file
                 ]
             elif self.input.countrycode.fmt == "meta":
-                getcountry_args = [
+                getcountry_args += [
                     self.get_input_filepath(self.input.countrycode.name),
                 ]
             else:
-                raise Exception("Wrong config: LPJmL >= 6.3.1 requires the countrycode input to be a metafile.")
+                raise Exception("Wrong config: LPJmL >= 6.1.3 requires the countrycode input to be a metafile.")
 
             getcountry_args += [country_grid_file, country_code] 
 
             # extract country specific grid
             self.run_model_bin(
                 "getcountry",
-                "-json",
                 *getcountry_args
             )
 
@@ -932,8 +979,12 @@ class LpjmlConfig(SubConfig):
         #     if not hasattr(sys, "_called_from_test")
         #     else "clm"
         # )
-        self.input.coord.fmt = "meta"
-        self.input.coord.name = f"{country_grid_file}.json"
+        if Path(f"{country_grid_file}.json").is_file():
+            self.input.coord.fmt = "meta"
+            self.input.coord.name = f"{country_grid_file}.json"
+        else:
+            self.input.coord.fmt = "clm"
+            self.input.coord.name = country_grid_file
 
         lakes_file = self.get_datafile_from_input(self.input.lakes)
 
@@ -952,15 +1003,21 @@ class LpjmlConfig(SubConfig):
             # regrid lakes file to country specific grid
             self.run_model_bin(
                 "regridsoil",
-                "-json",
+                # -json added in 4addfab0a63ed77126e4a436679c1e1d2d07b05e
+                *(["-json"] if Version(self.version) >= Version("5.9.5") else []),
                 grid_file,
                 country_grid_file,
                 lakes_file,
                 country_lakes_file,
             )
 
-        self.input.lakes.fmt = "meta"
-        self.input.lakes.name = f"{lakes_file}.json"
+        
+        if Path(f"{lakes_file}.json").is_file():
+            self.input.lakes.fmt = "meta"
+            self.input.lakes.name = f"{lakes_file}.json"
+        else:
+            self.input.lakes.fmt = detect_io_type(lakes_file)
+            self.input.lakes.name = lakes_file
 
         coord_file = self.get_datafile_from_input(self.input.coord)
         # loop over all used input files to regrid them to country specific
@@ -969,7 +1026,7 @@ class LpjmlConfig(SubConfig):
 
             if (
                 config_key in ["coord", "lakes"]
-                or config_input.fmt == "txt"
+                or config_input.fmt not in ["meta", "clm"]
                 or (config_input.name == "DUMMYLOCATION")
             ):
                 continue
@@ -1000,7 +1057,18 @@ class LpjmlConfig(SubConfig):
                 # regrid all other input files to country specific grid
                 self.run_model_bin(
                     regrid_func,
-                    "-json",
+                    *(["-json"] if (
+                            (
+                                # -json option was added to regirddrain and regirdirrig in de1324f3a82b0b469d7b1cf77971375d6c726a79
+                                regrid_func in ["regriddrain", "regridirrig"]
+                                and Version(self.version) >= Version("6.0.6")
+                            )
+                            or (
+                                # -json added in 4addfab0a63ed77126e4a436679c1e1d2d07b05e
+                                regrid_func == "regridclm"
+                                and Version(self.version) >= Version("5.9.5")
+                            )
+                        ) else []),
                     grid_file,
                     coord_file,
                     input_file,
@@ -1024,11 +1092,17 @@ class LpjmlConfig(SubConfig):
                             config_input_fmt = "clm"
                             config_input.name = country_input_file
                             continue
-                        if "map" not in country_metadata and config_input.fmt == "meta":
+                        if ("map" not in country_metadata and "countrymap" not in country_metadata) and config_input.fmt == "meta":
                             with open(self.get_input_filepath(config_input.name), "r") as global_input_meta:
                                 global_metadata = json.load(global_input_meta)
+                            save_json = False
                             if "map" in global_metadata:
                                 country_metadata["map"] = global_metadata["map"]
+                                save_json = True
+                            if "countrymap" in global_metadata:
+                                country_metadata["countrymap"] = global_metadata["countrymap"]
+                                save_json = True
+                            if save_json:
                                 country_input_meta.seek(0)
                                 json.dump(country_metadata, country_input_meta, indent=4)
 

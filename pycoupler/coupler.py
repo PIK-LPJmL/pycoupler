@@ -24,6 +24,7 @@ from pycoupler.data import (
     read_header,
 )
 from pycoupler.utils import get_countries
+from pathlib import Path
 
 
 # class for testing purposes
@@ -876,24 +877,17 @@ class LPJmLCoupler:
 
         # iterate over each inputs to be send via sockets (get initial values)
         for key in sock_inputs:
-            # check if working on the cluster (workaround by Ciaron)
-            #   (might be adjusted to the new cluster coming soon ...)
-            if self.config.inpath and (not sock_inputs[key]["name"].startswith("/")):
-                sock_inputs[key][
-                    "name"
-                ] = f"{self.config.inpath}/{sock_inputs[key]['name']}"
-            # get input file name
-            file_name_clm = sock_inputs[key]["name"].split("/")[-1]
-            # name tmp file after original name (even though could be random)
-            file_name_tmp = f"{file_name_clm.split('.')[0]}_tmp.clm"
+            input_datafile = Path(self.config.get_datafile_from_input(sock_inputs[key]))
 
-            if not hasattr(sys, "_called_from_test"):
-                # read meta data of input file
-                meta_data = read_header(sock_inputs[key]["name"])
-            else:
+            file_name_tmp = f"{input_datafile.stem}_tmp{input_datafile.suffix}"
+
+            if sock_inputs[key].get("fmt", "") == "meta":
                 meta_data = read_meta(
-                    f"{os.environ['TEST_PATH']}/data/input/{key}.nc.json"
+                    self.config.get_input_filepath(sock_inputs[key]["name"])
                 )
+            else:
+                # read meta data of input file
+                meta_data = read_header(str(input_datafile))
 
             # determine start cut off and end cut off year
             if meta_data.firstyear > end_year:
@@ -920,7 +914,7 @@ class LPJmLCoupler:
 
             cut_clm_start_args = [
                 str(cut_start_year),
-                sock_inputs[key]["name"],
+                str(input_datafile),
                 f"{temp_dir}/1_{file_name_tmp}",
             ]
             if not hasattr(sys, "_called_from_test"):
@@ -951,10 +945,8 @@ class LPJmLCoupler:
                 is_int = None
 
             # default grid file (only valid for 0.5 degree inputs)
-            if self.config.input.coord.name.startswith("/"):
-                grid_file = self.config.input.coord.name
-            else:
-                grid_file = f"{self.config.inpath}/{self.config.input.coord.name}"
+            grid_file = self.config.get_datafile_from_input(self.config.input.coord)
+            
             # convert clm input to netcdf files
             conversion_cmd_args = [
                 is_int,

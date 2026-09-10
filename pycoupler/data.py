@@ -725,7 +725,7 @@ def read_header(filename, to_dict=False, force_version=None, verbose=False):
                 break
 
         if not headername.startswith("LPJ"):
-            raise ValueError(f"Invalid header name {headername}")
+            raise ValueError(f"Invalid header name '{headername}' in file '{filename}'")
         if headername == "LPJRESTART":
             raise ValueError(
                 "LPJRESTART header detected. This function does not support"
