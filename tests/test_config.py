@@ -1,47 +1,44 @@
 """Test the LPJmLConfig class."""
 
+from pathlib import Path
 from pycoupler.config import read_config, read_yaml, CoupledConfig, parse_config
 import json
 import pytest
 
 
-def test_set_spinup_config(test_path):
+def test_set_spinup_config(model_path, sim_path, lpjml_config_json):
     """Test the set_config method of the LPJmLCoupler class."""
     # create config for coupled run
     config_spinup = read_config(
-        model_path=test_path, file_name="data/lpjml_config.json", spin_up=True
+        model_path=model_path, file_name="lpjml_config.json", spin_up=True
     )
 
     # set spinup run configuration
-    config_spinup.set_spinup(sim_path=f"{test_path}/data")
+    config_spinup.set_spinup(sim_path=sim_path)
 
     # only for global runs = TRUE
     config_spinup.river_routing = False
 
     # regrid by country - create new (extracted) input files and update config
-    config_spinup.regrid(
-        sim_path=f"{test_path}/data", country_code="NLD", overwrite=False
-    )
-    assert config_spinup.model_path == test_path
-    assert config_spinup.sim_path == f"{test_path}/data"
+    # TODO: generate test data for this
+    # config_spinup.regrid(sim_path=sim_path, country_code="NLD", overwrite=False)
+    assert config_spinup.model_path == model_path
+    assert config_spinup.sim_path == sim_path
     assert (
-        config_spinup.write_restart_filename
-        == f"{test_path}/data/restart/restart_spinup.lpj"
+        config_spinup.write_restart_filename == f"{sim_path}/restart/restart_spinup.lpj"
     )
     assert config_spinup.restart_year == 2011
     assert config_spinup.river_routing is False
 
 
-def test_set_historic_config(test_path):
+def test_set_historic_config(model_path, sim_path, lpjml_config_json):
 
     # create config for historic run
-    config_historic = read_config(
-        model_path=test_path, file_name="data/lpjml_config.json"
-    )
+    config_historic = read_config(model_path=model_path, file_name=lpjml_config_json)
 
     # set historic run configuration
     config_historic.set_transient(
-        sim_path=f"{test_path}/data",
+        sim_path=sim_path,
         sim_name="historic_run",
         dependency="spinup",
         start_year=1901,
@@ -54,15 +51,12 @@ def test_set_historic_config(test_path):
     config_historic.residue_treatment = "read_residue_data"
     config_historic.double_harvest = False
 
-    assert config_historic.model_path == test_path
-    assert config_historic.sim_path == f"{test_path}/data"
-    assert (
-        config_historic.restart_filename
-        == f"{test_path}/data/restart/restart_spinup.lpj"
-    )
+    assert config_historic.model_path == model_path
+    assert config_historic.sim_path == sim_path
+    assert config_historic.restart_filename == f"{sim_path}/restart/restart_spinup.lpj"
     assert (
         config_historic.write_restart_filename
-        == f"{test_path}/data/restart/restart_historic_run.lpj"
+        == f"{sim_path}/restart/restart_historic_run.lpj"
     )
     assert config_historic.restart_year == 2000
     assert config_historic.river_routing is False
@@ -72,18 +66,24 @@ def test_set_historic_config(test_path):
 
 
 def test_set_coupled_config(
-    lpjml_config_json, config_coupled_json, model_path, sim_path, output_path
+    lpjml_config_json: Path,
+    config_coupled_json: Path,
+    model_path: Path,
+    sim_path: Path,
+    output_path: Path,
 ):
     """Test the set_config method of the LPJmLCoupler class."""
     # create config for coupled run
-    config_coupled = read_config(model_path=model_path, file_name=lpjml_config_json)
+    config_coupled = read_config(
+        model_path=str(model_path), file_name=str(lpjml_config_json)
+    )
 
     config_coupled.startgrid = 27410
     config_coupled.endgrid = 27411
 
     # set coupled run configuration
     config_coupled.set_coupled(
-        sim_path=sim_path,
+        sim_path=str(sim_path),
         sim_name="coupled_test",
         dependency="historic_run",
         start_year=2001,
@@ -130,7 +130,7 @@ def test_set_coupled_config(
 
     # create config for coupled run
     check_config_coupled = read_config(
-        model_path=model_path, file_name=config_coupled_json
+        model_path=str(model_path), file_name=config_coupled_json
     )
     # update with actual output path (test directory)
     check_config_coupled._set_outputpath(output_path)
@@ -180,26 +180,22 @@ def test_read_yaml(test_path):
     assert coupled_config.lpjml_settings.iso_country_code is False
 
 
-def test_read_config(test_path):
-    coupled_config = read_config(
-        f"{test_path}/data/config_coupled_test.json", to_dict=True
-    )
-    assert coupled_config["model_path"] == "LPJmL_internal"
-    assert coupled_config["sim_path"] == "lpjml"
+def test_read_config(config_coupled_json, model_path, sim_path):
+    coupled_config = read_config(config_coupled_json, to_dict=True)
+    assert coupled_config["model_path"] == str(model_path)
+    assert coupled_config["sim_path"] == str(sim_path)
     assert coupled_config["coupled_model"] == "copan:CORE"
 
-    coupled_config = read_config(
-        f"{test_path}/data/config_coupled_test.json", to_dict=False
-    )
+    coupled_config = read_config(config_coupled_json, to_dict=False)
     assert coupled_config.__class__.__name__ == "LpjmlConfig"
 
 
-def test_parse_config(lpjml_config_json):
+def test_parse_config(lpjml_config_json, model_path):
     coupled_config = parse_config(lpjml_config_json)
-    assert coupled_config["model_path"] == "LPJmL_internal"
+    assert coupled_config["model_path"] == str(model_path)
     assert coupled_config["coupled_model"] is None
 
-    coupled_config = parse_config(lpjml_config_json, config_class=CoupledConfig)
+    coupled_config = parse_config(str(lpjml_config_json), config_class=CoupledConfig)
     assert coupled_config.__class__.__name__ == "CoupledConfig"
 
 
@@ -213,8 +209,8 @@ def test_parse_config(lpjml_config_json):
     ],
     ids=["no_id", "duplicate_id", "no_errors"],
 )
-def lpjml_config_wrong_ids(request, lpjml_config_json):
-    with open(lpjml_config_json, "r+") as conf:
+def lpjml_config_wrong_ids(request, lpjml_config_json: Path):
+    with lpjml_config_json.open("r+") as conf:
         conf_d = json.load(fp=conf)
         conf_d["input"] = {
             "test": request.param,
@@ -226,8 +222,8 @@ def lpjml_config_wrong_ids(request, lpjml_config_json):
     return str(lpjml_config_json)
 
 
-def test_wrong_ids(lpjml_config_wrong_ids, sim_path):
-    config_coupled = read_config(lpjml_config_wrong_ids)
+def test_wrong_ids(lpjml_config_wrong_ids, sim_path: Path):
+    config_coupled = read_config(str(lpjml_config_wrong_ids))
 
     with pytest.warns(UserWarning):
         config_coupled._ensure_input_ids()
@@ -238,3 +234,7 @@ def test_wrong_ids(lpjml_config_wrong_ids, sim_path):
         assert "id" in inp, "Not every entry has an ID"
         ids.append(inp["id"])
     assert len(ids) == len(set(ids)), "IDs are not unique"
+
+
+# TODO: Test run_model_bin + runtime environment setup
+# TODO: Test get_bind_paths
