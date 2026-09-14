@@ -10,7 +10,6 @@ import numpy as np
 import pandas as pd
 import xarray as xr
 
-from subprocess import run
 from enum import Enum
 
 from pycoupler.config import read_config
@@ -508,34 +507,44 @@ class LPJmLCoupler:
         # Only convert these particular static outputs
         outputs_to_change = set(["country", "region"])
 
-        for static_output in (outputs_to_change & set(self._static_ids.values())):
+        for static_output in outputs_to_change & set(self._static_ids.values()):
 
             string_values = getattr(self, static_output).values.astype(str)
 
             if static_output == "country":
                 country_dict = get_countries()
-                getattr(self, static_output).values = np.apply_along_axis(lambda values: [
-                    country_dict[id]["alpha-3"]
-                    if to_iso_alpha_3
-                    else country_dict[id]["name"]
-                    if id in country_dict else id
-                    for id in values
-                ], 0, string_values)
+                getattr(self, static_output).values = np.apply_along_axis(
+                    lambda values: [
+                        (
+                            country_dict[id]["alpha-3"]
+                            if to_iso_alpha_3
+                            else country_dict[id]["name"] if id in country_dict else id
+                        )
+                        for id in values
+                    ],
+                    0,
+                    string_values,
+                )
             elif static_output == "region":
                 config = self._config.to_dict()
                 if "regionpar" in config:
                     name_dict = {
-                        str(reg["id"]): reg["name"]
-                        for reg in config["regionpar"]
+                        str(reg["id"]): reg["name"] for reg in config["regionpar"]
                     }
                     print(string_values)
-                    getattr(self, static_output).values = np.apply_along_axis(lambda values: [
-                        name_dict[id] if id in name_dict else id for id in values
-                    ], 0, string_values)
-            
-            getattr(self, static_output).attrs[
-                "long_name"
-            ] = f"{static_output} iso alpha-3 code" if to_iso_alpha_3 and static_output == "country" else f"{static_output} name"
+                    getattr(self, static_output).values = np.apply_along_axis(
+                        lambda values: [
+                            name_dict[id] if id in name_dict else id for id in values
+                        ],
+                        0,
+                        string_values,
+                    )
+
+            getattr(self, static_output).attrs["long_name"] = (
+                f"{static_output} iso alpha-3 code"
+                if to_iso_alpha_3 and static_output == "country"
+                else f"{static_output} name"
+            )
 
     def read_historic_output(self, to_xarray=True):
         """Read historic output from LPJmL
@@ -946,7 +955,7 @@ class LPJmLCoupler:
 
             # default grid file (only valid for 0.5 degree inputs)
             grid_file = self.config.get_datafile_from_input(self.config.input.coord)
-            
+
             # convert clm input to netcdf files
             conversion_cmd_args = [
                 is_int,

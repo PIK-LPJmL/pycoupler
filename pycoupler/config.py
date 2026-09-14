@@ -7,10 +7,9 @@ import shutil
 import sys
 import json
 import warnings
-from subprocess import run
 import re
-from subprocess import DEVNULL, CompletedProcess, Popen, run as run_subprocess
-from typing import Any, TypedDict, Literal
+from subprocess import CompletedProcess, Popen, run as run_subprocess
+from typing import Any
 from ruamel.yaml import YAML
 from packaging.version import Version
 
@@ -109,11 +108,11 @@ class SubConfig:
         return json_file
 
 
-
 # class Input(TypedDict):
 #     name: str
 #     fmt: Literal["clm", "cdf", "meta", "txt", "raw", "fms", "sock"]
 #     id: int
+
 
 class LpjmlConfig(SubConfig):
     """
@@ -136,7 +135,6 @@ class LpjmlConfig(SubConfig):
         self.__dict__.update(sub_config.__dict__)
         self._cftmap = None  # Cache for the cftmap from the metadata json
 
-
     # adapted from https://github.com/PIK-LPJmL/pycoupler/pull/17/changes#diff-867656148d976a4c48c4c7a333b0a4187e3c09a25ffd486151c350c985f6996aR123-R156
     @property
     def cftmap(self):
@@ -151,7 +149,7 @@ class LpjmlConfig(SubConfig):
         if self._cftmap is not None:
             return self._cftmap
 
-        # TODO: This is a really dirty solutions that needs 
+        # TODO: This is a really dirty solutions that needs
         # to be removed when adressing #18
         if "cftmap" in self.__dict__:
             return self.__dict__["cftmap"]
@@ -164,10 +162,14 @@ class LpjmlConfig(SubConfig):
                     self._cftmap = meta["map"]
                     return self._cftmap
                 else:
-                    raise ValueError("CFT map could not be read from the metadata: Missing 'map' attribute.")
-        
-        raise ValueError("CFT map is not set in the config, but no metadata file is available.")
-        
+                    raise ValueError(
+                        "CFT map could not be read from the metadata: Missing 'map' attribute."
+                    )
+
+        raise ValueError(
+            "CFT map is not set in the config, but no metadata file is available."
+        )
+
     @property
     def landusemap(self):
         """Alias for cftmap"""
@@ -211,7 +213,7 @@ class LpjmlConfig(SubConfig):
             "check": True,
         }
 
-        if getattr(self, 'model_path', None):
+        if getattr(self, "model_path", None):
             if not os.path.exists(self.model_path):
                 raise FileNotFoundError("The given model_path does not exist.")
             command = os.path.join(self.model_path, "bin", binary)
@@ -250,11 +252,15 @@ class LpjmlConfig(SubConfig):
             # sometimes, dicts are also passed to the method, to we harmonize here
             # (until #18 is implemented)
             input = input.to_dict()
-        if  input.get("fmt") == "meta":
+        if input.get("fmt") == "meta":
             metafile = Path(self.get_input_filepath(input["name"]))
             with metafile.open() as f:
                 metadata = json.load(f)
-            return str(metafile.parent / metadata["filename"]) if not Path(metadata["filename"]).is_absolute() else metadata["filename"]
+            return (
+                str(metafile.parent / metadata["filename"])
+                if not Path(metadata["filename"]).is_absolute()
+                else metadata["filename"]
+            )
         else:
             return self.get_input_filepath(input["name"])
 
@@ -916,16 +922,18 @@ class LpjmlConfig(SubConfig):
         if not os.path.exists(sim_path):
             raise FileNotFoundError(f"Path '{sim_path}' does not exist.")
 
-         # get available countries of LPJmL
+        # get available countries of LPJmL
         countries = get_countries("alpha-3")
 
         # get country name from country code
         country_name = countries.get(country_code, {}).get("name")
         if not country_name:
-            raise KeyError(f"Invalid country code '{country_code}' or broken country table.")
+            raise KeyError(
+                f"Invalid country code '{country_code}' or broken country table."
+            )
 
         # Make country name file name friendly
-        country_filename = re.sub(r'\W', '_', country_name.lower())
+        country_filename = re.sub(r"\W", "_", country_name.lower())
         print(country_filename)
 
         grid_file = self.get_datafile_from_input(self.input.coord)
@@ -957,22 +965,21 @@ class LpjmlConfig(SubConfig):
                 # (see https://gitlab.pik-potsdam.de/lpjml/LPJmL_internal/-/merge_requests/289)
                 getcountry_args += [
                     self.get_datafile_from_input(self.input.countrycode),
-                    grid_file
+                    grid_file,
                 ]
             elif self.input.countrycode.fmt == "meta":
                 getcountry_args += [
                     self.get_input_filepath(self.input.countrycode.name),
                 ]
             else:
-                raise Exception("Wrong config: LPJmL >= 6.1.3 requires the countrycode input to be a metafile.")
+                raise Exception(
+                    "Wrong config: LPJmL >= 6.1.3 requires the countrycode input to be a metafile."
+                )
 
-            getcountry_args += [country_grid_file, country_code] 
+            getcountry_args += [country_grid_file, country_code]
 
             # extract country specific grid
-            self.run_model_bin(
-                "getcountry",
-                *getcountry_args
-            )
+            self.run_model_bin("getcountry", *getcountry_args)
 
         # self.input.coord.fmt = (
         #     detect_io_type(country_grid_file)
@@ -1011,7 +1018,6 @@ class LpjmlConfig(SubConfig):
                 country_lakes_file,
             )
 
-        
         if Path(f"{lakes_file}.json").is_file():
             self.input.lakes.fmt = "meta"
             self.input.lakes.name = f"{lakes_file}.json"
@@ -1045,7 +1051,11 @@ class LpjmlConfig(SubConfig):
             ):
 
                 if not os.path.isfile(input_file):
-                    raise FileNotFoundError(1, f"Input file does not exist for input '{config_key}'", input_file)
+                    raise FileNotFoundError(
+                        1,
+                        f"Input file does not exist for input '{config_key}'",
+                        input_file,
+                    )
 
                 if config_key == "drainage":
                     regrid_func = "regriddrain"
@@ -1057,7 +1067,9 @@ class LpjmlConfig(SubConfig):
                 # regrid all other input files to country specific grid
                 self.run_model_bin(
                     regrid_func,
-                    *(["-json"] if (
+                    *(
+                        ["-json"]
+                        if (
                             (
                                 # -json option was added to regirddrain and regirdirrig in de1324f3a82b0b469d7b1cf77971375d6c726a79
                                 regrid_func in ["regriddrain", "regridirrig"]
@@ -1068,7 +1080,9 @@ class LpjmlConfig(SubConfig):
                                 regrid_func == "regridclm"
                                 and Version(self.version) >= Version("5.9.5")
                             )
-                        ) else []),
+                        )
+                        else []
+                    ),
                     grid_file,
                     coord_file,
                     input_file,
@@ -1092,19 +1106,28 @@ class LpjmlConfig(SubConfig):
                             config_input_fmt = "clm"
                             config_input.name = country_input_file
                             continue
-                        if ("map" not in country_metadata and "countrymap" not in country_metadata) and config_input.fmt == "meta":
-                            with open(self.get_input_filepath(config_input.name), "r") as global_input_meta:
+                        if (
+                            "map" not in country_metadata
+                            and "countrymap" not in country_metadata
+                        ) and config_input.fmt == "meta":
+                            with open(
+                                self.get_input_filepath(config_input.name), "r"
+                            ) as global_input_meta:
                                 global_metadata = json.load(global_input_meta)
                             save_json = False
                             if "map" in global_metadata:
                                 country_metadata["map"] = global_metadata["map"]
                                 save_json = True
                             if "countrymap" in global_metadata:
-                                country_metadata["countrymap"] = global_metadata["countrymap"]
+                                country_metadata["countrymap"] = global_metadata[
+                                    "countrymap"
+                                ]
                                 save_json = True
                             if save_json:
                                 country_input_meta.seek(0)
-                                json.dump(country_metadata, country_input_meta, indent=4)
+                                json.dump(
+                                    country_metadata, country_input_meta, indent=4
+                                )
 
                 config_input.fmt = "meta"
                 config_input.name = str(country_input_meta_path)
@@ -1131,7 +1154,9 @@ class LpjmlConfig(SubConfig):
         if not os.path.isfile(f"{output_dir}/{grid_name}") and not hasattr(
             sys, "_called_from_test"
         ):
-            run_subprocess(f"tail -c +44 {grid_file} > {output_dir}/{grid_name}", shell=True)
+            run_subprocess(
+                f"tail -c +44 {grid_file} > {output_dir}/{grid_name}", shell=True
+            )
 
         grid_file = f"{output_dir}/{grid_name}"
 
@@ -1273,7 +1298,7 @@ def parse_config(
     spin_up=False,
     macros=None,
     config_class=None,
-    in_container=False
+    in_container=False,
 ):
     """
     Precompile lpjml_config.json and return LpjmlConfig object or dict.
@@ -1328,7 +1353,12 @@ def parse_config(
 
 
 def read_config(
-    file_name, model_path=None, spin_up=False, macros=None, to_dict=False, parse_in_container=False
+    file_name,
+    model_path=None,
+    spin_up=False,
+    macros=None,
+    to_dict=False,
+    parse_in_container=False,
 ):  # noqa
     """
     Read LPJmL configuration files and return as LpjmlConfig object or dict.
@@ -1372,7 +1402,11 @@ def read_config(
     # If not possible, precompile and parse JSON
     except json.decoder.JSONDecodeError:
         lpjml_config = parse_config(
-            file_name, spin_up=spin_up, macros=macros, config_class=config, in_container=parse_in_container
+            file_name,
+            spin_up=spin_up,
+            macros=macros,
+            config_class=config,
+            in_container=parse_in_container,
         )
 
     # Convert first level to LpjmlConfig object

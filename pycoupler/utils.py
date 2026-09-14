@@ -22,7 +22,7 @@ def get_countries(key=None):
         "r"
     ) as countries:
         country_dict = json.load(countries)
-    if key in country_dict['0']:
+    if key in country_dict["0"]:
         country_dict = {
             country[key]: country | {"id": id} for id, country in country_dict.items()
         }

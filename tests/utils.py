@@ -20,41 +20,38 @@ class ClmHeader(TypedDict):
 
 
 def clm_file(header: ClmHeader, big_endian: bool = False, data: list[int | float] = []):
-    version = header.get('version', 4)
-    name = header.get('name', 'LPJGRID')
+    version = header.get("version", 4)
+    name = header.get("name", "LPJGRID")
 
-    struct_string: str = ('>' if big_endian else '<') + f"{len(name)}siiiiiii"
+    struct_string: str = (">" if big_endian else "<") + f"{len(name)}siiiiiii"
 
     header_values = [
         name.encode("ascii"),
         version,
-        header.get('order', 0 if big_endian else 1),
-        header.get('firstyear', 1900),
-        header.get('nyear', 1),
-        header.get('firstcell', 0),
-        header.get('ncell', len(data)),
-        header.get('nbands', 1)
+        header.get("order", 0 if big_endian else 1),
+        header.get("firstyear", 1900),
+        header.get("nyear", 1),
+        header.get("firstcell", 0),
+        header.get("ncell", len(data)),
+        header.get("nbands", 1),
     ]
 
     if version >= 2:
         header_values += [
-            header.get('cellsize_lon', 0.5),
-            header.get('scalar', 1.0),
+            header.get("cellsize_lon", 0.5),
+            header.get("scalar", 1.0),
         ]
-        struct_string += 'ff'
+        struct_string += "ff"
     if version >= 3:
         header_values += [
-            header.get('cellsize_lat', 0.5),
-            header.get('datatype', 3)  # 3 is float
+            header.get("cellsize_lat", 0.5),
+            header.get("datatype", 3),  # 3 is float
         ]
-        struct_string += 'fi'
+        struct_string += "fi"
     if version >= 4:
-        header_values += [
-            header.get('nstep', 1),
-            header.get('timestep', 1)
-        ]
-        struct_string += 'ii'
-    
+        header_values += [header.get("nstep", 1), header.get("timestep", 1)]
+        struct_string += "ii"
+
     return struct.pack(struct_string, *header_values)
 
 

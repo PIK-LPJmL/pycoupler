@@ -100,28 +100,39 @@ def test_lpjml_coupler_codes_iso(lpjml_coupler):
 def with_tillage_file(sim_inputs):
     new_tillage_file = sim_inputs / "tillage.clm"
     with new_tillage_file.open("wb") as tf:
-        tf.write(clm_file({
-            'name': 'LPJTILL',
-            'version': 4,
-            'firstyear': 1900,
-            'nyear': 1,
-            'nbands': 1,
-            'ncell': 10,
-        }, data=[0.01]*10))
+        tf.write(
+            clm_file(
+                {
+                    "name": "LPJTILL",
+                    "version": 4,
+                    "firstyear": 1900,
+                    "nyear": 1,
+                    "nbands": 1,
+                    "ncell": 10,
+                },
+                data=[0.01] * 10,
+            )
+        )
     return new_tillage_file
+
 
 @pytest.fixture()
 def grid_file(sim_inputs):
     new_grid_file = sim_inputs / "grid.clm"
     with new_grid_file.open("wb") as f:
-        f.write(clm_file({
-            'name': 'LPJGRID',
-            'version': 4,
-            'firstyear': 1900,
-            'nyear': 1,
-            'nbands': 1,
-            'ncell': 10,
-        }, data=[0.01]*10))
+        f.write(
+            clm_file(
+                {
+                    "name": "LPJGRID",
+                    "version": 4,
+                    "firstyear": 1900,
+                    "nyear": 1,
+                    "nbands": 1,
+                    "ncell": 10,
+                },
+                data=[0.01] * 10,
+            )
+        )
     return new_grid_file
 
 
@@ -138,17 +149,14 @@ def config_coupled_inputs_json(
                 "id": 7,
                 "name": str(with_tillage_file),
                 "ftm": "clm",
-                "socket": True
+                "socket": True,
             },
-            "coord": {
-                "id": 0,
-                "name": str(grid_file),
-                "ftm": "clm"
-            }
+            "coord": {"id": 0, "name": str(grid_file), "ftm": "clm"},
         }
         with config_coupled_json.open("w") as f:
             json.dump(conf_d, f)
     return config_coupled_json
+
 
 @pytest.fixture()
 def lpjml_coupler_custom_input(config_coupled_inputs_json: Path):
@@ -158,6 +166,7 @@ def lpjml_coupler_custom_input(config_coupled_inputs_json: Path):
     yield LPJmLCoupler(config_file=str(config_coupled_inputs_json))
     # Reset test line env variable
     del os.environ["TEST_LINE_COUNTER"]
+
 
 # Test all period combination cases (data period is 2000 to 2022)
 @pytest.mark.parametrize(
@@ -179,5 +188,7 @@ def lpjml_coupler_custom_input(config_coupled_inputs_json: Path):
         ),
     ],
 )
-def test_lpjml_coupler_copy_input_(test_path, lpjml_coupler_custom_input, start_year, end_year):
+def test_lpjml_coupler_copy_input_(
+    test_path, lpjml_coupler_custom_input, start_year, end_year
+):
     assert lpjml_coupler_custom_input._copy_input(start_year, end_year) == "tested"

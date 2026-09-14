@@ -46,7 +46,7 @@ def operate_lpjml(config_file, std_to_file=False, wait_for_exit=True):
             "I_MPI_DAPL_FABRIC": "shm:sh",
         }
         | config.get_runtime_env(),
-        "cwd": getattr(config, "model_path", None), # None means current directory
+        "cwd": getattr(config, "model_path", None),  # None means current directory
         "text": True,
     }
 
