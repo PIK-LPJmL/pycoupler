@@ -9,7 +9,6 @@ from .config import (
     CoupledConfig,
     read_config,
     read_yaml,
-    parse_config,
 )
 
 from .coupler import LPJmLCoupler

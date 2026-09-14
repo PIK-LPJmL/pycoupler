@@ -99,30 +99,35 @@ def test_metadata(test_path):
 
     assert meta_soil_dict == check_meta_soil_dict
 
+
 @pytest.fixture
 def clm_file_versions(request, sim_inputs):
     new_clm_file = sim_inputs / "test_clm.clm"
     with new_clm_file.open("wb") as f:
         header: ClmHeader = {
-            'name': 'LPJGRID',
-            'version': request.param[0],
-            'firstyear': 1900,
-            'nyear': 1,
-            'nbands': 1,
-            'ncell': 10,
-            'scalar': 4.2,
-            'timestep': 7,
-            'datatype': 3
+            "name": "LPJGRID",
+            "version": request.param[0],
+            "firstyear": 1900,
+            "nyear": 1,
+            "nbands": 1,
+            "ncell": 10,
+            "scalar": 4.2,
+            "timestep": 7,
+            "datatype": 3,
         }
-        f.write(clm_file(header, big_endian=request.param[1], data=[0.01]*header['ncell']))
+        f.write(
+            clm_file(header, big_endian=request.param[1], data=[0.01] * header["ncell"])
+        )
     return new_clm_file
 
 
-@pytest.mark.parametrize(['clm_file_versions', 'expected_version', 'expected_endianness'], [((i, b), i, b) for b in [True, False] for i in range(1, 5)], indirect=['clm_file_versions'])
+@pytest.mark.parametrize(
+    ["clm_file_versions", "expected_version", "expected_endianness"],
+    [((i, b), i, b) for b in [True, False] for i in range(1, 5)],
+    indirect=["clm_file_versions"],
+)
 def test_read_header(request, clm_file_versions, expected_version, expected_endianness):
-    header: dict[str, str | ClmHeader] = read_header(
-        clm_file_versions, to_dict=True
-    )
+    header: dict[str, str | ClmHeader] = read_header(clm_file_versions, to_dict=True)
 
     assert header["name"] == "LPJGRID"
     assert header["header"]["version"] == expected_version
@@ -132,19 +137,23 @@ def test_read_header(request, clm_file_versions, expected_version, expected_endi
     assert header["header"]["ncell"] == 10
     assert header["endian"] == "big" if expected_endianness else "little"
 
-    assert math.isclose(header["header"]["scalar"], (
-        4.2 if expected_version >= 2 else 1.0
-    ), rel_tol=1e-4)
+    assert math.isclose(
+        header["header"]["scalar"],
+        (4.2 if expected_version >= 2 else 1.0),
+        rel_tol=1e-4,
+    )
     assert header["header"]["timestep"] == 7 if expected_version >= 4 else 1
     assert header["header"]["datatype"] == 3 if expected_version >= 3 else 1
-
 
     append_to_dict(header, {"test": "check"})
     assert header["test"] == "check"
 
     grid_header = read_header(clm_file_versions)
     assert grid_header.__class__.__name__ == "LPJmLMetaData"
-    assert get_headersize(clm_file_versions) == len(header["name"]) + 7*4 + (expected_version - 1) * 8
+    assert (
+        get_headersize(clm_file_versions)
+        == len(header["name"]) + 7 * 4 + (expected_version - 1) * 8
+    )
 
 
 def test_lpjmlinputtype(test_path):

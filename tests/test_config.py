@@ -70,11 +70,13 @@ def test_set_coupled_config(
     config_coupled_json: Path,
     model_path: Path,
     sim_path: Path,
-    output_path: Path
+    output_path: Path,
 ):
     """Test the set_config method of the LPJmLCoupler class."""
     # create config for coupled run
-    config_coupled = read_config(model_path=str(model_path), file_name=str(lpjml_config_json))
+    config_coupled = read_config(
+        model_path=str(model_path), file_name=str(lpjml_config_json)
+    )
 
     config_coupled.startgrid = 27410
     config_coupled.endgrid = 27411

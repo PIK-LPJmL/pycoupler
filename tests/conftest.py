@@ -7,6 +7,7 @@ import os
 from pycoupler.coupler import LPJmLCoupler
 from .utils import outputpath_helper
 
+
 @pytest.fixture
 def test_path():
     """Fixture for the test path."""
