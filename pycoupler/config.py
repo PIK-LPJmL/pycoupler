@@ -1263,6 +1263,8 @@ class LpjmlConfig(SubConfig):
 
     def __setattr__(self, __name, __value):
         super().__setattr__(__name, __value)
+        if __name[0] == "_":
+            return  # skip "private" attributes
         self.changed.append(__name)
 
 

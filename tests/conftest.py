@@ -1,10 +1,11 @@
-import os
 from pathlib import Path
 import pytest
-from pycoupler.coupler import LPJmLCoupler
 import json
 import shutil
+import os
 
+from pycoupler.coupler import LPJmLCoupler
+from .utils import outputpath_helper
 
 @pytest.fixture
 def test_path():
@@ -48,13 +49,6 @@ def model_path(tmp_path_factory):
     return model_fn
 
 
-def outputpath_helper(output_dict, path):
-    output_dict["file"]["name"] = output_dict["file"]["name"].replace(
-        "output/", path + "/"
-    )
-    return output_dict
-
-
 @pytest.fixture()
 def lpjml_config_json(
     sim_path: Path,
@@ -96,7 +90,7 @@ def config_coupled_json(
         ]
         with new_config.open("w") as f:
             json.dump(conf_d, f)
-    return str(new_config)
+    return new_config
 
 
 def pytest_configure(config):
