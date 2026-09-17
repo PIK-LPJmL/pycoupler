@@ -1,6 +1,8 @@
 """Test the LPJmLConfig class."""
 
+from contextlib import nullcontext
 from pathlib import Path
+
 from pycoupler.config import read_config, read_yaml, CoupledConfig, parse_config
 import json
 import pytest
@@ -188,6 +190,91 @@ def test_read_config(config_coupled_json, model_path, sim_path):
 
     coupled_config = read_config(config_coupled_json, to_dict=False)
     assert coupled_config.__class__.__name__ == "LpjmlConfig"
+
+
+@pytest.mark.parametrize(
+    ["file_name", "file_content", "expected_error"],
+    [
+        ("test.cjson", json.dumps({"test": "test"}), nullcontext()),
+        (
+            "test.cjson",
+            """{
+    "test": "test",
+#ifdef FROM_RESTART
+    "cjson_test": "cjson"
+#endif
+}""",
+            nullcontext(),
+        ),
+        ("test.cjson", "test", pytest.raises(json.JSONDecodeError)),
+        ("somefile.xy", "test", pytest.raises(json.JSONDecodeError)),
+        ("does_not_exists.cjson", None, pytest.raises(FileNotFoundError)),
+        (
+            "exists_in_container.cjson",
+            None,
+            pytest.raises(FileNotFoundError),
+        ),
+    ],
+    ids=[
+        "cjson_valid_json",
+        "cjson_valid_cjson",
+        "cjson_invalid",
+        "invalid",
+        "file_does_not_exist",
+        "file_exists_only_in_container",
+    ],
+)
+def test_read_config_no_json(
+    model_path, file_name, file_content, expected_error, fp, monkeypatch
+):
+    # Write json file
+    config_file = model_path / file_name
+    if file_content:
+        with config_file.open("w") as f:
+            f.write(file_content)
+
+    # Register C preprocessor
+    def cpp_stdout(in_container: bool):
+        if file_content is None and not (
+            file_name == "exists_in_container.cjson" and in_container
+        ):
+            return f"""cc1: fatal error: {config_file}: No such file or directory
+compilation terminated.
+"""
+        if file_content != "test":
+            return '{"test": "test"}'
+        return "test"
+
+    cpp_return = 0 if file_content else 1
+    fp.register(
+        [fp.program("cpp"), "-P", fp.any()],
+        stdout=cpp_stdout(False),
+        returncode=cpp_return,
+    )
+
+    with expected_error:
+        config = read_config(config_file)
+        assert config.test == "test"
+
+    container_name = "lpjml_container.sif"
+    monkeypatch.setenv("LPJML_CONTAINER", container_name)
+    fp.register(
+        [fp.program("apptainer"), "-s", "exec", container_name, "cpp", "-P", fp.any()],
+        stdout=cpp_stdout(True),
+        returncode=0 if file_name == "exists_in_container.cjson" else cpp_return,
+    )
+    with nullcontext() if file_name == "exists_in_container.cjson" else expected_error:
+        config = read_config(config_file, parse_in_container=True)
+        assert config.test == "test"
+
+    fp.register(
+        [fp.program("cpp"), "-P", fp.any()],
+        stdout=cpp_stdout(False),
+        returncode=cpp_return,
+    )
+    with expected_error:
+        config = read_config(config_file, spin_up=True)
+        assert config.test == "test"
 
 
 def test_parse_config(lpjml_config_json, model_path):

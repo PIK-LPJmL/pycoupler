@@ -8,7 +8,11 @@ import sys
 import json
 import warnings
 import re
-from subprocess import CompletedProcess, Popen, run as run_subprocess
+from subprocess import (
+    CompletedProcess,
+    Popen,
+    run as run_subprocess,
+)
 from typing import Any
 from ruamel.yaml import YAML
 from packaging.version import Version
@@ -1346,6 +1350,16 @@ def parse_config(
     # Subprocess call of cmd - return stdout
     json_str = run_subprocess(cmd, capture_output=True)
 
+    if json_str.returncode != 0:
+        if re.match(
+            "cc1: fatal error: .*: No such file or directory", json_str.stdout.decode()
+        ):
+            raise FileNotFoundError(
+                f"Config file '{file_name}' does not exists{" in the container" if in_container else ""}."
+            )
+        else:
+            json_str.check_returncode()
+
     # Convert to dict
     lpjml_config = json.loads(json_str.stdout, object_hook=config_class)
 
@@ -1395,19 +1409,26 @@ def read_config(
     else:
         config = None
 
-    # Try to read file as json
-    try:
-        lpjml_config = read_json(file_name, object_hook=config)
-
-    # If not possible, precompile and parse JSON
-    except json.decoder.JSONDecodeError:
+    if parse_in_container:
         lpjml_config = parse_config(
             file_name,
             spin_up=spin_up,
             macros=macros,
             config_class=config,
-            in_container=parse_in_container,
+            in_container=True,
         )
+    else:
+        # Try to read file as json
+        try:
+            lpjml_config = read_json(file_name, object_hook=config)
+        # If not possible, precompile and parse JSON
+        except json.decoder.JSONDecodeError:
+            lpjml_config = parse_config(
+                file_name,
+                spin_up=spin_up,
+                macros=macros,
+                config_class=config,
+            )
 
     # Convert first level to LpjmlConfig object
     if not to_dict:
