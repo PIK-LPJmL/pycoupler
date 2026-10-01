@@ -1,12 +1,14 @@
 import os
 from datetime import datetime
-from subprocess import STDOUT, run, Popen, CalledProcessError
+from subprocess import STDOUT, CompletedProcess, run, Popen, CalledProcessError
 from typing import cast
 from pycoupler.config import read_config
 import warnings
+from pathlib import Path
+import sys
 
 
-def operate_lpjml(config_file, std_to_file=False, wait_for_exit=True):
+def operate_lpjml(config_file: str, std_to_file=False, wait_for_exit=True):
     """Run LPJmL using a generated (class LpjmlConfig) config file.
     Similar to R function `lpjmlKit::run_lpjml`.
 
@@ -82,7 +84,7 @@ def operate_lpjml(config_file, std_to_file=False, wait_for_exit=True):
         return p
 
 
-def run_lpjml(config_file, std_to_file=False):
+def run_lpjml(config_file: str, std_to_file=False):
     """Run LPJmL using a generated (class LpjmlConfig) config file.
     Similar to R function `lpjmlKit::run_lpjml`.
 
@@ -102,16 +104,17 @@ def run_lpjml(config_file, std_to_file=False):
 
 def submit_lpjml(
     config_file,
-    group="copan",
-    sclass="short",
-    ntasks=256,
-    wtime=None,
-    dependency=None,
-    blocking=None,
-    option=None,
-    couple_to=None,
-    venv_path=None,
-    modules=None,
+    group: str | None = None,
+    sclass: str | None = None,
+    ntasks: int = 256,
+    wtime: str | None = None,
+    dependency: int | str | None = None,
+    blocking: str | None = None,
+    option: str | list[str] | None = None,
+    couple_to: str | Path | None = None,
+    venv_path: str | Path | None = None,
+    modules: str | None = None,
+    partition: str | None = None,
 ):
     """Submit LPJmL run to Slurm using `lpjsubmit` and a generated
     (class LpjmlConfig) config file.
@@ -124,26 +127,23 @@ def submit_lpjml(
     config_file : str
         File name including path if not current to config_file
     group : str, optional
-        PIK group name to be used for Slurm. Defaults to "copan".
+        SLURM account to run as.
     sclass : str, optional
-        Define the job classification, options are "short", "medium", "long",
-        "priority", "standby", "io". For more information have a look at
-        <https://www.pik-potsdam.de/en>. Defaults to `"short"`.
+        Defines SLURM quality of service (qos) classification.
+        You can check the available class with `sacctmgr show qos format=name,priority`
+        For more information check you cluster documentation.
     ntasks : int/str, optional
-        Define the number of tasks/threads. More information at
-        <https://www.pik-potsdam.de/en> and
+        Define the number of tasks. More information at
         <https://slurm.schedmd.com/sbatch.html>. Defaults to 256.
     wtime : str, optional
         Define the time limit. Setting a lower time limit than the maximum
         runtime for `sclass` can reduce the wait time in the SLURM job queue.
-        More information at <https://www.pik-potsdam.de/en> and
-        <https://slurm.schedmd.com/sbatch.html>.
+        More information at <https://slurm.schedmd.com/sbatch.html>.
     dependency : int/str, optional
         If there is a job that should be processed first (e.g. spinup) then pass
         its job id here.
     blocking : int, optional
         Cores to be blocked. More information at
-        <https://www.pik-potsdam.de/en> and
         <https://slurm.schedmd.com/sbatch.html>.
     option : str/list, optional
         Additional options to be passed to lpjsubmit. Can be a string or a list
@@ -152,10 +152,11 @@ def submit_lpjml(
         Path to program/model/script LPJmL should be coupled to
     venv_path : str, optional
         Path to a venv to run the coupled script in. This should be the path to
-        the top folder of the venv. If not set, `python3` in PATH is used.
+        the top folder of the venv. If not set, the current interpreter is used.
     modules : str, optional
         Environment modules to load for the SLURM job separated by spaces.
         For hierarchical modules, observe the necessary module order.
+        E.g.: 'apptainer gcc openmpi'
 
     Returns
     -------
@@ -164,7 +165,7 @@ def submit_lpjml(
     """
 
     config = read_config(config_file)
-    if not os.path.isdir(config.model_path):
+    if hasattr(config, "model_path") and not os.path.isdir(config.model_path):
         raise ValueError(f"Folder of model_path '{config.model_path}' does not exist!")
 
     timestamp = datetime.now().strftime("%Y-%m-%d_%H-%M")
@@ -177,10 +178,6 @@ def submit_lpjml(
 
     # specify sbatch arguments required by lpjsubmit internally
     submit_args = [
-        "-group",
-        group,
-        "-class",
-        sclass,
         "-o",
         stdout_file,
         "-e",
@@ -188,6 +185,12 @@ def submit_lpjml(
         # We want to start sbatch ourselves, just generate the job control file
         "-norun",
     ]
+    if group:
+        submit_args.extend(["-group", group])
+    if sclass:
+        submit_args.extend(["-class", sclass])
+    if partition:
+        submit_args.extend(["-partition", partition])
     # if dependency (jobid) defined, submit is queued by slurm with nocheck
     if dependency:
         submit_args.extend(["-nocheck", "-dependency", str(dependency)])
@@ -207,7 +210,7 @@ def submit_lpjml(
 
     # run in coupled mode and pass coupling program/model
     if couple_to:
-        python_path = "python3"
+        python_path = sys.executable
         if venv_path:
             python_path = os.path.join(venv_path, "bin/python")
             if not os.path.isfile(python_path):
@@ -257,59 +260,83 @@ config_file="{config_file}"
         print(submit_file_status.stderr)
         raise CalledProcessError(submit_file_status.returncode, submit_file_status.args)
 
+    job_control_file = Path(config.sim_path) / "slurm.jcf"
+
+    if not job_control_file.is_file():
+        raise FileNotFoundError(
+            f"The job control file '{job_control_file}' has not been created."
+        )
+
+    job_control_file = job_control_file.rename(
+        job_control_file.with_stem(f"slurm_{getattr(config, "sim_name", "")}")
+    )
+
     sbatch_cmd = ["sbatch"]
 
     if dependency:
-        sbatch_cmd.extend(["-depend", dependency])
+        sbatch_cmd.extend(["--dependency", f"afterok:{dependency}"])
+
+    sbatch_cmd.append(str(job_control_file))
 
     submit_status = run(
         sbatch_cmd,
         cwd=config.sim_path,
         capture_output=True,
-        check=True,
         text=True,
     )
 
     # print stdout and stderr if not successful
-    if submit_status.returncode == 0:
+    if submit_status.stdout:
         print(submit_status.stdout)
-    else:
-        print(submit_status.stdout)
+    if submit_status.returncode != 0:
         print(submit_status.stderr)
-        raise CalledProcessError(submit_status.returncode, submit_status.args)
+        raise CalledProcessError(
+            submit_status.returncode,
+            submit_status.args,
+            submit_status.stdout,
+            submit_status.stderr,
+        )
     # return job id
     return submit_status.stdout.split("Submitted batch job ")[1].split("\n")[0]
 
 
-def check_lpjml(config_file):
+def check_lpjml(config_file: str, output=False):
     """Check if config file is set correctly.
 
     Parameters
     ----------
     config_file : str
         File name (including path) to generated config json file.
-    model_path : str
-        Path to `LPJmL_internal` (lpjml repository)
+    output
+        Whether or not to show the output of lpjcheck when there is no error
     """
     config = read_config(config_file)
     if hasattr(config, "model_path") and not os.path.isdir(config.model_path):
         raise ValueError(f"Folder of model_path '{config.model_path}' does not exist!")
 
-    proc_status = config.run_model_bin(
-        "lpjcheck",
-        config_file,
-        subprocess_args={
-            # ensure_paths is false, because this is just a check and should have no side effects
-            "cwd": getattr(config, "model_path", None),
-            "check": False,
-            "capture_output": True,
-            "text": True,
-        },
+    # This is always CompletedProcess[str], because text=True
+    # (correctly coding for that in typing is just hideous)
+    proc_status = cast(
+        CompletedProcess[str],
+        config.run_model_bin(
+            "lpjcheck",
+            config_file,
+            subprocess_args={
+                "cwd": getattr(config, "model_path", None),
+                "check": False,
+                "capture_output": True,
+                "text": True,
+            },
+        ),
     )
 
-    if proc_status.returncode == 0:
+    if output and proc_status.stdout:
         print(proc_status.stdout)
-    else:
-        print(proc_status.stdout)
+    if proc_status.returncode != 0:
         print(proc_status.stderr)
-        # TODO: raise an exception here
+        raise CalledProcessError(
+            proc_status.returncode,
+            proc_status.args,
+            proc_status.stdout,
+            proc_status.stderr,
+        )

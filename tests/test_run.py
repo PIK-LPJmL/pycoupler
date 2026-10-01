@@ -1,3 +1,4 @@
+import sys
 from pycoupler.run import submit_lpjml
 import pytest
 from subprocess import CalledProcessError
@@ -12,21 +13,23 @@ class TestLpjSubmit:
     couple_script = "/some/path/to/script.py"
 
     @pytest.fixture(autouse=True)
-    def mock_lpjsubmit(self, fp, request):
+    def mock_lpjsubmit(self, fp, sim_path, request):
         # We expect chmod to actually modify permissions
         fp.pass_command([fp.program("chmod"), "+x", fp.any(min=1, max=1)])
-        if hasattr(request, "param") and request.param == "no mocking":
+        if getattr(request, "param", None) == "no mocking":
             return
         # Register a fake process for lpjsubmit
         # (see https://pytest-subprocess.readthedocs.io/en/latest/usage.html#non-exact-command-matching) # noqa: E501
+
+        def fake_lpjsubmit(process, exit_code):
+            process.returncode = 1 if exit_code == "non-zero errorcode" else 0
+            (sim_path / "slurm.jcf").touch()
+
         return fp.register(
             [fp.program("lpjsubmit"), fp.any()],
             stdout="Mock lpjsubmit\nSubmitted batch job 42\nsome stuff",
-            returncode=(
-                1
-                if hasattr(request, "param") and request.param == "non-zero errorcode"
-                else 0
-            ),
+            callback=fake_lpjsubmit,
+            callback_kwargs={"exit_code": getattr(request, "param", None)},
         )
 
     @pytest.fixture(autouse=True)
@@ -102,15 +105,15 @@ class TestLpjSubmit:
             fp.call_count(
                 [
                     fp.program("lpjsubmit"),
-                    "-group",
-                    self.group,
-                    "-class",
-                    self.sclass,
                     "-o",
                     fp.any(max=1, min=1),
                     "-e",
                     fp.any(max=1, min=1),
                     "-norun",
+                    "-group",
+                    self.group,
+                    "-class",
+                    self.sclass,
                     "-wtime",
                     self.wtime,
                     "-couple",
@@ -122,7 +125,10 @@ class TestLpjSubmit:
             == 1
         ), "lpjsubmit should be called exactly once with correct parameters"
         assert (
-            fp.call_count([fp.program("sbatch")]) == 1
+            fp.call_count(
+                [fp.program("sbatch"), str(sim_path / "slurm_coupled_test.jcf")]
+            )
+            == 1
         ), "sbatch should be called exactly once with correct parameters"
 
     @pytest.mark.parametrize(
@@ -149,6 +155,6 @@ class TestLpjSubmit:
 config_file="{config_coupled_json}"
 
 # Call the Python script with the config file as an argument
-{f"{mock_venv}/bin/python" if mock_venv else "python3"} {self.couple_script} \
+{f"{mock_venv}/bin/python" if mock_venv else sys.executable} {self.couple_script} \
 $config_file
 """
