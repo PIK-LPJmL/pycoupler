@@ -506,6 +506,8 @@ class LpjmlConfig(SubConfig):
         write_file_format="cdf",
         append_output=True,
         model_name="copan:CORE",
+        coupled_host: str = "0.0.0.0",
+        coupled_port: int = 2224,
     ):
         """
         Set configuration required for coupled model runs.
@@ -545,10 +547,16 @@ class LpjmlConfig(SubConfig):
             outputs are overwritten.
         model_name : str, default "copan:CORE"
             Name of the coupled model.
+        coupled_host
+            The host where LPJmL is running. Defaults to `0.0.0.0`.
+        coupled_port
+            The port on which to connect to LPJmL. Default is 2224, the default in LPJmL.
         """
         self.sim_name = sim_name
         self.sim_path = create_subdirs(sim_path, self.sim_name)
         output_path = self.get_output_folder(ensure=True)
+        self.coupled_host: str = coupled_host
+        self.coupled_port: int = coupled_port
 
         # The coupling depends on ids in the inputs.cjson,
         # therefore, they need to be set, if they are missing

@@ -210,6 +210,9 @@ def submit_lpjml(
 
     # run in coupled mode and pass coupling program/model
     if couple_to:
+        if not Path(couple_to).is_file():
+            raise FileNotFoundError(f"The coupling script '{couple_to}' was not found.")
+
         python_path = sys.executable
         if venv_path:
             python_path = os.path.join(venv_path, "bin/python")
@@ -218,26 +221,7 @@ def submit_lpjml(
                     f"venv path contains no python binary at '{python_path}'."
                 )
 
-        bash_script = f"""#!/bin/bash
-
-# Define the path to the config file
-config_file="{config_file}"
-
-# Call the Python script with the config file as an argument
-{python_path} {couple_to} $config_file
-"""
-
-        couple_file = os.path.join(
-            config.get_output_folder(ensure=True), "copan_lpjml.sh"
-        )
-
-        with open(couple_file, "w") as file:
-            file.write(bash_script)
-
-        # Change the permissions of the file to make it executable
-        run(["chmod", "+x", couple_file])
-
-        submit_args.extend(["-couple", couple_file])
+        submit_args.extend(["-couple", f"{python_path} {couple_to} {config_file}"])
 
     if modules:
         submit_args.extend(["-modules", modules])
