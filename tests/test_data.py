@@ -1,6 +1,8 @@
 """Test the LPJmLData class."""
 
+import math
 import numpy as np
+import pytest
 
 from pycoupler.data import (
     read_data,
@@ -10,6 +12,7 @@ from pycoupler.data import (
     LPJmLInputType,
     append_to_dict,
 )
+from tests.utils import ClmHeader, clm_file
 
 
 def test_read_data(test_path):
@@ -97,38 +100,60 @@ def test_metadata(test_path):
     assert meta_soil_dict == check_meta_soil_dict
 
 
-def test_read_header(test_path):
-
-    soil_header = read_header(
-        f"{test_path}/data/input/soil_netherlands.clm", to_dict=True
-    )
-    check_soil_header = {
-        "name": "LPJSOIL",
-        "header": {
-            "version": 3,
-            "order": 1,
-            "firstyear": 1901,
+@pytest.fixture
+def clm_file_versions(request, sim_inputs):
+    new_clm_file = sim_inputs / "test_clm.clm"
+    with new_clm_file.open("wb") as f:
+        header: ClmHeader = {
+            "name": "LPJGRID",
+            "version": request.param[0],
+            "firstyear": 1900,
             "nyear": 1,
-            "firstcell": 0,
-            "ncell": 21,
             "nbands": 1,
-            "cellsize_lon": 0.5,
-            "scalar": 1.0,
-            "cellsize_lat": 0.5,
-            "datatype": 0,
-            "nstep": 1,
-            "timestep": 1,
-        },
-        "endian": "little",
-    }
-    assert soil_header == check_soil_header
+            "ncell": 10,
+            "scalar": 4.2,
+            "timestep": 7,
+            "datatype": 3,
+        }
+        f.write(
+            clm_file(header, big_endian=request.param[1], data=[0.01] * header["ncell"])
+        )
+    return new_clm_file
 
-    append_to_dict(soil_header, {"test": "check"})
-    assert soil_header["test"] == "check"
 
-    grid_header = read_header(f"{test_path}/data/input/coord_netherlands.clm")
+@pytest.mark.parametrize(
+    ["clm_file_versions", "expected_version", "expected_endianness"],
+    [((i, b), i, b) for b in [True, False] for i in range(1, 5)],
+    indirect=["clm_file_versions"],
+)
+def test_read_header(request, clm_file_versions, expected_version, expected_endianness):
+    header: dict[str, str | ClmHeader] = read_header(clm_file_versions, to_dict=True)
+
+    assert header["name"] == "LPJGRID"
+    assert header["header"]["version"] == expected_version
+    assert header["header"]["firstyear"] == 1900
+    assert header["header"]["nyear"] == 1
+    assert header["header"]["nbands"] == 1
+    assert header["header"]["ncell"] == 10
+    assert header["endian"] == "big" if expected_endianness else "little"
+
+    assert math.isclose(
+        header["header"]["scalar"],
+        (4.2 if expected_version >= 2 else 1.0),
+        rel_tol=1e-4,
+    )
+    assert header["header"]["timestep"] == 7 if expected_version >= 4 else 1
+    assert header["header"]["datatype"] == 3 if expected_version >= 3 else 1
+
+    append_to_dict(header, {"test": "check"})
+    assert header["test"] == "check"
+
+    grid_header = read_header(clm_file_versions)
     assert grid_header.__class__.__name__ == "LPJmLMetaData"
-    assert get_headersize(f"{test_path}/data/input/coord_netherlands.clm") == 43
+    assert (
+        get_headersize(clm_file_versions)
+        == len(header["name"]) + 7 * 4 + (expected_version - 1) * 8
+    )
 
 
 def test_lpjmlinputtype(test_path):
