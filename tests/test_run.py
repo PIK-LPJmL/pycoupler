@@ -10,12 +10,15 @@ class TestLpjSubmit:
     sclass = "short"
     ntasks = 256
     wtime = "00:16:10"
-    couple_script = "/some/path/to/script.py"
+
+    @pytest.fixture
+    def couple_script(self, sim_path):
+        script_path = sim_path / "model.py"
+        script_path.touch()
+        return script_path
 
     @pytest.fixture(autouse=True)
     def mock_lpjsubmit(self, fp, sim_path, request):
-        # We expect chmod to actually modify permissions
-        fp.pass_command([fp.program("chmod"), "+x", fp.any(min=1, max=1)])
         if getattr(request, "param", None) == "no mocking":
             return
         # Register a fake process for lpjsubmit
@@ -64,7 +67,7 @@ class TestLpjSubmit:
     def submit(
         self,
         mock_venv,
-        sim_path,
+        couple_script,
         config_coupled_json,
         request,
     ):
@@ -74,7 +77,7 @@ class TestLpjSubmit:
             sclass=self.sclass,
             ntasks=self.ntasks,
             wtime=self.wtime,
-            couple_to=self.couple_script,
+            couple_to=couple_script,
             venv_path=mock_venv,
         )
 
@@ -99,8 +102,18 @@ class TestLpjSubmit:
         # The test does nothing, we expect the fail in the fixtures
         pass
 
-    def test_command(self, sim_path, config_coupled_json, fp, submit):
-        run_script_path = sim_path / "output/coupled_test/copan_lpjml.sh"
+    @pytest.mark.parametrize(
+        "mock_venv",
+        [
+            "working",
+            pytest.param("broken", marks=pytest.mark.xfail(raises=FileNotFoundError)),
+            "none",
+        ],
+        indirect=True,
+    )
+    def test_command(
+        self, sim_path, config_coupled_json, fp, mock_venv, couple_script, submit
+    ):
         assert (
             fp.call_count(
                 [
@@ -117,7 +130,7 @@ class TestLpjSubmit:
                     "-wtime",
                     self.wtime,
                     "-couple",
-                    str(run_script_path),
+                    f"{f"{mock_venv}/bin/python" if mock_venv else sys.executable} {couple_script} {config_coupled_json}",
                     str(self.ntasks),
                     config_coupled_json,
                 ]
@@ -130,31 +143,3 @@ class TestLpjSubmit:
             )
             == 1
         ), "sbatch should be called exactly once with correct parameters"
-
-    @pytest.mark.parametrize(
-        "mock_venv",
-        [
-            "working",
-            pytest.param("broken", marks=pytest.mark.xfail(raises=FileNotFoundError)),
-            "none",
-        ],
-        indirect=True,
-    )
-    def test_run_script(
-        self, sim_path, config_coupled_json, mock_venv, request, submit
-    ):
-        run_script_path = sim_path / "output/coupled_test/copan_lpjml.sh"
-        assert run_script_path.is_file(), "run script should have been created"
-        assert (
-            run_script_path.stat().st_mode & 0o0100
-        ), "run script should be executable"
-        with run_script_path.open("r") as f:
-            assert f.read() == f"""#!/bin/bash
-
-# Define the path to the config file
-config_file="{config_coupled_json}"
-
-# Call the Python script with the config file as an argument
-{f"{mock_venv}/bin/python" if mock_venv else sys.executable} {self.couple_script} \
-$config_file
-"""

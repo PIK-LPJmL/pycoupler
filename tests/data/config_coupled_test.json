@@ -2,6 +2,8 @@
   "sim_name": "coupled_test",
   "sim_id": "lpjml",
   "coupled_model": "copan:CORE",
+  "coupled_host": "0.0.0.0",
+  "coupled_port": 2224,
   "start_coupling": 2023,
   "version": "5.8",
   "random_prec": true,
