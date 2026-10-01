@@ -186,7 +186,7 @@ class LpjmlConfig(SubConfig):
         detach: bool = False,
         # pyright: ignore[reportExplicitAny]
         subprocess_args: dict[str, Any] = {},
-    ) -> CompletedProcess[bytes] | Popen[str]:
+    ) -> CompletedProcess[str] | CompletedProcess[bytes] | Popen[str] | Popen[bytes]:
         """Runs the LPJmL model binaries in the configured environment
 
         Parameters
@@ -233,7 +233,6 @@ class LpjmlConfig(SubConfig):
         if detach:
             return Popen([command, *args], **subprocess_args)
         else:
-            # pyright: ignore[reportExplicitAny]
             return run_subprocess([command, *args], **(default_args | subprocess_args))
 
     def get_runtime_env(self, ensure_paths=True):
@@ -1474,10 +1473,10 @@ class CoupledConfig(SubConfig):
 
         for key, value in self.__dict__.items():
             if isinstance(value, SubConfig):
-                summary += f"""{'  ' * sub_repr}* {key}: {
-                    value.__repr__(
-                        sub_repr + 1, order + 1
-                    )}""".strip() + spacing
+                summary += (
+                    f"""{'  ' * sub_repr}* {key}: {value.__repr__(sub_repr + 1, order + 1)}""".strip()
+                    + spacing
+                )
             else:
                 summary += (
                     f"{'  ' * sub_repr}* {key:<20} {value}".strip() + spacing
