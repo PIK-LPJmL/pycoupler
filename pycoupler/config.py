@@ -258,6 +258,16 @@ class LpjmlConfig(SubConfig):
             return run_subprocess([*command, *args], **(default_args | subprocess_args))
 
     def use_container(self, container_path: Path, apptainer_args: list[str] = ["-s"]):
+        """Run LPJmL and all utils packaged in an apptainer container.
+        This assumes the container has been built with the official definition file.
+
+        Parameters
+        ----------
+        container_path
+            Path where the container is located.
+        apptainer_args, optional
+            additional arguments to pass after the apptainer command, by default ["-s"]
+        """
         if container_path.is_file():
             container_meta_proc = run_subprocess(
                 ["apptainer", *apptainer_args, "inspect", container_path],
@@ -312,6 +322,18 @@ class LpjmlConfig(SubConfig):
             return True
 
     def get_runtime_env(self, ensure_paths=True):
+        """Generate a runtime environment dict for subprocess.run that
+        includes all necessary variables to run lpjml and related tools.
+
+        Parameters
+        ----------
+        ensure_paths, optional
+            Whether to create the directories if they are missing, by default True
+
+        Returns
+        -------
+            dict of environment variables to pass to subprocess.run
+        """
         return {
             "LPJROOT": getattr(self, "model_path", ""),
             "LPJINPATH": self.get_input_folder(),
@@ -321,12 +343,35 @@ class LpjmlConfig(SubConfig):
         }
 
     def get_output_folder(self, ensure: bool = False) -> str:
+        """Get the output folder based on the config
+
+        Parameters
+        ----------
+        ensure, optional
+            Whether to create the directories if they are missing, by default False
+
+        Returns
+        -------
+            Output folder path as string
+        """
         output_folder = os.path.join(self.sim_path, "output", self.sim_name)
         if ensure:
             os.makedirs(output_folder, exist_ok=True)
         return output_folder
 
     def get_datafile_from_input(self, input: SubConfig) -> str:
+        """Gets the path to the data given an input config object.
+        Reads the meta file to get the path if required.
+
+        Parameters
+        ----------
+        input
+            The input config object.
+
+        Returns
+        -------
+            Path to the data file.
+        """
         if isinstance(input, SubConfig):
             # sometimes, dicts are also passed to the method, so we harmonize here
             # (until #18 is implemented)
@@ -344,6 +389,17 @@ class LpjmlConfig(SubConfig):
             return self.get_input_filepath(input["name"])
 
     def get_input_filepath(self, input_file_name: str) -> str:
+        """Gets an absolute path to for input file name.
+
+        Parameters
+        ----------
+        input_file_name
+            File name or path that might be relative to inpath or an absolute path.
+
+        Returns
+        -------
+            Absolute path to input file
+        """
         return (
             input_file_name
             if os.path.isfile(input_file_name)
@@ -351,6 +407,14 @@ class LpjmlConfig(SubConfig):
         )
 
     def get_input_folder(self) -> str:
+        """Get the input folder based on the config.
+        If none is set up in the config, it uses the
+        LPJINPATH environment variable, or warns, if nothing is avilable.
+
+        Returns
+        -------
+            Path to the input folder.
+        """
         input_path = ""
 
         if self.inpath:
@@ -376,12 +440,31 @@ class LpjmlConfig(SubConfig):
         return input_path
 
     def get_restart_folder(self, ensure: bool = False) -> str:
+        """Get the restart folder based on the config
+
+        Parameters
+        ----------
+        ensure, optional
+            Whether to create the directories if they are missing, by default False
+
+        Returns
+        -------
+            restart folder path as string
+        """
         restart_folder = os.path.join(self.sim_path, "restart")
         if ensure:
             os.makedirs(restart_folder, exist_ok=True)
         return restart_folder
 
     def get_bind_paths(self) -> list[Path]:
+        """Collect the paths which need to be accessible to LPJmL and should
+        be mounted in a container. The paths should be unique and not contain
+        sub-paths which are already available.
+
+        Returns
+        -------
+            List of Paths to be bound.
+        """
         binds = []
         input_folder = self.get_input_folder()
         output_folder = self.get_output_folder()
@@ -1479,6 +1562,7 @@ def read_config(
         LPJML_CONTAINER environment variable. It then runs the command for the
         C preprocessor in the container.
         If a Path, parse inside the container at the given path.
+        Automatically calls use_container on the resulting config object.
 
     Returns
     -------
