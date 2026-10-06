@@ -234,21 +234,19 @@ def test_read_config_no_json(
             f.write(file_content)
 
     # Register C preprocessor
-    def cpp_stdout(in_container: bool):
-        if file_content is None and not (
-            file_name == "exists_in_container.cjson" and in_container
-        ):
-            return f"""cc1: fatal error: {config_file}: No such file or directory
-compilation terminated.
-"""
-        if file_content != "test":
+    def cpp_stdout(in_container=False):
+        if in_container and file_name == "exists_in_container.cjson":
+            return '{"test": "test"}'
+        elif not file_content:
+            return ""
+        elif file_content != "test":
             return '{"test": "test"}'
         return "test"
 
     cpp_return = 0 if file_content else 1
     fp.register(
         [fp.program("cpp"), "-P", fp.any()],
-        stdout=cpp_stdout(False),
+        stdout=cpp_stdout(),
         returncode=cpp_return,
     )
 
@@ -256,12 +254,28 @@ compilation terminated.
         config = read_config(config_file)
         assert config.test == "test"
 
-    container_name = "lpjml_container.sif"
-    monkeypatch.setenv("LPJML_CONTAINER", container_name)
+    container_name = model_path / "lpjml_container.sif"
+    container_name.touch()
+    monkeypatch.setenv("LPJML_CONTAINER", str(container_name))
     fp.register(
         [fp.program("apptainer"), "-s", "exec", container_name, "cpp", "-P", fp.any()],
         stdout=cpp_stdout(True),
+        stderr=(
+            """cc1: fatal error: {config_file}: No such file or directory
+compilation terminated.
+"""
+            if file_name == "does_not_exists.cjson"
+            else ""
+        ),
         returncode=0 if file_name == "exists_in_container.cjson" else cpp_return,
+    )
+    fp.register(
+        [fp.program("apptainer"), "-s", "inspect", container_name],
+        stdout="""
+org.label-schema.vcs-ref: 85d810b2855d4557bf8285f2d54d013580f3a7ac
+org.label-schema.vcs-url: https://github.com/PIK-LPJmL/lpjml
+org.label-schema.vendor: Potsdam Institute for Climate Impact Research (PIK)
+org.label-schema.version: 6.1.7""",
     )
     with nullcontext() if file_name == "exists_in_container.cjson" else expected_error:
         config = read_config(config_file, parse_in_container=True)
@@ -269,7 +283,7 @@ compilation terminated.
 
     fp.register(
         [fp.program("cpp"), "-P", fp.any()],
-        stdout=cpp_stdout(False),
+        stdout=cpp_stdout(),
         returncode=cpp_return,
     )
     with expected_error:

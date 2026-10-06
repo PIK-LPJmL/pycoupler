@@ -16,6 +16,7 @@ from subprocess import (
 from typing import Any
 from ruamel.yaml import YAML
 from packaging.version import Version
+from packaging.specifiers import SpecifierSet
 
 from pycoupler.utils import read_json, get_countries, create_subdirs, detect_io_type
 from pycoupler.data import read_header
@@ -220,22 +221,119 @@ class LpjmlConfig(SubConfig):
         if getattr(self, "model_path", None):
             if not os.path.exists(self.model_path):
                 raise FileNotFoundError("The given model_path does not exist.")
-            command = os.path.join(self.model_path, "bin", binary)
+            command = [os.path.join(self.model_path, "bin", binary)]
+        elif self.container:
+            if not Path(self.container.path).is_file():
+                raise FileNotFoundError("The given container path does not exist.")
+            apptainer_prefix = [
+                "apptainer",
+                *self.container.apptainer_args,
+                "exec",
+                self.container.path,
+            ]
+            which = run_subprocess(
+                apptainer_prefix + ["command", "-v", binary],
+                check=False,
+                capture_output=True,
+                text=True,
+            )
+            if which.returncode == 0:
+                command = apptainer_prefix + [binary]
+            else:
+                raise ValueError(
+                    f"The tool '{binary}' is not available in the container."
+                )
         else:
             # If the model_path was not set, we expect the binaries to be added to the PATH
-            command = shutil.which(binary)
+            command = [shutil.which(binary)]
             logger.debug(f'Using {binary} found at "{command}"')
-            if not command:
+            if not command[0]:
                 raise ValueError(
-                    f"The tool '{binary}' is not available in the PATH and no model_path was given."
+                    f"The tool '{binary}' is not available in the PATH and no model_path or container was given."
                 )
 
         if detach:
-            return Popen([command, *args], **subprocess_args)
+            return Popen([*command, *args], **subprocess_args)
         else:
-            return run_subprocess([command, *args], **(default_args | subprocess_args))
+            return run_subprocess([*command, *args], **(default_args | subprocess_args))
+
+    def use_container(self, container_path: Path, apptainer_args: list[str] = ["-s"]):
+        """Run LPJmL and all utils packaged in an apptainer container.
+        This assumes the container has been built with the official definition file.
+
+        Parameters
+        ----------
+        container_path
+            Path where the container is located.
+        apptainer_args, optional
+            additional arguments to pass after the apptainer command, by default ["-s"]
+        """
+        if container_path.is_file():
+            container_meta_proc = run_subprocess(
+                ["apptainer", *apptainer_args, "inspect", container_path],
+                check=True,
+                capture_output=True,
+                text=True,
+            )
+
+            vcs_ref_match = re.search(
+                "org.label-schema.vcs-ref: (.*)", container_meta_proc.stdout
+            )
+            vcs_ref = vcs_ref_match.group(1) if vcs_ref_match else ""
+            version_match = re.search(
+                "org.label-schema.version: (.*)", container_meta_proc.stdout
+            )
+            version = version_match.group(1) if version_match else ""
+            self.container = SubConfig(
+                {
+                    "path": str(container_path),
+                    "vcs_ref": vcs_ref,
+                    "apptainer_args": apptainer_args,
+                }
+            )
+            if self.check_version(
+                f"~={Version(version).major}.{Version(version).minor}"
+            ):
+                # compatible versions, write version to config
+                self.version = version
+            else:
+                raise ValueError(
+                    f"The container version ('{version}') is incompatible with the one specified in the config ('{self.version}')."
+                )
+
+    def check_version(self, version_specifier: str) -> bool:
+        """Check if the version in the config is compatible with the given specifier.
+
+        Parameters
+        ----------
+        version_specifier
+            A string containing version specifier according to https://packaging.python.org/en/latest/specifications/version-specifiers/#id5
+            e.g.: ~=6.1
+
+        Returns
+        -------
+            True, if the specifier fits the config or no version had been set.
+        """
+        version = getattr(self, "version", "")
+        if version:
+            return Version(version) in SpecifierSet(version_specifier)
+        else:
+            # No version was set in the config, so all versions are valid
+            return True
 
     def get_runtime_env(self, ensure_paths=True):
+        """Generate a runtime environment dict for subprocess.run that
+        includes all necessary variables to run lpjml and related tools.
+
+        Parameters
+        ----------
+        ensure_paths, optional
+            Whether to create the directories if they are missing, by default True
+
+        Returns
+        -------
+            dict of environment variables to pass to subprocess.run
+        """
         return {
             "LPJROOT": getattr(self, "model_path", ""),
             "LPJINPATH": self.get_input_folder(),
@@ -245,14 +343,37 @@ class LpjmlConfig(SubConfig):
         }
 
     def get_output_folder(self, ensure: bool = False) -> str:
+        """Get the output folder based on the config
+
+        Parameters
+        ----------
+        ensure, optional
+            Whether to create the directories if they are missing, by default False
+
+        Returns
+        -------
+            Output folder path as string
+        """
         output_folder = os.path.join(self.sim_path, "output", self.sim_name)
         if ensure:
             os.makedirs(output_folder, exist_ok=True)
         return output_folder
 
     def get_datafile_from_input(self, input: SubConfig) -> str:
+        """Gets the path to the data given an input config object.
+        Reads the meta file to get the path if required.
+
+        Parameters
+        ----------
+        input
+            The input config object.
+
+        Returns
+        -------
+            Path to the data file.
+        """
         if isinstance(input, SubConfig):
-            # sometimes, dicts are also passed to the method, to we harmonize here
+            # sometimes, dicts are also passed to the method, so we harmonize here
             # (until #18 is implemented)
             input = input.to_dict()
         if input.get("fmt") == "meta":
@@ -268,6 +389,17 @@ class LpjmlConfig(SubConfig):
             return self.get_input_filepath(input["name"])
 
     def get_input_filepath(self, input_file_name: str) -> str:
+        """Gets an absolute path to for input file name.
+
+        Parameters
+        ----------
+        input_file_name
+            File name or path that might be relative to inpath or an absolute path.
+
+        Returns
+        -------
+            Absolute path to input file
+        """
         return (
             input_file_name
             if os.path.isfile(input_file_name)
@@ -275,6 +407,14 @@ class LpjmlConfig(SubConfig):
         )
 
     def get_input_folder(self) -> str:
+        """Get the input folder based on the config.
+        If none is set up in the config, it uses the
+        LPJINPATH environment variable, or warns, if nothing is avilable.
+
+        Returns
+        -------
+            Path to the input folder.
+        """
         input_path = ""
 
         if self.inpath:
@@ -284,7 +424,7 @@ class LpjmlConfig(SubConfig):
                 )
             input_path = self.inpath
             logger.debug(f"Using config.inpath '{self.inpath}' as input path.")
-        elif os.environ["LPJINPATH"]:
+        elif "LPJINPATH" in os.environ:
             if not os.path.isdir(os.environ["LPJINPATH"]):
                 raise FileNotFoundError(
                     "The input path, set in `LPJINPATH` does not exist."
@@ -300,24 +440,43 @@ class LpjmlConfig(SubConfig):
         return input_path
 
     def get_restart_folder(self, ensure: bool = False) -> str:
+        """Get the restart folder based on the config
+
+        Parameters
+        ----------
+        ensure, optional
+            Whether to create the directories if they are missing, by default False
+
+        Returns
+        -------
+            restart folder path as string
+        """
         restart_folder = os.path.join(self.sim_path, "restart")
         if ensure:
             os.makedirs(restart_folder, exist_ok=True)
         return restart_folder
 
     def get_bind_paths(self) -> list[Path]:
+        """Collect the paths which need to be accessible to LPJmL and should
+        be mounted in a container. The paths should be unique and not contain
+        sub-paths which are already available.
+
+        Returns
+        -------
+            List of Paths to be bound.
+        """
         binds = []
         input_folder = self.get_input_folder()
         output_folder = self.get_output_folder()
         restart_folder = self.get_restart_folder()
         if input_folder:
-            binds.append(Path(input_folder))
+            binds.append(Path(input_folder).resolve())
         if output_folder:
-            binds.append(Path(output_folder))
+            binds.append(Path(output_folder).resolve())
         if restart_folder:
-            binds.append(Path(restart_folder))
+            binds.append(Path(restart_folder).resolve())
         if self.sim_path:
-            binds.append(Path(self.sim_path))
+            binds.append(Path(self.sim_path).resolve())
 
         for o in self.output:
             output_file_path = Path(o.file.name)
@@ -967,10 +1126,10 @@ class LpjmlConfig(SubConfig):
 
             getcountry_args = []
 
-            if Version(self.version) >= Version("5.10.0"):
+            if self.check_version(">=5.10.0"):
                 getcountry_args += ["-json"]
 
-            if Version(self.version) < Version("6.1.3"):
+            if self.check_version("<6.1.3"):
                 # Version 6.1.3 changes the getcountry API to read country data from
                 # the meta file and removes the grid file
                 # (see https://gitlab.pik-potsdam.de/lpjml/LPJmL_internal/-/merge_requests/289)
@@ -1022,7 +1181,7 @@ class LpjmlConfig(SubConfig):
             self.run_model_bin(
                 "regridsoil",
                 # -json added in 4addfab0a63ed77126e4a436679c1e1d2d07b05e
-                *(["-json"] if Version(self.version) >= Version("5.9.5") else []),
+                *(["-json"] if self.check_version(">=5.9.5") else []),
                 grid_file,
                 country_grid_file,
                 lakes_file,
@@ -1309,7 +1468,7 @@ def parse_config(
     spin_up=False,
     macros=None,
     config_class=None,
-    in_container=False,
+    in_container: Path | None = None,
 ):
     """
     Precompile lpjml_config.json and return LpjmlConfig object or dict.
@@ -1328,10 +1487,8 @@ def parse_config(
         Macro(s) to provide in the form of "-DMACRO" or list of macros.
     config_class : class, optional
         Class of config object to be returned. If None, returns dict.
-    in_container : bool, default False
-        If True, expects the path to be inside the LPJML container given in the
-        LPJML_CONTAINER environment variable. It then runs the command for the
-        C preporcessor in the container.
+    in_container : path, optional, default None
+        If given, parse inside the container at the given path.
 
     Returns
     -------
@@ -1342,7 +1499,7 @@ def parse_config(
     # precompile command
     cmd = ["cpp", "-P"]
     if in_container:
-        cmd = ["apptainer", "-s", "exec", os.environ["LPJML_CONTAINER"]] + cmd
+        cmd = ["apptainer", "-s", "exec", str(in_container)] + cmd
 
     # add arguments
     if not spin_up:
@@ -1355,16 +1512,18 @@ def parse_config(
     cmd.append(file_name)
 
     # Subprocess call of cmd - return stdout
-    json_str = run_subprocess(cmd, capture_output=True)
+    json_str = run_subprocess(cmd, capture_output=True, text=True)
 
     if json_str.returncode != 0:
-        if re.match(
-            "cc1: fatal error: .*: No such file or directory", json_str.stdout.decode()
+        if re.search(
+            "cc1: fatal error: .*: No such file or directory", json_str.stderr
         ):
             raise FileNotFoundError(
                 f"Config file '{file_name}' does not exists{" in the container" if in_container else ""}."
             )
         else:
+            print(json_str.stdout)
+            print(json_str.stderr)
             json_str.check_returncode()
 
     # Convert to dict
@@ -1379,7 +1538,7 @@ def read_config(
     spin_up=False,
     macros=None,
     to_dict=False,
-    parse_in_container=False,
+    parse_in_container: bool | Path = False,
 ):  # noqa
     """
     Read LPJmL configuration files and return as LpjmlConfig object or dict.
@@ -1398,10 +1557,12 @@ def read_config(
     to_dict : bool, default False
         If True, a dictionary is returned. If False, an LpjmlConfig object is
         returned.
-    parse_in_container : bool, default False
+    parse_in_container : bool or str, default False
         If True, expects the path to be inside the LPJML container given in the
         LPJML_CONTAINER environment variable. It then runs the command for the
-        C preporcessor in the container.
+        C preprocessor in the container.
+        If a Path, parse inside the container at the given path.
+        Automatically calls use_container on the resulting config object.
 
     Returns
     -------
@@ -1417,12 +1578,23 @@ def read_config(
         config = None
 
     if parse_in_container:
+        if not isinstance(parse_in_container, Path):
+            if "LPJML_CONTAINER" in os.environ:
+                parse_in_container = Path(os.environ["LPJML_CONTAINER"])
+            else:
+                raise ValueError(
+                    "No container path given, but LPJML_CONTAINER is not set."
+                )
+        if not parse_in_container.is_file():
+            raise FileNotFoundError(
+                f"The container file '{parse_in_container}' does not exists."
+            )
         lpjml_config = parse_config(
             file_name,
             spin_up=spin_up,
             macros=macros,
             config_class=config,
-            in_container=True,
+            in_container=parse_in_container,
         )
     else:
         # Try to read file as json
@@ -1458,6 +1630,8 @@ def read_config(
             convert_to_coupled_config(lpjml_config.coupled_config.__dict__)
 
         lpjml_config = LpjmlConfig(lpjml_config)
+        if parse_in_container:
+            lpjml_config.use_container(parse_in_container)
 
     if model_path is not None:
         if to_dict:
