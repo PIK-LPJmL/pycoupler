@@ -157,6 +157,8 @@ def submit_lpjml(
         Environment modules to load for the SLURM job separated by spaces.
         For hierarchical modules, observe the necessary module order.
         E.g.: 'apptainer gcc openmpi'
+    partition
+        SLURM partition to run on. You can see your SLURM partitions using `sinfo`.
 
     Returns
     -------

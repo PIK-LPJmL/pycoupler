@@ -1092,6 +1092,9 @@ class LpjmlConfig(SubConfig):
         if not os.path.exists(sim_path):
             raise FileNotFoundError(f"Path '{sim_path}' does not exist.")
 
+        generated_input_path = Path(sim_path) / "input"
+        generated_input_path.mkdir(exist_ok=True)
+
         # get available countries of LPJmL
         countries = get_countries("alpha-3")
 
@@ -1114,7 +1117,7 @@ class LpjmlConfig(SubConfig):
 
         # TODO: Mount in container!
         country_grid_file = (
-            f"{sim_path}/input/{country_filename}_{os.path.basename(grid_file)}"
+            generated_input_path / f"{country_filename}_{os.path.basename(grid_file)}"
         )
         # check if country specific input files already exist
         if (not os.path.isfile(country_grid_file) or overwrite) and not hasattr(
@@ -1166,7 +1169,7 @@ class LpjmlConfig(SubConfig):
         lakes_file = self.get_datafile_from_input(self.input.lakes)
 
         country_lakes_file = (
-            f"{sim_path}/input/{country_filename}_{os.path.basename(lakes_file)}"
+            generated_input_path / f"{country_filename}_{os.path.basename(lakes_file)}"
         )
 
         # check if country specific input files already exist
@@ -1210,7 +1213,8 @@ class LpjmlConfig(SubConfig):
             input_file = self.get_datafile_from_input(config_input)
 
             country_input_file = (
-                f"{sim_path}/input/{country_filename}_{os.path.basename(input_file)}"
+                generated_input_path
+                / f"{country_filename}_{os.path.basename(input_file)}"
             )
 
             regridded = False
@@ -1519,7 +1523,7 @@ def parse_config(
             "cc1: fatal error: .*: No such file or directory", json_str.stderr
         ):
             raise FileNotFoundError(
-                f"Config file '{file_name}' does not exists{" in the container" if in_container else ""}."
+                f"Config file '{file_name}' does not exists{' in the container' if in_container else ''}."
             )
         else:
             print(json_str.stdout)
@@ -1630,8 +1634,21 @@ def read_config(
             convert_to_coupled_config(lpjml_config.coupled_config.__dict__)
 
         lpjml_config = LpjmlConfig(lpjml_config)
+
         if parse_in_container:
             lpjml_config.use_container(parse_in_container)
+        elif model_path is not None:
+            version_file = Path(model_path) / "VERSION"
+            if version_file.is_file():
+                with version_file.open() as vf:
+                    version = Version(vf.read())
+                    if lpjml_config.check_version(f"~={version.major}.{version.minor}"):
+                        # Versions are compatible, write the exact version including patch in the config
+                        lpjml_config.version = str(version)
+                    else:
+                        raise ValueError(
+                            f"The LPJmL version ('{version}') is incompatible with the one specified in the config ('{lpjml_config.version}')."
+                        )
 
     if model_path is not None:
         if to_dict:
