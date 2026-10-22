@@ -1,0 +1,20 @@
+CITATION.cff
+  h_364405ec3f36af 1-8,10-11,14-15,18-19,22-24,26,28-30
+.python-version
+  h_364405ec3f36af 1
+.autohooks/update_citations.py
+  h_364405ec3f36af 1-131
+pyproject.toml
+  h_364405ec3f36af 48,65-67,79
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.7.5",
+  "base_commit_sha": "cf8f9b37122a6b10125f2d8307b72f5499c9fc30",
+  "prompts": {},
+  "humans": {
+    "h_364405ec3f36af": {
+      "author": "Lorenz Sieben <sieben@gea.mpg.de>"
+    }
+  }
+}
