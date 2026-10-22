@@ -1,18 +1,12 @@
-[build-system]
-requires = [
-    "hatchling>=1.8.0",
-    "hatch-vcs"
-]
-build-backend = "hatchling.build"
-
 [project]
 name = "pycoupler"
-dynamic = ["version"]
+version = "1.7.1"
 description = "dynamic model coupling of LPJmL"
 readme = "README.md"
 license = {file = "LICENSE.md"}
 authors = [
     { name = "Jannes Breier", email = "jannes.breier@pik-potsdam.de" },
+    { name = "Lorenz Sieben", email = "sieben@gea.mpg.de" },
 ]
 requires-python = ">=3.9"
 keywords = ["DGVM", "ABM", "model coupling", "LPJmL", "copan:CORE"]
@@ -40,25 +34,36 @@ dependencies = [
     "Levenshtein>=0.12.2"
 ]
 
-[project.optional-dependencies]
+[dependency-groups]
 dev = [
     "pytest",
     "pytest-cov",
     "pytest-subprocess",
     "sphinx",
     "black",
-    "flake8"
+    "flake8",
+    "autohooks>=26.2.0",
+    "autohooks-plugin-flake8>=23.10.0",
+    "autohooks-plugin-black>=23.10.0",
+    "pyyaml>=6.0.3",
 ]
 
 [project.urls]
-Homepage = "https://github.com/PIK-LPJmL/pycoupler"
-Issues = "https://github.com/PIK-LPJmL/pycoupler/issues"
-Documentation = "https://github.com/PIK-LPJmL/pycoupler/wiki"
-Repository = "https://github.com/PIK-LPJmL/pycoupler"
+homepage = "https://github.com/PIK-LPJmL/pycoupler"
+issues = "https://github.com/PIK-LPJmL/pycoupler/issues"
+documentation = "https://github.com/PIK-LPJmL/pycoupler/wiki"
+repository = "https://github.com/PIK-LPJmL/pycoupler"
 
-[tool.aliases]
-test = "pytest"
-docs = "sphinx-build -b html ./docs ./docs/_build"
+[build-system]
+requires = ["uv_build>=0.12.10,<0.13"]
+build-backend = "uv_build"
+
+[tool.uv.build-backend]
+module-name="pycoupler"
+module-root=""
+
+[tool.uv.dependency-groups]
+dev = {requires-python = ">=3.11"}
 
 [tool.pytest.ini_options]
 minversion = "6.0"
@@ -69,20 +74,6 @@ line-length = 88
 target-version = ['py37', 'py38', 'py39', 'py310']
 extend-exclude = "pycoupler/_version.py"
 
-
-# [project.scripts]
-# pycoupler-cli = "pycoupler.cli:main"
-
-[tool.hatch.version]
-source = "vcs"
-fallback_version = "1.5.6"
-
-[tool.hatch.version.raw-options]
-local_scheme = "no-local-version"
-
-[tool.hatch.metadata]
-allow-direct-references = true
-
-[tool.hatch.build.hooks.vcs]
-version-file = "pycoupler/_version.py"
-template = "__version__ = '{version}'"
+[tool.autohooks]
+mode = "uv"
+pre-commit = ["autohooks.plugins.black", "autohooks.plugins.flake8", "update_citations"]
