@@ -45,6 +45,7 @@ dev = [
     "autohooks>=26.2.0",
     "autohooks-plugin-flake8>=23.10.0",
     "autohooks-plugin-black>=23.10.0",
+    "pyyaml>=6.0.3",
 ]
 
 [project.urls]
@@ -61,6 +62,9 @@ build-backend = "uv_build"
 module-name="pycoupler"
 module-root=""
 
+[tool.uv.dependency-groups]
+dev = {requires-python = ">=3.11"}
+
 [tool.pytest.ini_options]
 minversion = "6.0"
 addopts = "--strict-markers"
@@ -72,4 +76,4 @@ extend-exclude = "pycoupler/_version.py"
 
 [tool.autohooks]
 mode = "uv"
-pre-commit = ["autohooks.plugins.black", "autohooks.plugins.flake8"]
+pre-commit = ["autohooks.plugins.black", "autohooks.plugins.flake8", "update_citations"]
