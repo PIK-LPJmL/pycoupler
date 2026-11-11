@@ -1,25 +1,27 @@
-from typing import NotRequired, TypedDict
+from typing import TypedDict  # , NotRequired TODO: Was added in python 3.11
 import struct
 
 
 class ClmHeader(TypedDict):
-    name: NotRequired[str]
-    version: NotRequired[int]
-    order: NotRequired[int]
-    firstyear: NotRequired[int]
-    nyear: NotRequired[int]
-    firstcell: NotRequired[int]
-    ncell: NotRequired[int]
-    nbands: NotRequired[int]
-    cellsize_lon: NotRequired[float]
-    scalar: NotRequired[float]
-    cellsize_lat: NotRequired[float]
-    datatype: NotRequired[int]
-    nstep: NotRequired[int]
-    timestep: NotRequired[int]
+    name: str  # NotRequired[str]
+    version: int  # NotRequired[int]
+    order: int  # NotRequired[int]
+    firstyear: int  # NotRequired[int]
+    nyear: int  # NotRequired[int]
+    firstcell: int  # NotRequired[int]
+    ncell: int  # NotRequired[int]
+    nbands: int  # NotRequired[int]
+    cellsize_lon: float  # NotRequired[float]
+    scalar: float  # NotRequired[float]
+    cellsize_lat: float  # NotRequired[float]
+    datatype: int  # NotRequired[int]
+    nstep: int  # NotRequired[int]
+    timestep: int  # NotRequired[int]
 
 
-def clm_file(header: ClmHeader, big_endian: bool = False, data: list[int | float] = []):
+def clm_file(
+    header: ClmHeader, big_endian: bool = False, data=[]
+):  # data: list[int | float]
     version = header.get("version", 4)
     name = header.get("name", "LPJGRID")
 

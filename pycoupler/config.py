@@ -186,7 +186,7 @@ class LpjmlConfig(SubConfig):
         detach: bool = False,
         # pyright: ignore[reportExplicitAny]
         subprocess_args: dict[str, Any] = {},
-    ) -> CompletedProcess[str] | CompletedProcess[bytes] | Popen[str] | Popen[bytes]:
+    ):  # -> CompletedProcess[str] | CompletedProcess[bytes] | Popen[str] | Popen[bytes]:
         """Runs the LPJmL model binaries in the configured environment
 
         Parameters
@@ -1362,7 +1362,7 @@ def parse_config(
             "cc1: fatal error: .*: No such file or directory", json_str.stdout.decode()
         ):
             raise FileNotFoundError(
-                f"Config file '{file_name}' does not exists{" in the container" if in_container else ""}."
+                f"Config file '{file_name}' does not exists{' in the container' if in_container else ''}."
             )
         else:
             json_str.check_returncode()
