@@ -1,0 +1,22 @@
+.python-version
+  h_364405ec3f36af 1
+pycoupler/config.py
+  h_364405ec3f36af 189,1365
+pycoupler/run.py
+  h_364405ec3f36af 105-106,109-110,112-119,257
+tests/test_run.py
+  h_364405ec3f36af 133-134
+tests/utils.py
+  h_364405ec3f36af 1,6-19,22-24
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.7.6",
+  "base_commit_sha": "e1e4cd2eac840115c4e305ca85b7214b59f64715",
+  "prompts": {},
+  "humans": {
+    "h_364405ec3f36af": {
+      "author": "Lorenz Sieben <sieben@gea.mpg.de>"
+    }
+  }
+}
