@@ -102,19 +102,21 @@ def run_lpjml(config_file: str, std_to_file=False):
     return operate_lpjml(config_file, std_to_file, False)
 
 
+# TODO: Removed tpe hints for Python 3.9 support, should be changed back after upgrade of the base python version.
+# Because Python 3.9 doesn’t support type unions: https://bugs.python.org/issue42233
 def submit_lpjml(
     config_file,
-    group: str | None = None,
-    sclass: str | None = None,
+    group=None,  # str | None
+    sclass=None,  # str | None
     ntasks: int = 256,
-    wtime: str | None = None,
-    dependency: int | str | None = None,
-    blocking: str | None = None,
-    option: str | list[str] | None = None,
-    couple_to: str | Path | None = None,
-    venv_path: str | Path | None = None,
-    modules: str | None = None,
-    partition: str | None = None,
+    wtime=None,  # str | None
+    dependency=None,  # int | str | None
+    blocking=None,  #  str | None
+    option=None,  # str | list[str] | None
+    couple_to=None,  # str | Path | None
+    venv_path=None,  # str | Path | None
+    modules=None,  # str | None
+    partition=None,  # str | None
 ):
     """Submit LPJmL run to Slurm using `lpjsubmit` and a generated
     (class LpjmlConfig) config file.
@@ -252,7 +254,7 @@ def submit_lpjml(
         )
 
     job_control_file = job_control_file.rename(
-        job_control_file.with_stem(f"slurm_{getattr(config, "sim_name", "")}")
+        job_control_file.with_stem(f"slurm_{getattr(config, 'sim_name', '')}")
     )
 
     sbatch_cmd = ["sbatch"]

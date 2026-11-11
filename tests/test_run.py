@@ -130,7 +130,8 @@ class TestLpjSubmit:
                     "-wtime",
                     self.wtime,
                     "-couple",
-                    f"{f"{mock_venv}/bin/python" if mock_venv else sys.executable} {couple_script} {config_coupled_json}",
+                    (f"{mock_venv}/bin/python" if mock_venv else sys.executable)
+                    + f" {couple_script} {config_coupled_json}",
                     str(self.ntasks),
                     config_coupled_json,
                 ]
