@@ -1,0 +1,14 @@
+pyproject.toml
+  h_364405ec3f36af 74
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.7.6",
+  "base_commit_sha": "a69e9d877c9846280cf01b19714cd7f8b3f76ed1",
+  "prompts": {},
+  "humans": {
+    "h_364405ec3f36af": {
+      "author": "Lorenz Sieben <sieben@gea.mpg.de>"
+    }
+  }
+}
